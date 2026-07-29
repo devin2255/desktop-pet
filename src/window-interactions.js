@@ -71,7 +71,7 @@ function positionForAttachment(target, edge, anchor, petSize, insets, offset = 0
 function nextFallFrame(state, elapsedMs, floorY) {
   const seconds = Math.max(0, elapsedMs) / 1000;
   const velocity = state.velocity + 1800 * seconds;
-  const movement = Math.min(48, state.velocity * seconds + 1800 * seconds * seconds);
+  const movement = Math.min(48, state.velocity * seconds + 900 * seconds * seconds);
   const y = Math.min(floorY, state.y + movement);
   return { y: Math.round(y), velocity, landed: y >= floorY };
 }

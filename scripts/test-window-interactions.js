@@ -37,7 +37,7 @@ assert.deepStrictEqual(
   { x: 240, y: -70 }
 );
 assert.deepStrictEqual(nextFallFrame({ y: 0, velocity: 0 }, 100, 1000), {
-  y: 18, velocity: 180, landed: false
+  y: 9, velocity: 180, landed: false
 });
 assert.deepStrictEqual(nextFallFrame({ y: 990, velocity: 1000 }, 100, 1000), {
   y: 1000, velocity: 1180, landed: true
