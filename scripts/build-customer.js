@@ -136,7 +136,6 @@ function buildCustomer(options) {
       directories: { output: buildOutput },
       win: { icon: relativeIcon, target: ['portable'], signExecutable: false },
       portable: { artifactName: artifactBase + '-' + packageJson.version + '.${ext}' },
-      electronDist: 'node_modules/electron/dist',
       files: [
         'src/main-v3.js',
         'src/preload-v3.js',
@@ -154,7 +153,7 @@ function buildCustomer(options) {
     console.log('[4/5] 构建 Windows 便携版 EXE');
     const builderCli = path.join(projectRoot, 'node_modules', 'electron-builder', 'out', 'cli', 'cli.js');
     if (!fs.statSync(builderCli, { throwIfNoEntry: false })?.isFile()) throw new Error('找不到 electron-builder，请先运行 npm install');
-    const result = spawnSync(process.execPath, [builderCli, '--win', 'portable', '--config', configPath], { cwd: projectRoot, stdio: 'inherit' });
+    const result = spawnSync(process.execPath, [builderCli, '--win', 'portable', '--config', configPath, '--publish', 'never'], { cwd: projectRoot, stdio: 'inherit' });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error('electron-builder 构建失败');
 

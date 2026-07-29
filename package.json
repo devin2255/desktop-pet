@@ -15,8 +15,8 @@
     "test:regression": "node scripts/test-renderer-interaction.js && python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v",
     "validate:demo": "python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/xiaogou.petpack",
     "start": "electron .",
-    "pack": "electron-builder --dir",
-    "build": "electron-builder --win portable",
+    "pack": "electron-builder --dir --publish never",
+    "build": "electron-builder --win portable --publish never",
     "build:customer": "node scripts/build-customer.js"
   },
   "devDependencies": {
@@ -37,7 +37,6 @@
     "portable": {
       "artifactName": "Desktop-Pet-Player-${version}.${ext}"
     },
-    "electronDist": "node_modules/electron/dist",
     "files": [
       "src/main-v3.js",
       "src/preload-v3.js",
