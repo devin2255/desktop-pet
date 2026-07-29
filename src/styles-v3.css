@@ -1,0 +1,75 @@
+:root { color-scheme: light; font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif; user-select: none; }
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+body { -webkit-app-region: no-drag; }
+.pet { position: relative; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.pet.dragging { cursor: grabbing; }
+.pet-image {
+  position: absolute;
+  z-index: 2;
+  left: 5%;
+  bottom: 5px;
+  width: 90%;
+  height: calc(100% - 30px);
+  object-fit: contain;
+  object-position: center bottom;
+  transform: scale(var(--action-scale, 1));
+  transform-origin: center bottom;
+  pointer-events: none;
+  opacity: 0;
+  filter: drop-shadow(0 4px 4px rgba(65, 42, 22, 0.16));
+}
+.pet-image.ready { opacity: 1; }
+.state-walk-left .pet-image { transform: scaleX(-1) scale(var(--action-scale, 1)); }
+.ground {
+  position: absolute;
+  z-index: 1;
+  left: 18%;
+  bottom: 6px;
+  width: 64%;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(79, 51, 28, 0.12);
+  filter: blur(4px);
+  pointer-events: none;
+}
+.state-sleep .ground { width: 76%; left: 12%; opacity: 0.55; }
+.bubble {
+  position: absolute;
+  z-index: 5;
+  top: 2px;
+  left: 50%;
+  max-width: 92%;
+  padding: 5px 8px;
+  border: 1px solid rgba(129, 89, 55, 0.2);
+  border-radius: 12px 12px 12px 4px;
+  background: rgba(255, 252, 245, 0.95);
+  box-shadow: 0 3px 12px rgba(77, 53, 30, 0.12);
+  color: #68462f;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, 4px) scale(0.96);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+}
+.bubble.visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.hearts { position: absolute; z-index: 4; inset: 0; pointer-events: none; }
+.heart {
+  position: absolute;
+  left: 58%;
+  top: 48%;
+  color: #e9848a;
+  font-size: 16px;
+  text-shadow: 0 2px 5px rgba(138, 62, 68, 0.2);
+  animation: float-heart 1.25s ease-out forwards;
+}
+@keyframes float-heart {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.6) rotate(-8deg); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--drift), -64px) scale(1.2) rotate(10deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heart { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Desktop Pet Maker"
+  short_description: "Turn pet photos into reusable animated petpack files"
+  default_prompt: "Use $desktop-pet-maker to turn the supplied pet photos into a validated animated .petpack."

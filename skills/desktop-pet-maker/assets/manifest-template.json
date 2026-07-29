@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "packageVersion": "1.0.0",
+  "id": "",
+  "name": "",
+  "description": "",
+  "personality": [],
+  "defaultSize": "small",
+  "preview": "preview.png",
+  "animations": {},
+  "behavior": {
+    "random": [
+      { "state": "walk", "weight": 50, "minDuration": 1500, "maxDuration": 4200 },
+      { "state": "sit", "weight": 20, "minDuration": 4200, "maxDuration": 6200 },
+      { "state": "reaction", "weight": 16, "minDuration": 2200, "maxDuration": 3400 },
+      { "state": "sleep", "weight": 14, "minDuration": 6800, "maxDuration": 11000 }
+    ]
+  }
+}
