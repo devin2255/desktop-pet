@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+import json
 from pathlib import Path
 
 
@@ -47,6 +48,30 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
         for value in ("private\\notes.txt", "../preview.png", "C:/preview.png"):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 petpack_tool.safe_relative(value)
+
+    def test_interaction_actions_validate_roles_animation_references_and_anchors(self) -> None:
+        with zipfile.ZipFile(self.fixture) as source:
+            manifest = json.loads(source.read("pet.json"))
+        manifest["interactionActions"] = {
+            "drag": {"action": "walk"},
+            "perch": {"action": "sit", "anchor": {"x": 0.5, "y": 0.7}},
+        }
+        petpack_tool.validate_manifest_shape(manifest)
+        manifest["interactionActions"]["perch"]["anchor"]["x"] = -0.01
+        with self.assertRaisesRegex(ValueError, "anchor"):
+            petpack_tool.validate_manifest_shape(manifest)
+        manifest["interactionActions"]["perch"]["anchor"]["x"] = 0.5
+        manifest["interactionActions"]["perch"]["action"] = "missing"
+        with self.assertRaisesRegex(ValueError, "unknown animation"):
+            petpack_tool.validate_manifest_shape(manifest)
+        manifest["interactionActions"]["perch"]["action"] = "sit"
+        manifest["interactionActions"]["unknown"] = {"action": "sit"}
+        with self.assertRaisesRegex(ValueError, "unsupported role"):
+            petpack_tool.validate_manifest_shape(manifest)
+        del manifest["interactionActions"]["unknown"]
+        manifest["interactionActions"]["perch"]["anchor"]["x"] = True
+        with self.assertRaisesRegex(ValueError, "anchor"):
+            petpack_tool.validate_manifest_shape(manifest)
 
 
 if __name__ == "__main__":

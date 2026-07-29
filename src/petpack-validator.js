@@ -5,6 +5,7 @@ const path = require('path');
 const AdmZip = require('adm-zip');
 
 const REQUIRED_ACTIONS = Object.freeze({ idle: 4, walk: 6, sit: 4, sleep: 4, reaction: 4 });
+const INTERACTION_ROLES = new Set(['drag', 'climb', 'perch', 'hang', 'fall', 'impact', 'recover']);
 const PET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const MAX_ARCHIVE_ENTRIES = 300;
 const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
@@ -87,6 +88,26 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       const canonical = frame.toLowerCase();
       if (uniqueFrames.has(canonical)) throw new Error(`${action} 包含重复帧路径`);
       uniqueFrames.add(canonical);
+    }
+  }
+
+  if (manifest.interactionActions !== undefined) {
+    if (!manifest.interactionActions || typeof manifest.interactionActions !== 'object' || Array.isArray(manifest.interactionActions)) {
+      throw new Error('interactionActions 必须是对象');
+    }
+    for (const [role, config] of Object.entries(manifest.interactionActions)) {
+      if (!INTERACTION_ROLES.has(role) || !config || typeof config !== 'object' || Array.isArray(config)) {
+        throw new Error('interactionActions 包含不支持的角色');
+      }
+      if (typeof config.action !== 'string' || !manifest.animations[config.action]) {
+        throw new Error(`interactionActions 引用了不存在的动画：${config.action}`);
+      }
+      if (config.anchor !== undefined) {
+        const { x, y } = config.anchor || {};
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) {
+          throw new Error(`interactionActions ${role} 的 anchor 必须位于 0..1`);
+        }
+      }
     }
   }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import stat
 import sys
@@ -13,6 +14,7 @@ from PIL import Image
 
 
 REQUIRED_ACTIONS = {"idle": 4, "walk": 6, "sit": 4, "sleep": 4, "reaction": 4}
+INTERACTION_ROLES = {"drag", "climb", "perch", "hang", "fall", "impact", "recover"}
 MAX_ARCHIVE_ENTRIES = 300
 MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 MAX_SINGLE_FILE_BYTES = 50 * 1024 * 1024
@@ -94,6 +96,33 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 raise ValueError(f"{action}: duplicate frame path")
             canonical_frames.add(canonical)
             frame_paths.append(relative.as_posix())
+
+    interaction_actions = manifest.get("interactionActions")
+    if interaction_actions is not None:
+        if not isinstance(interaction_actions, dict):
+            raise ValueError("interactionActions must be an object")
+        for role, config in interaction_actions.items():
+            if role not in INTERACTION_ROLES or not isinstance(config, dict):
+                raise ValueError("interactionActions contains an unsupported role")
+            action = config.get("action")
+            if not isinstance(action, str) or action not in animations:
+                raise ValueError("interactionActions references an unknown animation")
+            anchor = config.get("anchor")
+            if anchor is not None:
+                if not isinstance(anchor, dict):
+                    raise ValueError("interactionActions anchor must be an object")
+                x, y = anchor.get("x"), anchor.get("y")
+                if (
+                    not isinstance(x, (int, float))
+                    or isinstance(x, bool)
+                    or not math.isfinite(x)
+                    or not isinstance(y, (int, float))
+                    or isinstance(y, bool)
+                    or not math.isfinite(y)
+                    or not 0 <= x <= 1
+                    or not 0 <= y <= 1
+                ):
+                    raise ValueError("interactionActions anchor must be within 0..1")
 
     behavior = manifest.get("behavior", {}).get("random") if isinstance(manifest.get("behavior", {}), dict) else None
     if behavior is not None:
