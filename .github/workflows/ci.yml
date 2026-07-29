@@ -12,6 +12,8 @@ jobs:
   test-and-pack:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

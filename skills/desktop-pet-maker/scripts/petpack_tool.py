@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import stat
+import sys
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -260,6 +261,8 @@ def extract_package(archive: Path, output: Path) -> None:
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
     validate = subparsers.add_parser("validate")
