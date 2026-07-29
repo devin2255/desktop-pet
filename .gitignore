@@ -1,6 +1,7 @@
 node_modules/
 dist/
 tmp/
+.worktrees/
 
 # Local Codex state. Repository-scoped skills under .agents/skills are public.
 .agents/*
