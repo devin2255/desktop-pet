@@ -99,7 +99,7 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       if (!INTERACTION_ROLES.has(role) || !config || typeof config !== 'object' || Array.isArray(config)) {
         throw new Error('interactionActions 包含不支持的角色');
       }
-      if (typeof config.action !== 'string' || !manifest.animations[config.action]) {
+      if (typeof config.action !== 'string' || !Object.hasOwn(manifest.animations, config.action)) {
         throw new Error(`interactionActions 引用了不存在的动画：${config.action}`);
       }
       if (config.anchor !== undefined) {

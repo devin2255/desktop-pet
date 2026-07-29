@@ -72,6 +72,9 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
         manifest["interactionActions"]["perch"]["anchor"]["x"] = True
         with self.assertRaisesRegex(ValueError, "anchor"):
             petpack_tool.validate_manifest_shape(manifest)
+        manifest["interactionActions"]["perch"]["anchor"] = None
+        with self.assertRaisesRegex(ValueError, "anchor"):
+            petpack_tool.validate_manifest_shape(manifest)
 
 
 if __name__ == "__main__":

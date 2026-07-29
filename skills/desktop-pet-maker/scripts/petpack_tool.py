@@ -107,8 +107,8 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
             action = config.get("action")
             if not isinstance(action, str) or action not in animations:
                 raise ValueError("interactionActions references an unknown animation")
-            anchor = config.get("anchor")
-            if anchor is not None:
+            if "anchor" in config:
+                anchor = config["anchor"]
                 if not isinstance(anchor, dict):
                     raise ValueError("interactionActions anchor must be an object")
                 x, y = anchor.get("x"), anchor.get("y")

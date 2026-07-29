@@ -45,5 +45,13 @@ assert.throws(() => validateManifest(manifest), /不存在/);
 manifest.interactionActions.perch.action = 'sit';
 manifest.interactionActions.unknown = { action: 'sit' };
 assert.throws(() => validateManifest(manifest), /interactionActions/);
+delete manifest.interactionActions.unknown;
+manifest.interactionActions.perch.anchor = null;
+assert.throws(() => validateManifest(manifest), /anchor/);
+delete manifest.interactionActions.perch.anchor;
+for (const inheritedAction of ['toString', 'constructor', '__proto__']) {
+  manifest.interactionActions.drag.action = inheritedAction;
+  assert.throws(() => validateManifest(manifest), /不存在/);
+}
 
 console.log('petpack archive security checks passed');
