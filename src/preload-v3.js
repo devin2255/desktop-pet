@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld('petApi', {
   endDrag: () => ipcRenderer.send('pet:drag-end'),
   interact: () => ipcRenderer.send('pet:interact'),
   setMouseThrough: (ignore) => ipcRenderer.send('pet:set-mouse-through', Boolean(ignore)),
+  setVisibleInsets: (insets) => ipcRenderer.send('pet:visible-insets', insets),
   openMenu: () => ipcRenderer.send('pet:context-menu')
 });

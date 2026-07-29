@@ -11,13 +11,24 @@ let animationToken = 0;
 let pendingState = { state: 'idle', message: '' };
 const DRAG_THRESHOLD_PX = 6;
 const HIT_ALPHA_CUTOFF = 32;
+const FALLBACKS = {
+  drag: 'walk', climb: 'walk', perch: 'sit', hang: 'sit',
+  fall: 'reaction', impact: 'reaction', recover: 'reaction'
+};
 const hitCanvas = document.createElement('canvas');
 const hitContext = hitCanvas.getContext('2d', { willReadFrequently: true });
 let hitMaskReady = false;
+let lastVisibleInsets;
 
-function resolveAction(state) {
-  if (state === 'walk-left' || state === 'walk-right') return 'walk';
-  if (state === 'clingy' || state === 'shy') return 'reaction';
+function resolveLogicalRole(role) {
+  return manifest.interactionActions?.[role]?.action || FALLBACKS[role] || role;
+}
+
+function resolveAction(state, logicalRole) {
+  const action = resolveLogicalRole(logicalRole || state);
+  if (action === 'walk-left' || action === 'walk-right') return 'walk';
+  if (action === 'clingy' || action === 'shy') return 'reaction';
+  if (manifest.animations[action]) return action;
   return manifest.animations[state] ? state : 'idle';
 }
 
@@ -30,12 +41,12 @@ function preloadFrames() {
   }
 }
 
-function playAnimation(state) {
+function playAnimation(state, logicalRole) {
   clearTimeout(animationTimer);
   animationToken += 1;
   if (!manifest) return;
   const token = animationToken;
-  const animation = manifest.animations[resolveAction(state)] || manifest.animations.idle;
+  const animation = manifest.animations[resolveAction(state, logicalRole)] || manifest.animations.idle;
   pet.style.setProperty('--action-scale', String(animation.scale || 1));
   let index = 0;
   function showNext() {
@@ -71,11 +82,11 @@ function speak(text) {
   window.speechSynthesis.speak(utterance);
 }
 
-function setState(state, message = '', speech = '') {
-  pendingState = { state, message, speech };
+function setState(state, message = '', speech = '', logicalRole) {
+  pendingState = { state, message, speech, logicalRole };
   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
   if (!manifest) return;
-  playAnimation(state);
+  playAnimation(state, logicalRole);
   if (message) showBubble(message, state === 'sleep' ? 4200 : 2400);
   if (speech) speak(speech);
 }
@@ -85,7 +96,65 @@ function loadPet(nextManifest) {
   petImage.alt = `${manifest.name}桌面宠物`;
   petImage.classList.remove('ready');
   preloadFrames();
-  setState(pendingState.state || 'idle', pendingState.message || '', pendingState.speech || '');
+  setState(
+    pendingState.state || 'idle',
+    pendingState.message || '',
+    pendingState.speech || '',
+    pendingState.logicalRole
+  );
+}
+
+function scanVisibleInsets() {
+  const { width, height } = hitCanvas;
+  const data = hitContext.getImageData(0, 0, width, height).data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (data[(y * width + x) * 4 + 3] < HIT_ALPHA_CUTOFF) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < 0) return null;
+  const rect = petImage.getBoundingClientRect();
+  const fit = Math.min(rect.width / width, rect.height / height);
+  const contentWidth = width * fit;
+  const contentHeight = height * fit;
+  const contentLeft = rect.left + (rect.width - contentWidth) / 2;
+  const contentTop = rect.bottom - contentHeight;
+  const visibleMinX = pet.classList.contains('state-walk-left') ? width - 1 - maxX : minX;
+  const visibleMaxX = pet.classList.contains('state-walk-left') ? width - 1 - minX : maxX;
+  return {
+    left: Math.round(contentLeft + visibleMinX * fit),
+    top: Math.round(contentTop + minY * fit),
+    right: Math.round(innerWidth - (contentLeft + (visibleMaxX + 1) * fit)),
+    bottom: Math.round(innerHeight - (contentTop + (maxY + 1) * fit))
+  };
+}
+
+function stabilizeVisibleInsets(insets) {
+  if (!lastVisibleInsets) {
+    lastVisibleInsets = insets;
+    return insets;
+  }
+  const stabilized = {};
+  for (const side of ['left', 'top', 'right', 'bottom']) {
+    stabilized[side] = Math.abs(insets[side] - lastVisibleInsets[side]) < 4
+      ? lastVisibleInsets[side]
+      : insets[side];
+  }
+  lastVisibleInsets = stabilized;
+  return stabilized;
+}
+
+function positionBubble(insets) {
+  const top = Math.max(0, Math.round(insets.top - bubble.offsetHeight - 6));
+  bubble.style.setProperty('--bubble-top', `${top}px`);
 }
 
 function refreshHitMask() {
@@ -96,8 +165,12 @@ function refreshHitMask() {
   try {
     hitContext.clearRect(0, 0, hitCanvas.width, hitCanvas.height);
     hitContext.drawImage(petImage, 0, 0);
-    hitContext.getImageData(0, 0, 1, 1);
+    const insets = scanVisibleInsets();
     hitMaskReady = true;
+    const visibleInsets = insets ? stabilizeVisibleInsets(insets) : lastVisibleInsets;
+    if (!visibleInsets) return;
+    window.petApi.setVisibleInsets(visibleInsets);
+    positionBubble(visibleInsets);
   } catch {
     hitMaskReady = false;
   }
@@ -191,5 +264,5 @@ pet.addEventListener('contextmenu', (event) => {
 });
 
 window.petApi.onLoad(loadPet);
-window.petApi.onState(({ state, message, speech }) => setState(state, message, speech));
+window.petApi.onState(({ state, message, speech, logicalRole }) => setState(state, message, speech, logicalRole));
 window.petApi.getCurrentPet().then(loadPet);

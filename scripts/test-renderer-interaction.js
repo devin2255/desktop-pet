@@ -10,16 +10,22 @@ function classList() {
   return {
     add: (...names) => names.forEach((name) => values.add(name)),
     remove: (...names) => names.forEach((name) => values.delete(name)),
-    contains: (name) => values.has(name)
+    contains: (name) => values.has(name),
+    replace: (names) => {
+      values.clear();
+      names.forEach((name) => values.add(name));
+    },
+    toString: () => [...values].join(' ')
   };
 }
 
 function element() {
   const listeners = new Map();
   const properties = new Map();
-  return {
+  const classes = classList();
+  const node = {
     listeners,
-    classList: classList(),
+    classList: classes,
     style: {
       setProperty: (name, value) => properties.set(name, value),
       getPropertyValue: (name) => properties.get(name)
@@ -30,6 +36,11 @@ function element() {
     appendChild: () => {},
     getBoundingClientRect: () => ({ left: 10, top: 10, right: 170, bottom: 170, width: 160, height: 160 })
   };
+  Object.defineProperty(node, 'className', {
+    get: () => classes.toString(),
+    set: (value) => classes.replace(String(value).split(/\s+/).filter(Boolean))
+  });
+  return node;
 }
 
 const pet = element();
@@ -37,18 +48,29 @@ const petImage = element();
 petImage.naturalWidth = 480;
 petImage.naturalHeight = 480;
 const bubble = element();
+bubble.offsetHeight = 24;
 const hearts = element();
 const windowListeners = new Map();
-const calls = { start: 0, move: 0, end: 0, interact: 0, through: [], spoken: [] };
+const calls = { start: 0, move: 0, end: 0, interact: 0, through: [], spoken: [], insets: [] };
 let loadCallback;
 let stateCallback;
 
+let alphaBounds = { left: 30, top: 60, right: 449, bottom: 479 };
 const canvasContext = {
   clearRect: () => {},
   drawImage: () => {},
-  getImageData: (_x, _y, width = 1, height = 1) => {
+  getImageData: (x, y, width = 1, height = 1) => {
     const data = new Uint8ClampedArray(width * height * 4);
-    for (let index = 3; index < data.length; index += 4) data[index] = 255;
+    for (let row = 0; row < height; row += 1) {
+      for (let column = 0; column < width; column += 1) {
+        const sourceX = x + column;
+        const sourceY = y + row;
+        if (sourceX >= alphaBounds.left && sourceX <= alphaBounds.right
+          && sourceY >= alphaBounds.top && sourceY <= alphaBounds.bottom) {
+          data[(row * width + column) * 4 + 3] = 255;
+        }
+      }
+    }
     return { data };
   }
 };
@@ -57,6 +79,8 @@ const canvas = { width: 0, height: 0, getContext: () => canvasContext };
 const context = {
   console,
   Uint8ClampedArray,
+  innerWidth: 180,
+  innerHeight: 180,
   Image: function Image() {},
   setTimeout: () => 1,
   clearTimeout: () => {},
@@ -80,6 +104,7 @@ const context = {
       endDrag: () => { calls.end += 1; },
       interact: () => { calls.interact += 1; },
       setMouseThrough: (ignore) => calls.through.push(ignore),
+      setVisibleInsets: (insets) => calls.insets.push(insets),
       openMenu: () => {}
     }
   }
@@ -92,6 +117,8 @@ const manifest = {
   name: '测试宠物',
   animations: {
     idle: { frames: ['idle.png'], durations: [100], loop: true },
+    walk: { frames: ['walk.png'], durations: [100], loop: true },
+    sit: { frames: ['sit.png'], durations: [100], loop: true },
     reaction: { frames: ['reaction.png'], durations: [100], loop: false }
   }
 };
@@ -130,6 +157,37 @@ stateCallback({ state: 'reaction', message: '爸！', speech: '爸' });
 assert.deepStrictEqual(calls.spoken, ['爸'], 'configured speech should be spoken once');
 
 petImage.listeners.get('load')();
+assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
+  left: 20, top: 30, right: 20, bottom: 10
+});
+assert.strictEqual(
+  bubble.style.getPropertyValue('--bubble-top'),
+  '0px',
+  'bubble is clamped after placing its bottom 6px above visible pixels'
+);
+stateCallback({ state: 'drag', logicalRole: 'drag', message: '' });
+assert.strictEqual(petImage.src, 'walk.png', 'drag role falls back to walk');
+for (let index = 0; index < 50; index += 1) {
+  stateCallback({ state: 'perch', logicalRole: 'perch', message: '测试' });
+}
+assert.strictEqual(pet.style.getPropertyValue('--action-scale'), '1');
+
+alphaBounds = { left: 30, top: 60, right: 419, bottom: 479 };
+stateCallback({ state: 'walk-left', message: '' });
+petImage.listeners.get('load')();
+assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
+  left: 30, top: 30, right: 20, bottom: 10
+}, 'mirrored walk frames should mirror their visible alpha insets');
+
+const reportCount = calls.insets.length;
+alphaBounds = { left: 480, top: 480, right: 479, bottom: 479 };
+petImage.listeners.get('load')();
+assert.strictEqual(calls.insets.length, reportCount + 1, 'transparent transient frames retain the last valid inset report');
+assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
+  left: 30, top: 30, right: 20, bottom: 10
+});
+
+alphaBounds = { left: 30, top: 60, right: 419, bottom: 479 };
 windowListeners.get('mousemove')({ clientX: 1, clientY: 1 });
 windowListeners.get('mousemove')({ clientX: 80, clientY: 80 });
 assert.deepStrictEqual(calls.through.slice(-2), [true, false], 'transparent pixels should pass clicks through, visible pixels should not');

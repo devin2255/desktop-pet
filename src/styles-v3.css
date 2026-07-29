@@ -37,7 +37,7 @@ body { -webkit-app-region: no-drag; }
 .bubble {
   position: absolute;
   z-index: 5;
-  top: 34px;
+  top: var(--bubble-top, 0px);
   left: 50%;
   max-width: 92%;
   padding: 5px 8px;
