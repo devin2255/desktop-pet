@@ -4,7 +4,10 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { createInteractionController } = require('../src/interaction-controller');
+const {
+  createInteractionController,
+  shouldRestoreWindowBounds
+} = require('../src/interaction-controller');
 
 function createClock() {
   let nextId = 1;
@@ -79,10 +82,12 @@ function createHarness({
   windows = [],
   rejectDiscovery = false,
   autoAnimate = true,
+  simulateMainRestore = false,
   initialBounds = { x: 200, y: 150, width: 100, height: 120 }
 } = {}) {
   const clock = createClock();
   const states = [];
+  const stateSignals = [];
   const setBoundsCalls = [];
   const behavior = { paused: 0, resumed: 0, walkTimer: null, behaviorTimer: null };
   let windowBounds = { ...initialBounds };
@@ -133,7 +138,24 @@ function createHarness({
     },
     getCurrentSize: () => ({ width: 100, height: 120 }),
     getManifest: () => manifest,
-    sendState: (state) => states.push(state),
+    sendState(state, options) {
+      states.push(state);
+      stateSignals.push(options);
+      if (!simulateMainRestore || state !== 'normal' || !shouldRestoreWindowBounds(options)) return;
+      const size = { width: 100, height: 120 };
+      const workArea = display.workArea;
+      windowBounds = {
+        x: Math.max(workArea.x, Math.min(
+          windowBounds.x,
+          workArea.x + workArea.width - size.width
+        )),
+        y: Math.max(workArea.y, Math.min(
+          windowBounds.y,
+          workArea.y + workArea.height - size.height
+        )),
+        ...size
+      };
+    },
     pauseBehavior() {
       behavior.paused += 1;
       if (behavior.walkTimer) clock.clearInterval(behavior.walkTimer);
@@ -170,6 +192,7 @@ function createHarness({
     petWindow,
     setBoundsCalls,
     states,
+    stateSignals,
     bounds: () => ({ ...windowBounds })
   };
 }
@@ -181,6 +204,16 @@ async function dragAndEnd(harness, pointer) {
 
 async function run() {
   const target = { id: 'w1', bounds: { x: 100, y: 100, width: 500, height: 400 } };
+
+  {
+    assert.strictEqual(typeof shouldRestoreWindowBounds, 'function');
+    assert.strictEqual(shouldRestoreWindowBounds(), true, 'legacy state sends retain size restoration');
+    assert.strictEqual(
+      shouldRestoreWindowBounds({ preserveBounds: true }),
+      false,
+      'controller-owned state sends preserve controller geometry'
+    );
+  }
 
   {
     const harness = createHarness({ windows: [target] });
@@ -283,6 +316,43 @@ async function run() {
   }
 
   {
+    const firstTarget = { id: 'old-target', bounds: { ...target.bounds } };
+    const secondTarget = {
+      id: 'fresh-target',
+      bounds: { x: 180, y: 80, width: 420, height: 360 }
+    };
+    const harness = createHarness({ windows: [firstTarget] });
+    let resolveStalePoll;
+    harness.discovery.list = async function list() {
+      this.calls += 1;
+      if (this.calls === 2) {
+        return new Promise((resolve) => { resolveStalePoll = resolve; });
+      }
+      return this.windows;
+    };
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    const stalePoll = harness.clock.tickIntervals();
+    await Promise.resolve();
+    assert.ok(resolveStalePoll, 'the old attachment poll is in flight');
+
+    harness.controller.startDrag({ x: 350, y: 100 });
+    harness.discovery.windows = [secondTarget];
+    await harness.controller.endDrag({ x: 390, y: 80 });
+    const freshBounds = harness.bounds();
+    const statesBeforeStaleResolution = [...harness.states];
+
+    resolveStalePoll([]);
+    await stalePoll;
+    assert.strictEqual(harness.controller.state(), 'perched');
+    assert.deepStrictEqual(harness.bounds(), freshBounds, 'stale poll cannot move the fresh attachment');
+    assert.deepStrictEqual(
+      harness.states,
+      statesBeforeStaleResolution,
+      'stale poll cannot transition the fresh attachment to fall'
+    );
+  }
+
+  {
     const harness = createHarness({
       rejectDiscovery: true,
       initialBounds: { x: 450, y: -60, width: 100, height: 120 }
@@ -295,6 +365,7 @@ async function run() {
 
   {
     const harness = createHarness({
+      simulateMainRestore: true,
       initialBounds: { x: 450, y: -60, width: 100, height: 120 }
     });
     harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
@@ -305,6 +376,10 @@ async function run() {
     harness.clock.flushTimeouts();
     assert.deepStrictEqual(harness.states.slice(-4), ['fall', 'impact', 'recover', 'normal']);
     assert.deepStrictEqual(harness.bounds(), { x: 686, y: 446, width: 100, height: 120 });
+    assert.ok(
+      harness.stateSignals.slice(-4).every((options) => options?.preserveBounds === true),
+      'all controller state transitions explicitly preserve controller-owned geometry'
+    );
     assert.ok(harness.clock.scheduledTimeoutDelays.includes(300), 'impact uses manifest duration');
     assert.ok(harness.clock.scheduledTimeoutDelays.includes(420), 'recover uses manifest duration');
   }
@@ -360,6 +435,11 @@ async function run() {
     const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
     assert.match(main, /require\('\.\/window-discovery'\)/);
     assert.match(main, /require\('\.\/interaction-controller'\)/);
+    assert.match(main, /shouldRestoreWindowBounds\(options\)/);
+    assert.match(
+      main,
+      /sendState:\s*\(state,\s*options\)\s*=>\s*sendState\(state,\s*'',\s*'',\s*state,\s*options\)/
+    );
     assert.match(main, /interactionActions:\s*manifest\.interactionActions\s*\|\|\s*\{\}/);
     for (const channel of ['pet:drag-start', 'pet:drag-move', 'pet:drag-end', 'pet:visible-insets']) {
       assert.match(main, new RegExp(`onTrusted\\('${channel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));

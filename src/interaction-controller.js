@@ -12,6 +12,7 @@ const INTERACTIVE_STATES = new Set([
   'dragging', 'climbing', 'perched', 'hanging',
   'falling', 'impact', 'recovering'
 ]);
+const ATTACHED_STATES = new Set(['perched', 'hanging']);
 const FALLBACK_ACTIONS = {
   drag: 'walk',
   climb: 'walk',
@@ -26,6 +27,7 @@ const DEFAULT_ANCHORS = {
   perch: { x: 0.5, y: 0.7 },
   hang: { x: 0.5, y: 0.1 }
 };
+const CONTROLLER_STATE_OPTIONS = Object.freeze({ preserveBounds: true });
 
 function pointFrom(value) {
   if (!value) return null;
@@ -40,6 +42,10 @@ function validTarget(target) {
     && target.visible !== false && target.minimized !== true
     && bounds && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(bounds[key]))
     && bounds.width > 0 && bounds.height > 0;
+}
+
+function shouldRestoreWindowBounds(options) {
+  return options?.preserveBounds !== true;
 }
 
 function createInteractionController(dependencies) {
@@ -80,7 +86,7 @@ function createInteractionController(dependencies) {
   let dragOrigin;
   let attachment;
   let attachmentTimer;
-  let attachmentPollPending = false;
+  let attachmentPollPending;
   let frameTimer;
   let animationTimer;
   let cancelAnimation;
@@ -107,14 +113,14 @@ function createInteractionController(dependencies) {
     if (disposed) return;
     currentState = next;
     if (INTERACTIVE_STATES.has(next)) pauseBehavior();
-    sendState(logicalRole || next);
+    sendState(logicalRole || next, CONTROLLER_STATE_OPTIONS);
     if (next === 'normal') resumeBehavior();
   }
 
   function clearAttachmentPolling() {
     if (attachmentTimer !== undefined) clearIntervalFn(attachmentTimer);
     attachmentTimer = undefined;
-    attachmentPollPending = false;
+    attachmentPollPending = undefined;
   }
 
   function clearMotionTimers() {
@@ -189,9 +195,20 @@ function createInteractionController(dependencies) {
     clearAttachmentPolling();
     attachmentTimer = setIntervalFn(async () => {
       if (disposed || !attachment || attachmentPollPending) return;
-      attachmentPollPending = true;
+      const pollGeneration = generation;
+      const pollAttachment = attachment;
+      const pollAttachmentId = attachment.id;
+      if (!ATTACHED_STATES.has(currentState)) return;
+      const pollToken = {};
+      attachmentPollPending = pollToken;
+      const isCurrentPoll = () => !disposed
+        && generation === pollGeneration
+        && ATTACHED_STATES.has(currentState)
+        && attachment === pollAttachment
+        && attachment?.id === pollAttachmentId;
       try {
         const windows = await discovery.list();
+        if (!isCurrentPoll()) return;
         const target = windows.find((item) => validTarget(item) && String(item.id) === attachment.id);
         if (!target) {
           detachAndFall('target-unavailable');
@@ -199,9 +216,9 @@ function createInteractionController(dependencies) {
         }
         applyAttachment(target);
       } catch {
-        detachAndFall('attachment-poll-failed');
+        if (isCurrentPoll()) detachAndFall('attachment-poll-failed');
       } finally {
-        attachmentPollPending = false;
+        if (attachmentPollPending === pollToken) attachmentPollPending = undefined;
       }
     }, attachmentPollMs);
   }
@@ -430,4 +447,8 @@ function createInteractionController(dependencies) {
   };
 }
 
-module.exports = { createInteractionController, INTERACTIVE_STATES };
+module.exports = {
+  createInteractionController,
+  INTERACTIVE_STATES,
+  shouldRestoreWindowBounds
+};

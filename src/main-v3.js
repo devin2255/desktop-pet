@@ -10,7 +10,10 @@ const {
   validatePetpack
 } = require('./petpack-validator');
 const { createWindowDiscovery } = require('./window-discovery');
-const { createInteractionController } = require('./interaction-controller');
+const {
+  createInteractionController,
+  shouldRestoreWindowBounds
+} = require('./interaction-controller');
 const {
   app,
   BrowserWindow,
@@ -229,9 +232,9 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
   };
 }
 
-function sendState(state, message = '', speech = '', logicalRole = state) {
+function sendState(state, message = '', speech = '', logicalRole = state, options) {
   if (!petWindow || petWindow.isDestroyed()) return;
-  if (!interaction || interaction.state() === 'normal') restorePetWindowSize();
+  if (shouldRestoreWindowBounds(options)) restorePetWindowSize();
   petWindow.webContents.send('pet:state', { state, logicalRole, message, speech });
 }
 
@@ -469,7 +472,7 @@ function createWindow() {
     screen,
     getCurrentSize: currentSize,
     getManifest: () => activeManifest,
-    sendState,
+    sendState: (state, options) => sendState(state, '', '', state, options),
     pauseBehavior,
     resumeBehavior: () => scheduleBehavior(2500),
     edgeGap: EDGE_GAP,
