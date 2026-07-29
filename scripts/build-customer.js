@@ -133,6 +133,9 @@ function buildCustomer(options) {
       appId: 'com.desktop-pet.delivery.' + deliveryId.replace(/-/g, '.'),
       productName: appName,
       asar: true,
+      ...(process.env.CUSTOMER_ELECTRON_DIST
+        ? { electronDist: path.resolve(process.env.CUSTOMER_ELECTRON_DIST) }
+        : {}),
       directories: { output: buildOutput },
       win: { icon: relativeIcon, target: ['portable'], signExecutable: false },
       portable: { artifactName: artifactBase + '-' + packageJson.version + '.${ext}' },

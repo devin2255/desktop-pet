@@ -23,13 +23,24 @@ COMPONENT_SAMPLE_MAX_EDGE = 192
 SIGNIFICANT_COMPONENT_RATIO = 0.01
 
 
-def load_subjects(source: Path, frame_count: int) -> list[Image.Image]:
+def load_subjects(
+    source: Path,
+    frame_count: int,
+    max_significant_components: int = 1,
+    flat_side_ratio: float = 0.10,
+) -> list[Image.Image]:
     image = Image.open(source).convert("RGBA")
     edges = [round(index * image.width / frame_count) for index in range(frame_count + 1)]
     subjects = []
     for index in range(frame_count):
         frame = image.crop((edges[index], 0, edges[index + 1], image.height))
-        box = validate_source_frame(frame, source, index + 1)
+        box = validate_source_frame(
+            frame,
+            source,
+            index + 1,
+            max_significant_components,
+            flat_side_ratio,
+        )
         subjects.append(frame.crop(box))
     return subjects
 
@@ -92,10 +103,28 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-dir", type=Path, required=True, help="Directory containing the five transparent action strips")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--max-significant-components",
+        type=int,
+        default=1,
+        choices=range(1, 5),
+        help="Allow an intentional multi-person or multi-part subject while retaining fragment checks",
+    )
+    parser.add_argument(
+        "--flat-side-ratio",
+        type=float,
+        default=0.10,
+        help="Maximum straight side-edge run as a fraction of subject height (default: 0.10)",
+    )
     args = parser.parse_args()
 
     loaded = {
-        action: load_subjects(args.input_dir / f"{action}.png", count)
+        action: load_subjects(
+            args.input_dir / f"{action}.png",
+            count,
+            args.max_significant_components,
+            args.flat_side_ratio,
+        )
         for action, count in FRAME_COUNTS.items()
     }
     for action, subjects in loaded.items():
@@ -151,7 +180,13 @@ def component_areas(mask: Image.Image) -> list[int]:
     return sorted(areas, reverse=True)
 
 
-def validate_source_frame(frame: Image.Image, source: Path, frame_index: int) -> tuple[int, int, int, int]:
+def validate_source_frame(
+    frame: Image.Image,
+    source: Path,
+    frame_index: int,
+    max_significant_components: int = 1,
+    flat_side_ratio: float = 0.10,
+) -> tuple[int, int, int, int]:
     mask = alpha_mask(frame)
     box = mask.getbbox()
     if box is None:
@@ -168,7 +203,7 @@ def validate_source_frame(frame: Image.Image, source: Path, frame_index: int) ->
             "never erase the leaked fragment and continue."
         )
 
-    side_limit = max(18, round((bottom - top) * 0.10))
+    side_limit = max(18, round((bottom - top) * flat_side_ratio))
     left_run = max_vertical_run(mask, left, top, bottom)
     right_run = max_vertical_run(mask, right - 1, top, bottom)
     if left_run >= side_limit or right_run >= side_limit:
@@ -179,10 +214,15 @@ def validate_source_frame(frame: Image.Image, source: Path, frame_index: int) ->
         )
 
     areas = component_areas(mask)
-    if len(areas) > 1 and areas[1] >= max(8, round(areas[0] * SIGNIFICANT_COMPONENT_RATIO)):
+    significant = [
+        area for area in areas
+        if area >= max(8, round(areas[0] * SIGNIFICANT_COMPONENT_RATIO))
+    ]
+    if len(significant) > max_significant_components:
         raise ValueError(
             f"{source.stem} frame {frame_index} contains a significant detached fragment "
-            f"(components={areas[:3]}). Possible neighboring-frame pollution; regenerate instead of deleting pixels."
+            f"(components={areas[:max_significant_components + 2]}). "
+            "Possible neighboring-frame pollution; regenerate instead of deleting pixels."
         )
     return box
 
