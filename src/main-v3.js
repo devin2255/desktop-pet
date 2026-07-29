@@ -9,6 +9,8 @@ const {
   validateManifest,
   validatePetpack
 } = require('./petpack-validator');
+const { createWindowDiscovery } = require('./window-discovery');
+const { createInteractionController } = require('./interaction-controller');
 const {
   app,
   BrowserWindow,
@@ -42,7 +44,7 @@ let settings = { petId: '', sizeKey: 'small', roaming: true };
 let activeManifest;
 let behaviorTimer;
 let walkTimer;
-let dragOrigin;
+let interaction;
 let quitting = false;
 let mouseThrough = false;
 let deliveryConfig;
@@ -92,6 +94,7 @@ function publicManifest(manifest) {
     defaultSize: PET_SIZES[manifest.defaultSize] ? manifest.defaultSize : 'small',
     preview: petAssetUrl(manifest.id, manifest.preview),
     animations,
+    interactionActions: manifest.interactionActions || {},
     contextMenuActions: Array.isArray(manifest.contextMenuActions)
       ? manifest.contextMenuActions.map((item) => ({
         id: item.id,
@@ -226,10 +229,10 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
   };
 }
 
-function sendState(state, message = '', speech = '') {
+function sendState(state, message = '', speech = '', logicalRole = state) {
   if (!petWindow || petWindow.isDestroyed()) return;
-  restorePetWindowSize();
-  petWindow.webContents.send('pet:state', { state, message, speech });
+  if (!interaction || interaction.state() === 'normal') restorePetWindowSize();
+  petWindow.webContents.send('pet:state', { state, logicalRole, message, speech });
 }
 
 function setMouseThrough(ignore) {
@@ -243,13 +246,20 @@ function stopWalk() {
   walkTimer = undefined;
 }
 
+function pauseBehavior() {
+  stopWalk();
+  if (behaviorTimer) clearTimeout(behaviorTimer);
+  behaviorTimer = undefined;
+}
+
 function scheduleBehavior(delay = 4500 + Math.random() * 5500) {
+  if (interaction && interaction.state() !== 'normal') return;
   if (behaviorTimer) clearTimeout(behaviorTimer);
   behaviorTimer = setTimeout(runBehavior, delay);
 }
 
 function walkTo(targetX) {
-  if (!petWindow || petWindow.isDestroyed()) return;
+  if (!petWindow || petWindow.isDestroyed() || (interaction && interaction.state() !== 'normal')) return;
   stopWalk();
   restorePetWindowSize();
   const startBounds = petWindow.getBounds();
@@ -296,7 +306,8 @@ function chooseBehavior() {
 }
 
 function runBehavior() {
-  if (!settings.roaming || !activeManifest || !petWindow || petWindow.isDestroyed() || dragOrigin) {
+  if (interaction && interaction.state() !== 'normal') return;
+  if (!settings.roaming || !activeManifest || !petWindow || petWindow.isDestroyed()) {
     scheduleBehavior();
     return;
   }
@@ -315,7 +326,7 @@ function runBehavior() {
 }
 
 function setPetSize(nextKey) {
-  if (!PET_SIZES[nextKey] || !petWindow) return;
+  if (!PET_SIZES[nextKey] || !petWindow || (interaction && interaction.state() !== 'normal')) return;
   const old = petWindow.getBounds();
   settings.sizeKey = nextKey;
   saveSettings();
@@ -326,7 +337,7 @@ function setPetSize(nextKey) {
 }
 
 function restorePetWindowSize() {
-  if (!petWindow || petWindow.isDestroyed()) return;
+  if (!petWindow || petWindow.isDestroyed() || (interaction && interaction.state() !== 'normal')) return;
   const expected = currentSize();
   const bounds = petWindow.getBounds();
   const position = clampPosition(
@@ -361,14 +372,15 @@ function switchPet(id) {
 
 function showPet() {
   petWindow?.showInactive();
+  if (interaction && interaction.state() !== 'normal') return;
   sendState('reaction', '你回来啦！');
   scheduleBehavior(3000);
 }
 
 function runContextMenuAction(item) {
-  if (!activeManifest || !item || !activeManifest.animations[item.action]) return;
-  stopWalk();
-  if (behaviorTimer) clearTimeout(behaviorTimer);
+  if (!activeManifest || !item || !activeManifest.animations[item.action]
+    || (interaction && interaction.state() !== 'normal')) return;
+  pauseBehavior();
   sendState(item.action, item.message || '', item.speech || '');
   scheduleBehavior(Number.isInteger(item.duration) ? item.duration : 3000);
 }
@@ -388,11 +400,30 @@ function buildTrayMenu() {
   }
   template.push(
     { label: '宠物大小', submenu: Object.entries(PET_SIZES).map(([key, size]) => ({ label: size.label, type: 'radio', checked: settings.sizeKey === key, click: () => setPetSize(key) })) },
-    { label: '在桌面散步', type: 'checkbox', checked: settings.roaming, click: (item) => { settings.roaming = item.checked; saveSettings(); stopWalk(); sendState('idle'); scheduleBehavior(1200); } },
+    {
+      label: '在桌面散步',
+      type: 'checkbox',
+      checked: settings.roaming,
+      click: (item) => {
+        settings.roaming = item.checked;
+        saveSettings();
+        if (interaction && interaction.state() !== 'normal') return;
+        stopWalk();
+        sendState('idle');
+        scheduleBehavior(1200);
+      }
+    },
     { label: '始终置顶', type: 'checkbox', checked: petWindow?.isAlwaysOnTop() ?? true, click: (item) => petWindow?.setAlwaysOnTop(item.checked, 'floating') },
     { label: '开机自动启动', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }) },
     { type: 'separator' }, { label: '暂时藏起来', click: () => petWindow?.hide() },
-    { label: `退出${deliveryConfig?.appName || '桌宠播放器'}`, click: () => { quitting = true; app.quit(); } }
+    {
+      label: `退出${deliveryConfig?.appName || '桌宠播放器'}`,
+      click: () => {
+        quitting = true;
+        interaction?.dispose();
+        app.quit();
+      }
+    }
   );
   return Menu.buildFromTemplate(template);
 }
@@ -432,6 +463,18 @@ function createWindow() {
     }
   });
   petWindow.setAlwaysOnTop(true, 'floating');
+  interaction = createInteractionController({
+    window: petWindow,
+    discovery: createWindowDiscovery({ screen }),
+    screen,
+    getCurrentSize: currentSize,
+    getManifest: () => activeManifest,
+    sendState,
+    pauseBehavior,
+    resumeBehavior: () => scheduleBehavior(2500),
+    edgeGap: EDGE_GAP,
+    bottomOffset: 6
+  });
   const indexPath = path.join(__dirname, 'index-v3.html');
   const indexUrl = pathToFileURL(indexPath).toString();
   petWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -467,46 +510,43 @@ function validPointer(pointer) {
   return pointer && Number.isFinite(pointer.screenX) && Number.isFinite(pointer.screenY) && Math.abs(pointer.screenX) < 1000000 && Math.abs(pointer.screenY) < 1000000;
 }
 
+function validVisibleInsets(insets) {
+  const size = currentSize();
+  return insets && ['left', 'top', 'right', 'bottom'].every((side) => {
+    const limit = side === 'left' || side === 'right' ? size.width : size.height;
+    return Number.isFinite(insets[side]) && insets[side] >= 0 && insets[side] < limit;
+  });
+}
+
 handleTrusted('pet:get-current', () => publicManifest(activeManifest));
 handleTrusted('pet:import', () => {
   if (deliveryConfig && !deliveryConfig.allowPetManagement) return null;
   return promptImportPetpack();
 });
 onTrusted('pet:drag-start', (pointer) => {
-  if (!petWindow || !validPointer(pointer)) return;
+  if (!interaction || !validPointer(pointer)) return;
   setMouseThrough(false);
-  stopWalk();
-  if (behaviorTimer) clearTimeout(behaviorTimer);
-  restorePetWindowSize();
-  dragOrigin = { pointerX: pointer.screenX, pointerY: pointer.screenY, bounds: petWindow.getBounds() };
+  interaction.startDrag(pointer);
 });
 onTrusted('pet:drag-move', (pointer) => {
-  if (!dragOrigin || !petWindow || !validPointer(pointer)) return;
-  const expected = currentSize();
-  const next = clampPosition(
-    dragOrigin.bounds.x + pointer.screenX - dragOrigin.pointerX,
-    dragOrigin.bounds.y + pointer.screenY - dragOrigin.pointerY,
-    expected.width,
-    expected.height
-  );
-  petWindow.setBounds({
-    x: Math.round(next.x),
-    y: Math.round(next.y),
-    width: expected.width,
-    height: expected.height
-  }, false);
+  if (!interaction || !validPointer(pointer)) return;
+  interaction.moveDrag(pointer);
 });
-onTrusted('pet:drag-end', () => {
-  dragOrigin = undefined;
-  sendState('idle');
-  scheduleBehavior(2500);
+onTrusted('pet:drag-end', (pointer) => {
+  if (!interaction || !validPointer(pointer)) return;
+  void interaction.endDrag(pointer).catch((error) => {
+    console.warn(`Window interaction ended unexpectedly: ${error.message}`);
+  });
+});
+onTrusted('pet:visible-insets', (insets) => {
+  if (interaction && validVisibleInsets(insets)) interaction.updateVisibleInsets(insets);
 });
 onTrusted('pet:set-mouse-through', (ignore) => {
-  if (!dragOrigin) setMouseThrough(Boolean(ignore));
+  if (!interaction || interaction.state() !== 'dragging') setMouseThrough(Boolean(ignore));
 });
 onTrusted('pet:interact', () => {
-  stopWalk();
-  if (behaviorTimer) clearTimeout(behaviorTimer);
+  if (interaction && interaction.state() !== 'normal') return;
+  pauseBehavior();
   sendState('reaction', '不要丢下我呀 ♥');
   scheduleBehavior(3400);
 });
@@ -568,6 +608,6 @@ if (!gotLock) {
 
 app.on('before-quit', () => {
   quitting = true;
-  stopWalk();
-  if (behaviorTimer) clearTimeout(behaviorTimer);
+  interaction?.dispose();
+  pauseBehavior();
 });

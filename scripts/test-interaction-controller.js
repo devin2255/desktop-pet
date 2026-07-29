@@ -1,0 +1,386 @@
+#!/usr/bin/env node
+'use strict';
+
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const { createInteractionController } = require('../src/interaction-controller');
+
+function createClock() {
+  let nextId = 1;
+  let currentTime = 0;
+  const frames = new Map();
+  const timeouts = new Map();
+  const intervals = new Map();
+  const scheduledTimeoutDelays = [];
+
+  return {
+    now: () => currentTime,
+    scheduleFrame(callback) {
+      const id = nextId++;
+      frames.set(id, callback);
+      return id;
+    },
+    cancelFrame(id) {
+      frames.delete(id);
+    },
+    setTimeout(callback, delay) {
+      const id = nextId++;
+      const normalizedDelay = Math.max(0, Number(delay) || 0);
+      scheduledTimeoutDelays.push(normalizedDelay);
+      timeouts.set(id, { callback, due: currentTime + normalizedDelay });
+      return id;
+    },
+    clearTimeout(id) {
+      timeouts.delete(id);
+    },
+    setInterval(callback, delay) {
+      const id = nextId++;
+      intervals.set(id, { callback, delay });
+      return id;
+    },
+    clearInterval(id) {
+      intervals.delete(id);
+    },
+    flushAnimationFrames(limit = 1000) {
+      let count = 0;
+      while (frames.size) {
+        if (count++ >= limit) throw new Error('animation frame loop did not settle');
+        const pending = [...frames.values()];
+        frames.clear();
+        currentTime += 16;
+        for (const callback of pending) callback(currentTime);
+      }
+    },
+    flushTimeouts(limit = 1000) {
+      let count = 0;
+      while (timeouts.size) {
+        if (count++ >= limit) throw new Error('timeout loop did not settle');
+        const [id, task] = [...timeouts.entries()].sort((left, right) => left[1].due - right[1].due)[0];
+        timeouts.delete(id);
+        currentTime = Math.max(currentTime, task.due);
+        task.callback();
+      }
+    },
+    async tickIntervals() {
+      for (const task of [...intervals.values()]) await task.callback();
+    },
+    pending() {
+      return { frames: frames.size, timeouts: timeouts.size, intervals: intervals.size };
+    },
+    intervalDelays() {
+      return [...intervals.values()].map((task) => task.delay);
+    },
+    scheduledTimeoutDelays
+  };
+}
+
+function createHarness({
+  windows = [],
+  rejectDiscovery = false,
+  autoAnimate = true,
+  initialBounds = { x: 200, y: 150, width: 100, height: 120 }
+} = {}) {
+  const clock = createClock();
+  const states = [];
+  const setBoundsCalls = [];
+  const behavior = { paused: 0, resumed: 0, walkTimer: null, behaviorTimer: null };
+  let windowBounds = { ...initialBounds };
+  const discovery = {
+    windows,
+    calls: 0,
+    async list() {
+      this.calls += 1;
+      if (rejectDiscovery) throw new Error('discovery unavailable');
+      return this.windows;
+    }
+  };
+  const display = {
+    id: 'display-1',
+    bounds: { x: 0, y: 0, width: 800, height: 600 },
+    workArea: { x: 0, y: 40, width: 800, height: 520 }
+  };
+  const petWindow = {
+    getBounds: () => ({ ...windowBounds }),
+    setBounds(next) {
+      windowBounds = { ...next };
+      setBoundsCalls.push({ ...next });
+    },
+    isDestroyed: () => false
+  };
+  const manifest = {
+    interactionActions: {
+      climb: { action: 'climb-action', anchor: { x: 0.5, y: 0.5 } },
+      perch: { action: 'perch-action', anchor: { x: 0.5, y: 0.7 } },
+      hang: { action: 'hang-action', anchor: { x: 0.5, y: 0.1 } },
+      impact: { action: 'impact-action' },
+      recover: { action: 'recover-action' }
+    },
+    animations: {
+      'climb-action': { durations: [120, 180] },
+      'perch-action': { durations: [500] },
+      'hang-action': { durations: [500] },
+      'impact-action': { durations: [140, 160] },
+      'recover-action': { durations: [200, 220] },
+      reaction: { durations: [100] }
+    }
+  };
+  const dependencies = {
+    window: petWindow,
+    discovery,
+    screen: {
+      getDisplayNearestPoint: () => display
+    },
+    getCurrentSize: () => ({ width: 100, height: 120 }),
+    getManifest: () => manifest,
+    sendState: (state) => states.push(state),
+    pauseBehavior() {
+      behavior.paused += 1;
+      if (behavior.walkTimer) clock.clearInterval(behavior.walkTimer);
+      if (behavior.behaviorTimer) clock.clearTimeout(behavior.behaviorTimer);
+      behavior.walkTimer = null;
+      behavior.behaviorTimer = null;
+    },
+    resumeBehavior: () => { behavior.resumed += 1; },
+    scheduleFrame: clock.scheduleFrame,
+    cancelFrame: clock.cancelFrame,
+    setTimeout: clock.setTimeout,
+    clearTimeout: clock.clearTimeout,
+    setInterval: clock.setInterval,
+    clearInterval: clock.clearInterval,
+    now: clock.now
+  };
+  const climbs = [];
+  if (autoAnimate) {
+    dependencies.animatePosition = async ({ from, to, duration, setPosition }) => {
+      climbs.push({ from, to, duration });
+      setPosition(to);
+    };
+  }
+  const controller = createInteractionController(dependencies);
+  return {
+    behavior,
+    clock,
+    climbs,
+    controller,
+    dependencies,
+    discovery,
+    display,
+    manifest,
+    petWindow,
+    setBoundsCalls,
+    states,
+    bounds: () => ({ ...windowBounds })
+  };
+}
+
+async function dragAndEnd(harness, pointer) {
+  harness.controller.startDrag({ x: 200, y: 150 });
+  await harness.controller.endDrag(pointer);
+}
+
+async function run() {
+  const target = { id: 'w1', bounds: { x: 100, y: 100, width: 500, height: 400 } };
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    assert.deepStrictEqual(harness.states, ['drag']);
+    await harness.controller.endDrag({ x: 100, y: 250 });
+    assert.deepStrictEqual(harness.states.slice(-2), ['climb', 'perch']);
+    assert.strictEqual(harness.controller.state(), 'perched');
+    assert.strictEqual(harness.climbs[0].duration, 300);
+    assert.deepStrictEqual(harness.clock.intervalDelays(), [100]);
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    assert.strictEqual(harness.controller.state(), 'perched');
+    assert.deepStrictEqual(harness.states.slice(-1), ['perch']);
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    await dragAndEnd(harness, { x: 350, y: 499 });
+    assert.strictEqual(harness.controller.state(), 'hanging');
+    assert.deepStrictEqual(harness.states.slice(-1), ['hang']);
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    await dragAndEnd(harness, { x: 350, y: 300 });
+    assert.strictEqual(harness.controller.state(), 'normal');
+    assert.deepStrictEqual(harness.states.slice(-1), ['normal']);
+    assert.strictEqual(harness.clock.pending().intervals, 0);
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.controller.updateVisibleInsets({ left: 10, top: 20, right: 10, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 200, y: -100 });
+    assert.strictEqual(harness.bounds().y, -20, 'dragging uses full display bounds and visible top');
+    assert.strictEqual(harness.bounds().width, 100);
+    assert.strictEqual(harness.bounds().height, 120);
+  }
+
+  {
+    const topWindow = { id: 'w-top', bounds: { x: 100, y: 0, width: 500, height: 400 } };
+    const harness = createHarness({
+      windows: [topWindow],
+      initialBounds: { x: 300, y: -60, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    await dragAndEnd(harness, { x: 350, y: 0 });
+    assert.strictEqual(harness.controller.state(), 'perched', 'window hit wins over screen-top fall');
+    assert.ok(!harness.states.includes('fall'));
+  }
+
+  {
+    const movingTarget = { id: 'w1', bounds: { ...target.bounds } };
+    const harness = createHarness({ windows: [movingTarget] });
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    const attached = harness.bounds();
+    assert.strictEqual(harness.discovery.calls, 1, 'drag end discovers windows exactly once');
+    harness.controller.updateVisibleInsets({ left: 5, top: 10, right: 5, bottom: 0 });
+    assert.strictEqual(harness.discovery.calls, 1, 'frame inset updates reuse cached target bounds');
+    assert.notDeepStrictEqual(harness.bounds(), attached, 'frame inset updates realign the attachment');
+    const insetAdjusted = harness.bounds();
+    movingTarget.bounds = { x: 170, y: 145, width: 500, height: 400 };
+    await harness.clock.tickIntervals();
+    assert.notDeepStrictEqual(harness.bounds(), insetAdjusted, 'attached pet follows target movement');
+    assert.strictEqual(harness.discovery.calls, 2);
+  }
+
+  {
+    const movingTarget = { id: 'w1', bounds: { ...target.bounds } };
+    const harness = createHarness({ windows: [movingTarget] });
+    await dragAndEnd(harness, { x: 350, y: 499 });
+    movingTarget.minimized = true;
+    await harness.clock.tickIntervals();
+    assert.strictEqual(harness.controller.state(), 'falling');
+    assert.deepStrictEqual(harness.states.slice(-1), ['fall']);
+  }
+
+  {
+    const movingTarget = { id: 'w1', bounds: { ...target.bounds } };
+    const harness = createHarness({ windows: [movingTarget] });
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    harness.discovery.windows = [];
+    await harness.clock.tickIntervals();
+    assert.strictEqual(harness.controller.state(), 'falling');
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    harness.controller.startDrag({ x: 350, y: 100 });
+    assert.strictEqual(harness.controller.state(), 'dragging');
+    assert.deepStrictEqual(harness.states.slice(-1), ['drag']);
+    assert.strictEqual(harness.clock.pending().intervals, 0);
+    assert.ok(!harness.states.includes('fall'));
+  }
+
+  {
+    const harness = createHarness({
+      rejectDiscovery: true,
+      initialBounds: { x: 450, y: -60, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    await dragAndEnd(harness, { x: 500, y: 0 });
+    assert.strictEqual(harness.controller.state(), 'normal');
+    assert.deepStrictEqual(harness.states.slice(-1), ['normal']);
+  }
+
+  {
+    const harness = createHarness({
+      initialBounds: { x: 450, y: -60, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 500, y: 0 });
+    harness.discovery.windows = [];
+    await harness.controller.endDrag({ x: 500, y: 0 });
+    harness.clock.flushAnimationFrames();
+    harness.clock.flushTimeouts();
+    assert.deepStrictEqual(harness.states.slice(-4), ['fall', 'impact', 'recover', 'normal']);
+    assert.deepStrictEqual(harness.bounds(), { x: 686, y: 446, width: 100, height: 120 });
+    assert.ok(harness.clock.scheduledTimeoutDelays.includes(300), 'impact uses manifest duration');
+    assert.ok(harness.clock.scheduledTimeoutDelays.includes(420), 'recover uses manifest duration');
+  }
+
+  {
+    const harness = createHarness({
+      initialBounds: { x: 450, y: -53, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    await dragAndEnd(harness, { x: 500, y: 7 });
+    assert.strictEqual(harness.controller.state(), 'normal', 'visible top beyond 6 DIP does not fall');
+  }
+
+  {
+    const harness = createHarness({
+      windows: [target],
+      autoAnimate: false
+    });
+    const endPromise = (async () => {
+      harness.controller.startDrag({ x: 200, y: 150 });
+      return harness.controller.endDrag({ x: 100, y: 250 });
+    })();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.ok(harness.clock.pending().frames > 0, 'climb owns an animation frame');
+    harness.behavior.walkTimer = harness.clock.setInterval(() => {}, 16);
+    harness.behavior.behaviorTimer = harness.clock.setTimeout(() => {}, 5000);
+    harness.controller.dispose();
+    assert.deepStrictEqual(harness.clock.pending(), { frames: 0, timeouts: 0, intervals: 0 });
+    void endPromise;
+  }
+
+  {
+    const harness = createHarness();
+    harness.controller.detachAndFall('cleanup-test');
+    assert.ok(harness.clock.pending().frames > 0);
+    harness.controller.dispose();
+    assert.deepStrictEqual(harness.clock.pending(), { frames: 0, timeouts: 0, intervals: 0 });
+  }
+
+  {
+    const harness = createHarness();
+    assert.strictEqual(harness.controller.updateVisibleInsets({ left: 0, top: 0, right: 99, bottom: 119 }), true);
+    assert.strictEqual(harness.controller.updateVisibleInsets({ left: -1, top: 0, right: 0, bottom: 0 }), false);
+    assert.strictEqual(harness.controller.updateVisibleInsets({ left: 0, top: 120, right: 0, bottom: 0 }), false);
+  }
+
+  {
+    const projectRoot = path.resolve(__dirname, '..');
+    const main = fs.readFileSync(path.join(projectRoot, 'src', 'main-v3.js'), 'utf8');
+    const preload = fs.readFileSync(path.join(projectRoot, 'src', 'preload-v3.js'), 'utf8');
+    const builder = fs.readFileSync(path.join(projectRoot, 'scripts', 'build-customer.js'), 'utf8');
+    const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+    assert.match(main, /require\('\.\/window-discovery'\)/);
+    assert.match(main, /require\('\.\/interaction-controller'\)/);
+    assert.match(main, /interactionActions:\s*manifest\.interactionActions\s*\|\|\s*\{\}/);
+    for (const channel of ['pet:drag-start', 'pet:drag-move', 'pet:drag-end', 'pet:visible-insets']) {
+      assert.match(main, new RegExp(`onTrusted\\('${channel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
+    }
+    assert.match(preload, /endDrag:\s*\(position\)\s*=>\s*ipcRenderer\.send\('pet:drag-end',\s*position\)/);
+    for (const file of [
+      'src/window-interactions.js',
+      'src/window-discovery.js',
+      'src/interaction-controller.js'
+    ]) {
+      assert.ok(packageJson.build.files.includes(file), `default package includes ${file}`);
+      assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
+    }
+    assert.ok(packageJson.dependencies['get-windows'], 'window discovery remains a production dependency');
+  }
+
+  assert.ok(true, 'top, bottom, side, center, priority, polling, fall, and cleanup checks completed');
+  console.log('interaction controller checks passed');
+}
+
+run().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

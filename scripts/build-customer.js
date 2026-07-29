@@ -146,6 +146,9 @@ function buildCustomer(options) {
         'src/styles-v3.css',
         'src/renderer-v3.js',
         'src/petpack-validator.js',
+        'src/window-interactions.js',
+        'src/window-discovery.js',
+        'src/interaction-controller.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

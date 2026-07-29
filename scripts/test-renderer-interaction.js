@@ -51,7 +51,7 @@ const bubble = element();
 bubble.offsetHeight = 24;
 const hearts = element();
 const windowListeners = new Map();
-const calls = { start: 0, move: 0, end: 0, interact: 0, through: [], spoken: [], insets: [] };
+const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], spoken: [], insets: [] };
 let loadCallback;
 let stateCallback;
 
@@ -101,7 +101,7 @@ const context = {
       getCurrentPet: () => ({ then: () => {} }),
       startDrag: () => { calls.start += 1; },
       drag: () => { calls.move += 1; },
-      endDrag: () => { calls.end += 1; },
+      endDrag: (pointer) => { calls.end += 1; calls.endPointers.push(pointer); },
       interact: () => { calls.interact += 1; },
       setMouseThrough: (ignore) => calls.through.push(ignore),
       setVisibleInsets: (insets) => calls.insets.push(insets),
@@ -148,6 +148,7 @@ pointer('pointerup', 107, 100);
 assert.strictEqual(calls.start, 1, 'movement past the dead zone should start one drag');
 assert.strictEqual(calls.move, 1);
 assert.strictEqual(calls.end, 1);
+assert.deepStrictEqual({ ...calls.endPointers[0] }, { screenX: 107, screenY: 100 });
 
 for (let index = 0; index < 50; index += 1) stateCallback({ state: 'reaction', message: '' });
 assert.strictEqual(pet.style.getPropertyValue('--action-scale'), '1', 'repeated reactions must set an absolute scale');

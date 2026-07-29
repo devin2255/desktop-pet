@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('petApi', {
   onState: (callback) => ipcRenderer.on('pet:state', (_event, payload) => callback(payload)),
   startDrag: (position) => ipcRenderer.send('pet:drag-start', position),
   drag: (position) => ipcRenderer.send('pet:drag-move', position),
-  endDrag: () => ipcRenderer.send('pet:drag-end'),
+  endDrag: (position) => ipcRenderer.send('pet:drag-end', position),
   interact: () => ipcRenderer.send('pet:interact'),
   setMouseThrough: (ignore) => ipcRenderer.send('pet:set-mouse-through', Boolean(ignore)),
   setVisibleInsets: (insets) => ipcRenderer.send('pet:visible-insets', insets),

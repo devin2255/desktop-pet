@@ -249,14 +249,14 @@ pet.addEventListener('pointerup', (event) => {
   pointerDown = undefined;
   pet.releasePointerCapture(event.pointerId);
   pet.classList.remove('dragging');
-  if (dragged) window.petApi.endDrag();
+  if (dragged) window.petApi.endDrag({ screenX: event.screenX, screenY: event.screenY });
   else { releaseHearts(); window.petApi.interact(); }
 });
-pet.addEventListener('pointercancel', () => {
+pet.addEventListener('pointercancel', (event) => {
   const dragged = pointerDown?.dragStarted;
   pointerDown = undefined;
   pet.classList.remove('dragging');
-  if (dragged) window.petApi.endDrag();
+  if (dragged) window.petApi.endDrag({ screenX: event.screenX, screenY: event.screenY });
 });
 pet.addEventListener('contextmenu', (event) => {
   event.preventDefault();
