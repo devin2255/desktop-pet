@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
-    "get-windows": "^9.3.0"
+    "get-windows": "^9.3.0",
+    "koffi": "^2.16.3"
   }
 }
