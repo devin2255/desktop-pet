@@ -76,15 +76,15 @@ def render_action(subjects: list[Image.Image], output_root: Path, action: str) -
         canvas.save(output_dir / f"{index:02d}.png", optimize=True)
 
 
-def contact_sheet(output_root: Path) -> None:
+def contact_sheet(output_root: Path, action_counts: dict[str, int]) -> None:
     cell_width, cell_height, label_height = 120, 112, 18
     sheet = Image.new(
         "RGB",
-        (max(FRAME_COUNTS.values()) * cell_width, len(FRAME_COUNTS) * (cell_height + label_height)),
+        (max(action_counts.values()) * cell_width, len(action_counts) * (cell_height + label_height)),
         "white",
     )
     draw = ImageDraw.Draw(sheet)
-    for row, (action, count) in enumerate(FRAME_COUNTS.items()):
+    for row, (action, count) in enumerate(action_counts.items()):
         row_y = row * (cell_height + label_height)
         draw.text((4, row_y + 2), f"{action} ({count})", fill="#55483e")
         for index in range(count):
@@ -99,10 +99,26 @@ def contact_sheet(output_root: Path) -> None:
     sheet.save(output_root.parent / "contact-sheet.jpg", quality=78, optimize=True)
 
 
+def parse_action_counts(values: list[str] | None) -> dict[str, int]:
+    if not values:
+        return dict(FRAME_COUNTS)
+    result: dict[str, int] = {}
+    for value in values:
+        name, separator, raw_count = value.partition(":")
+        if not separator or not name or not raw_count.isdigit():
+            raise ValueError("--action must use name:count")
+        count = int(raw_count)
+        if count < 1 or count > 12 or name in result:
+            raise ValueError("--action must use unique name:count with count 1..12")
+        result[name] = count
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input-dir", type=Path, required=True, help="Directory containing the five transparent action strips")
+    parser.add_argument("--input-dir", type=Path, required=True, help="Directory containing transparent action strips")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--action", action="append", help="Action and frame count as name:count")
     parser.add_argument(
         "--max-significant-components",
         type=int,
@@ -117,6 +133,7 @@ def main() -> None:
         help="Maximum straight side-edge run as a fraction of subject height (default: 0.10)",
     )
     args = parser.parse_args()
+    action_counts = parse_action_counts(args.action)
 
     loaded = {
         action: load_subjects(
@@ -125,11 +142,11 @@ def main() -> None:
             args.max_significant_components,
             args.flat_side_ratio,
         )
-        for action, count in FRAME_COUNTS.items()
+        for action, count in action_counts.items()
     }
     for action, subjects in loaded.items():
         render_action(subjects, args.output_dir, action)
-    contact_sheet(args.output_dir)
+    contact_sheet(args.output_dir, action_counts)
 
 
 def alpha_mask(image: Image.Image) -> Image.Image:

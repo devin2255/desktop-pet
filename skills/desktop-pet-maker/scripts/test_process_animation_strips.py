@@ -15,11 +15,20 @@ from process_animation_strips import (
     alpha_geometry,
     alpha_mask,
     load_subjects,
+    parse_action_counts,
     render_action,
 )
 
 
 class AnimationStripSafetyTests(unittest.TestCase):
+    def test_parse_custom_action_counts(self) -> None:
+        self.assertEqual(
+            parse_action_counts(["climb:6", "perch:4", "hang:4"]),
+            {"climb": 6, "perch": 4, "hang": 4},
+        )
+        with self.assertRaisesRegex(ValueError, "name:count"):
+            parse_action_counts(["climb"])
+
     def make_strip(self, path: Path, mode: str = "valid") -> None:
         cell_width, height, count = 120, 120, 4
         strip = Image.new("RGBA", (cell_width * count, height), (0, 0, 0, 0))
