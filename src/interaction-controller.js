@@ -84,6 +84,7 @@ function createInteractionController(dependencies) {
   let currentState = 'normal';
   let visibleInsets = { left: 0, top: 0, right: 0, bottom: 0 };
   let dragOrigin;
+  let topSnap;
   let attachment;
   let attachmentTimer;
   let attachmentPollPending;
@@ -307,6 +308,7 @@ function createInteractionController(dependencies) {
     generation += 1;
     const token = generation;
     dragOrigin = undefined;
+    topSnap = undefined;
     attachment = undefined;
     clearAttachmentPolling();
     clearMotionTimers();
@@ -336,6 +338,7 @@ function createInteractionController(dependencies) {
     const pointer = pointFrom(pointerValue);
     if (!pointer || disposed || petWindow.isDestroyed?.()) return false;
     generation += 1;
+    topSnap = undefined;
     attachment = undefined;
     clearAttachmentPolling();
     clearMotionTimers();
@@ -360,6 +363,15 @@ function createInteractionController(dependencies) {
       height: size.height
     };
     const next = clampByVisibleBounds(desired, visibleInsets, display.bounds);
+    if (pointer.y - display.bounds.y <= visibleTopThreshold) {
+      next.y = Math.round(display.bounds.y - visibleInsets.top);
+      topSnap = {
+        displayId: String(display.id),
+        displayTop: display.bounds.y
+      };
+    } else {
+      topSnap = undefined;
+    }
     setPosition(next);
     return true;
   }
@@ -368,6 +380,8 @@ function createInteractionController(dependencies) {
     const pointer = pointFrom(pointerValue);
     if (!pointer || !dragOrigin || currentState !== 'dragging' || disposed) return false;
     dragOrigin = undefined;
+    const releasedTopSnap = topSnap;
+    topSnap = undefined;
     const token = generation;
     let windows;
     try {
@@ -400,7 +414,10 @@ function createInteractionController(dependencies) {
     const display = displayForPoint(pointer);
     const bounds = petWindow.getBounds();
     const visibleTop = bounds.y + visibleInsets.top;
-    if (visibleTop - display.bounds.y <= visibleTopThreshold) {
+    const releasedSnappedToDisplay = releasedTopSnap
+      && releasedTopSnap.displayId === String(display.id)
+      && releasedTopSnap.displayTop === display.bounds.y;
+    if (releasedSnappedToDisplay || visibleTop - display.bounds.y <= visibleTopThreshold) {
       detachAndFall('screen-top');
       return true;
     }
@@ -421,6 +438,10 @@ function createInteractionController(dependencies) {
       right: nextInsets.right,
       bottom: nextInsets.bottom
     };
+    if (topSnap && currentState === 'dragging') {
+      const bounds = petWindow.getBounds();
+      setPosition({ x: bounds.x, y: topSnap.displayTop - visibleInsets.top });
+    }
     if (attachment) applyAttachment({ id: attachment.id, bounds: attachment.bounds });
     return true;
   }
@@ -430,6 +451,7 @@ function createInteractionController(dependencies) {
     disposed = true;
     generation += 1;
     dragOrigin = undefined;
+    topSnap = undefined;
     attachment = undefined;
     clearAttachmentPolling();
     clearMotionTimers();

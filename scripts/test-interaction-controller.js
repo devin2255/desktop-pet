@@ -259,6 +259,74 @@ async function run() {
     assert.strictEqual(harness.bounds().height, 120);
   }
 
+  for (const topInset of [20, 60, 100]) {
+    const harness = createHarness({
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: topInset, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 200, y: 0 });
+    assert.strictEqual(
+      harness.bounds().y + topInset,
+      harness.display.bounds.y,
+      `top-band dragging snaps the visible top for inset ${topInset}`
+    );
+  }
+
+  {
+    const harness = createHarness({
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 20, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 200, y: 0 });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    assert.strictEqual(
+      harness.bounds().y + 60,
+      harness.display.bounds.y,
+      'a drag-frame inset change preserves the snapped visible top'
+    );
+  }
+
+  {
+    const harness = createHarness({
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 200, y: 0 });
+    await harness.controller.endDrag({ x: 200, y: 0 });
+    assert.strictEqual(harness.controller.state(), 'falling', 'top-snapped release without a target falls');
+    assert.deepStrictEqual(harness.states.slice(-1), ['fall']);
+  }
+
+  {
+    const topWindow = { id: 'w-top-priority', bounds: { x: 100, y: 0, width: 500, height: 400 } };
+    const harness = createHarness({
+      windows: [topWindow],
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 350, y: 0 });
+    await harness.controller.endDrag({ x: 350, y: 0 });
+    assert.strictEqual(harness.controller.state(), 'perched', 'window target wins over a top-snapped fall');
+    assert.ok(!harness.states.includes('fall'));
+  }
+
+  {
+    const harness = createHarness({
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 200, y: 0 });
+    harness.controller.moveDrag({ x: 200, y: 7 });
+    await harness.controller.endDrag({ x: 200, y: 7 });
+    assert.strictEqual(harness.controller.state(), 'normal', 'leaving the 6 DIP top band clears top snap');
+    assert.ok(!harness.states.includes('fall'));
+  }
+
   {
     const topWindow = { id: 'w-top', bounds: { x: 100, y: 0, width: 500, height: 400 } };
     const harness = createHarness({
