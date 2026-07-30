@@ -387,7 +387,10 @@ function createInteractionController(dependencies) {
     try {
       windows = await discovery.list();
     } catch {
-      if (!disposed && generation === token && currentState === 'dragging') transition('normal', 'normal');
+      if (!disposed && generation === token && currentState === 'dragging') {
+        if (releasedTopSnap) detachAndFall('screen-top-discovery-unavailable');
+        else transition('normal', 'normal');
+      }
       return false;
     }
     if (disposed || generation !== token || currentState !== 'dragging') return false;
@@ -417,7 +420,9 @@ function createInteractionController(dependencies) {
     const releasedSnappedToDisplay = releasedTopSnap
       && releasedTopSnap.displayId === String(display.id)
       && releasedTopSnap.displayTop === display.bounds.y;
-    if (releasedSnappedToDisplay || visibleTop - display.bounds.y <= visibleTopThreshold) {
+    const pointerWithinTopBand = pointer.y - display.bounds.y <= visibleTopThreshold;
+    if (releasedSnappedToDisplay
+      || (pointerWithinTopBand && visibleTop - display.bounds.y <= visibleTopThreshold)) {
       detachAndFall('screen-top');
       return true;
     }

@@ -328,6 +328,45 @@ async function run() {
   }
 
   {
+    const harness = createHarness({
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 250 });
+    harness.controller.moveDrag({ x: 200, y: 0 });
+    harness.controller.moveDrag({ x: 200, y: 7 });
+    assert.strictEqual(
+      harness.bounds().y + 60,
+      harness.display.bounds.y,
+      'visible bounds may remain clamped at the top after the pointer leaves the band'
+    );
+    await harness.controller.endDrag({ x: 200, y: 7 });
+    assert.strictEqual(
+      harness.controller.state(),
+      'normal',
+      'pointer position prevents a stale visible-top fallback from falling outside the band'
+    );
+    assert.ok(!harness.states.includes('fall'));
+  }
+
+  {
+    const harness = createHarness({
+      rejectDiscovery: true,
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 200, y: 0 });
+    await harness.controller.endDrag({ x: 200, y: 0 });
+    assert.strictEqual(
+      harness.controller.state(),
+      'falling',
+      'a top-snapped release still falls when target discovery is unavailable'
+    );
+    assert.deepStrictEqual(harness.states.slice(-1), ['fall']);
+  }
+
+  {
     const topWindow = { id: 'w-top', bounds: { x: 100, y: 0, width: 500, height: 400 } };
     const harness = createHarness({
       windows: [topWindow],
