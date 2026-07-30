@@ -32,4 +32,19 @@ for (const role of ['drag', 'climb', 'perch', 'hang', 'fall', 'impact', 'recover
   assert.ok(script.includes(`'${role}'`), `runtime CDP script does not sample role: ${role}`);
 }
 
+const supplementalPath = path.join(__dirname, 'test-runtime-cdp-supplemental.ps1');
+assert.ok(fs.existsSync(supplementalPath), 'supplemental packaged-CDP probe is missing');
+const supplemental = fs.readFileSync(supplementalPath, 'utf8');
+for (const required of [
+  'publicApiReachability',
+  'contextMenuActions',
+  'behaviorRandomExcludesSleep',
+  'dragResolvesToWalk',
+  'speechRequestInvoked',
+  'bubbleSpacingBySize',
+  'unverified'
+]) {
+  assert.ok(supplemental.includes(required), `supplemental probe is missing contract text: ${required}`);
+}
+
 console.log('runtime CDP contract tests passed');
