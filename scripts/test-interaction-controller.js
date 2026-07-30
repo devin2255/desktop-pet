@@ -90,6 +90,7 @@ function createHarness({
   const states = [];
   const stateSignals = [];
   const setBoundsCalls = [];
+  let topmostEnsures = 0;
   const behavior = { paused: 0, resumed: 0, walkTimer: null, behaviorTimer: null };
   let windowBounds = { ...initialBounds };
   const discovery = {
@@ -164,6 +165,7 @@ function createHarness({
       behavior.walkTimer = null;
       behavior.behaviorTimer = null;
     },
+    ensureOnTop: () => { topmostEnsures += 1; },
     resumeBehavior: () => { behavior.resumed += 1; },
     scheduleFrame: clock.scheduleFrame,
     cancelFrame: clock.cancelFrame,
@@ -194,6 +196,7 @@ function createHarness({
     setBoundsCalls,
     states,
     stateSignals,
+    topmostEnsures: () => topmostEnsures,
     bounds: () => ({ ...windowBounds })
   };
 }
@@ -220,6 +223,7 @@ async function run() {
     const harness = createHarness({ windows: [target] });
     harness.controller.startDrag({ x: 200, y: 150 });
     assert.deepStrictEqual(harness.states, ['drag']);
+    assert.strictEqual(harness.topmostEnsures(), 1, 'drag state reasserts topmost ordering');
     await harness.controller.endDrag({ x: 100, y: 250 });
     assert.deepStrictEqual(harness.states.slice(-2), ['climb', 'perch']);
     assert.strictEqual(harness.controller.state(), 'perched');

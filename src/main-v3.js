@@ -14,6 +14,7 @@ const {
   createInteractionController,
   shouldRestoreWindowBounds
 } = require('./interaction-controller');
+const { createTopmostGuard } = require('./topmost-guard');
 const {
   app,
   BrowserWindow,
@@ -48,6 +49,7 @@ let activeManifest;
 let behaviorTimer;
 let walkTimer;
 let interaction;
+let topmostGuard;
 let quitting = false;
 let mouseThrough = false;
 let deliveryConfig;
@@ -377,6 +379,7 @@ function switchPet(id) {
 
 function showPet() {
   petWindow?.showInactive();
+  topmostGuard?.ensure();
   if (interaction && interaction.state() !== 'normal') return;
   sendState('reaction', '你回来啦！');
   scheduleBehavior(3000);
@@ -418,7 +421,12 @@ function buildTrayMenu() {
         scheduleBehavior(1200);
       }
     },
-    { label: '始终置顶', type: 'checkbox', checked: petWindow?.isAlwaysOnTop() ?? true, click: (item) => petWindow?.setAlwaysOnTop(item.checked, 'floating') },
+    {
+      label: '始终置顶',
+      type: 'checkbox',
+      checked: topmostGuard?.isEnabled() ?? true,
+      click: (item) => topmostGuard?.setEnabled(item.checked)
+    },
     { label: '开机自动启动', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }) },
     { type: 'separator' }, { label: '暂时藏起来', click: () => petWindow?.hide() },
     {
@@ -467,7 +475,8 @@ function createWindow() {
       allowRunningInsecureContent: false
     }
   });
-  petWindow.setAlwaysOnTop(true, 'floating');
+  topmostGuard = createTopmostGuard({ getWindow: () => petWindow });
+  topmostGuard.ensure();
   interaction = createInteractionController({
     window: petWindow,
     discovery: createWindowDiscovery({ screen }),
@@ -477,6 +486,7 @@ function createWindow() {
     sendState: (state, options) => sendState(state, '', '', state, options),
     pauseBehavior,
     resumeBehavior: () => scheduleBehavior(2500),
+    ensureOnTop: () => topmostGuard?.ensure(),
     edgeGap: EDGE_GAP,
     bottomOffset: 6
   });
@@ -485,9 +495,13 @@ function createWindow() {
   petWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   petWindow.webContents.on('will-navigate', (event, url) => { if (url !== indexUrl) event.preventDefault(); });
   petWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  petWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
+    if (!isAlwaysOnTop && topmostGuard?.isEnabled()) setImmediate(() => topmostGuard?.ensure());
+  });
   petWindow.loadFile(indexPath);
   petWindow.once('ready-to-show', () => {
     petWindow.showInactive();
+    topmostGuard?.ensure();
     sendState('reaction', `我是${activeManifest.name}。`);
     scheduleBehavior(3600);
   });

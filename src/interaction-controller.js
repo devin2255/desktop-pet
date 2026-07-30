@@ -57,6 +57,7 @@ function createInteractionController(dependencies) {
   const sendState = dependencies.sendState;
   const pauseBehavior = dependencies.pauseBehavior || (() => {});
   const resumeBehavior = dependencies.resumeBehavior || (() => {});
+  const ensureOnTop = dependencies.ensureOnTop || (() => {});
   const setTimeoutFn = dependencies.setTimeout || setTimeout;
   const clearTimeoutFn = dependencies.clearTimeout || clearTimeout;
   const setIntervalFn = dependencies.setInterval || setInterval;
@@ -115,6 +116,7 @@ function createInteractionController(dependencies) {
     currentState = next;
     if (INTERACTIVE_STATES.has(next)) pauseBehavior();
     sendState(logicalRole || next, CONTROLLER_STATE_OPTIONS);
+    ensureOnTop();
     if (next === 'normal') resumeBehavior();
   }
 
