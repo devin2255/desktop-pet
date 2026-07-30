@@ -12,6 +12,18 @@ function selectTargetWindow(pointer, windows, excludedIds = new Set()) {
     && contains(pointer, item.bounds)) || null;
 }
 
+function selectDisplayTopWindow(pointer, windows, display, excludedIds = new Set(), threshold = 32) {
+  if (!pointer || !display || Math.abs(pointer.y - display.y) > threshold) return null;
+  return windows.find((item) => {
+    const bounds = item?.bounds;
+    return item && !excludedIds.has(String(item.id))
+      && item.visible !== false && item.minimized !== true
+      && bounds?.width > 0 && bounds?.height > 0
+      && pointer.x >= bounds.x && pointer.x <= bounds.x + bounds.width
+      && Math.abs(bounds.y - display.y) <= threshold;
+  }) || null;
+}
+
 function classifyWindowEdge(pointer, bounds, threshold = 32) {
   if (!contains(pointer, bounds)) return null;
   const priority = ['top', 'bottom', 'left', 'right'];
@@ -78,6 +90,6 @@ function nextFallFrame(state, elapsedMs, floorY) {
 }
 
 module.exports = {
-  selectTargetWindow, classifyWindowEdge, visibleRect,
+  selectTargetWindow, selectDisplayTopWindow, classifyWindowEdge, visibleRect,
   clampByVisibleBounds, positionForAttachment, nextFallFrame
 };

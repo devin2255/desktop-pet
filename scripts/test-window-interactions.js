@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const {
-  selectTargetWindow, classifyWindowEdge, visibleRect,
+  selectTargetWindow, selectDisplayTopWindow, classifyWindowEdge, visibleRect,
   clampByVisibleBounds, positionForAttachment, nextFallFrame
 } = require('../src/window-interactions');
 
@@ -12,6 +12,23 @@ const windows = [
   { id: 'back', bounds: { x: 80, y: 80, width: 600, height: 500 } }
 ];
 assert.strictEqual(selectTargetWindow({ x: 110, y: 110 }, windows, new Set(['pet'])).id, 'front');
+assert.strictEqual(
+  selectDisplayTopWindow(
+    { x: 350, y: 0 },
+    [{ id: 'maximized', bounds: { x: 0, y: 8, width: 800, height: 592 } }],
+    { x: 0, y: 0, width: 800, height: 600 }
+  ).id,
+  'maximized'
+);
+assert.strictEqual(
+  selectDisplayTopWindow(
+    { x: 350, y: -40 },
+    [{ id: 'maximized', bounds: { x: 0, y: 8, width: 800, height: 592 } }],
+    { x: 0, y: 0, width: 800, height: 600 }
+  ),
+  null,
+  'releasing well above the display remains a fall gesture'
+);
 assert.strictEqual(classifyWindowEdge({ x: 110, y: 110 }, windows[1].bounds, 32), 'top');
 assert.strictEqual(classifyWindowEdge({ x: 350, y: 490 }, windows[1].bounds, 32), 'bottom');
 assert.strictEqual(classifyWindowEdge({ x: 105, y: 300 }, windows[1].bounds, 32), 'left');

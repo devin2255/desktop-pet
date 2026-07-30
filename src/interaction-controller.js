@@ -5,6 +5,7 @@ const {
   classifyWindowEdge,
   nextFallFrame,
   positionForAttachment,
+  selectDisplayTopWindow,
   selectTargetWindow
 } = require('./window-interactions');
 
@@ -397,7 +398,9 @@ function createInteractionController(dependencies) {
     }
     if (disposed || generation !== token || currentState !== 'dragging') return false;
 
-    const target = selectTargetWindow(pointer, Array.isArray(windows) ? windows : [], excludedIds);
+    const display = displayForPoint(pointer);
+    const candidates = Array.isArray(windows) ? windows : [];
+    const target = selectTargetWindow(pointer, candidates, excludedIds);
     if (target) {
       const edge = classifyWindowEdge(pointer, target.bounds, edgeThreshold);
       if (edge === 'left' || edge === 'right') {
@@ -416,7 +419,20 @@ function createInteractionController(dependencies) {
       return true;
     }
 
-    const display = displayForPoint(pointer);
+    const displayTopTarget = releasedTopSnap
+      ? selectDisplayTopWindow(pointer, candidates, display.bounds, excludedIds, edgeThreshold)
+      : null;
+    if (displayTopTarget) {
+      attach(
+        displayTopTarget,
+        'top',
+        pointer.x - displayTopTarget.bounds.x,
+        'perch',
+        'perched'
+      );
+      return true;
+    }
+
     const bounds = petWindow.getBounds();
     const visibleTop = bounds.y + visibleInsets.top;
     const releasedSnappedToDisplay = releasedTopSnap

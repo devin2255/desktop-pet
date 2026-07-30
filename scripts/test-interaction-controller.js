@@ -319,6 +319,27 @@ async function run() {
   }
 
   {
+    const maximizedWindow = {
+      id: 'w-maximized',
+      bounds: { x: 0, y: 8, width: 800, height: 592 }
+    };
+    const harness = createHarness({
+      windows: [maximizedWindow],
+      initialBounds: { x: 200, y: 150, width: 100, height: 120 }
+    });
+    harness.controller.updateVisibleInsets({ left: 0, top: 60, right: 0, bottom: 0 });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 350, y: 0 });
+    await harness.controller.endDrag({ x: 350, y: 0 });
+    assert.strictEqual(
+      harness.controller.state(),
+      'perched',
+      'a maximized window whose reported top starts inside the hidden resize border wins over screen-top fall'
+    );
+    assert.ok(!harness.states.includes('fall'));
+  }
+
+  {
     const harness = createHarness({
       initialBounds: { x: 200, y: 150, width: 100, height: 120 }
     });
@@ -415,6 +436,18 @@ async function run() {
     harness.discovery.windows = [];
     await harness.clock.tickIntervals();
     assert.strictEqual(harness.controller.state(), 'falling');
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.manifest.interactionActions.hang.anchor.y = 0;
+    harness.controller.updateVisibleInsets({ left: 10, top: 20, right: 10, bottom: 0 });
+    await dragAndEnd(harness, { x: 350, y: 499 });
+    assert.strictEqual(
+      harness.bounds().y + 20,
+      target.bounds.y + target.bounds.height,
+      'the topmost visible hang pixels (the hands) touch the window bottom edge'
+    );
   }
 
   {
@@ -549,6 +582,10 @@ async function run() {
       path.join(projectRoot, 'skills', 'desktop-pet-maker', 'assets', 'manifest-template.json'),
       'utf8'
     ));
+    const sonPetManifest = JSON.parse(fs.readFileSync(
+      path.join(projectRoot, 'pets', 'library', 'son-pet', 'pet.json'),
+      'utf8'
+    ));
     assert.match(main, /require\('\.\/window-discovery'\)/);
     assert.match(main, /require\('\.\/interaction-controller'\)/);
     assert.match(main, /shouldRestoreWindowBounds\(options\)/);
@@ -610,6 +647,11 @@ async function run() {
       assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
     }
     assert.ok(packageJson.dependencies['get-windows'], 'window discovery remains a production dependency');
+    assert.strictEqual(
+      sonPetManifest.interactionActions.hang.anchor.y,
+      0,
+      'son-pet aligns its visible hand line directly to the window bottom edge'
+    );
   }
 
   assert.ok(true, 'top, bottom, side, center, priority, polling, fall, and cleanup checks completed');
