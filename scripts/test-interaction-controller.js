@@ -4,6 +4,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const {
   createInteractionController,
   shouldRestoreWindowBounds
@@ -446,13 +447,40 @@ async function run() {
     );
     assert.match(main, /interactionActions:\s*manifest\.interactionActions\s*\|\|\s*\{\}/);
     const fallbackMatch = main.match(
-      /const usable = Array\.isArray\(choices\).*?\?\s*choices\s*:\s*\[([\s\S]*?)\];/
+      /const usable = filteredChoices\.length\s*\?\s*filteredChoices\s*:\s*\[([\s\S]*?)\];/
     );
     assert.ok(fallbackMatch, 'player exposes a generic random-behavior fallback');
     assert.doesNotMatch(
       fallbackMatch[1],
       /state:\s*['"]sleep['"]/,
       'player fallback must never schedule sleep'
+    );
+    const chooseBehaviorSource = main.match(
+      /function chooseBehavior\(\) \{[\s\S]*?\n\}/
+    );
+    assert.ok(chooseBehaviorSource, 'player exposes chooseBehavior for runtime policy testing');
+    const runtimePolicy = {
+      result: null,
+      Math: Object.create(Math)
+    };
+    runtimePolicy.Math.random = () => 0;
+    vm.runInNewContext(
+      `const activeManifest = {
+        behavior: {
+          random: [
+            { state: 'sleep', weight: 100, minDuration: 600, maxDuration: 1000 },
+            { state: 'reaction', weight: 1, minDuration: 600, maxDuration: 1000 }
+          ]
+        }
+      };
+      ${chooseBehaviorSource[0]}
+      result = chooseBehavior();`,
+      runtimePolicy
+    );
+    assert.strictEqual(
+      runtimePolicy.result.state,
+      'reaction',
+      'runtime must defensively filter legacy random sleep entries before selection'
     );
     assert.ok(
       manifestTemplate.behavior.random.every((item) => item.state !== 'sleep'),

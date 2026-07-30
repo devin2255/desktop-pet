@@ -8,7 +8,7 @@ Resolved all three Important findings from the final review without rebuilding t
 
 1. Both manifest validators now apply the same structural, frame-path, duration, duplicate-path, PNG-extension, and scale checks to every animation referenced by `interactionActions`. An interaction mapping to `climb: {}` is rejected by both implementations.
 2. Window-edge classification now selects the nearest edge within the threshold. The established `top`, `bottom`, `left`, `right` priority is used only when distances are equal within `1e-6` DIP.
-3. Both validators reject `behavior.random` entries whose state is `sleep`. The player fallback and new-manifest template contain only `walk`, `sit`, and `reaction`.
+3. Schema-v1 validators continue accepting legacy `behavior.random` entries whose state is `sleep`. At runtime, `chooseBehavior` defensively filters those entries before weighted selection and uses a sleep-free fallback if filtering leaves no choices. The new-manifest template contains only `walk`, `sit`, and `reaction`.
 4. The tracked `xiaogou.petpack` validation fixture was deterministically rebuilt with its random `sleep` entry removed so the stricter invariant holds for the repository demo package.
 
 ## TDD evidence
@@ -17,9 +17,11 @@ RED was observed before production edits:
 
 - JavaScript validator accepted `interactionActions.climb -> animations.climb = {}`.
 - Python validator accepted the same malformed animation.
-- Both validators accepted `behavior.random` scheduling `sleep`.
+- A first revision rejected legacy schema-v1 `behavior.random` sleep entries, exposing a compatibility regression.
 - Edge classification returned `top` for a pointer 30 DIP from top and 1 DIP from left.
 - The player fallback test found a `sleep` entry.
+
+The compatibility follow-up RED cycle demonstrated that both validators rejected a legacy sleep entry and that the real `chooseBehavior` implementation selected that entry. The GREEN implementation restored validator acceptance while filtering sleep only at runtime.
 
 GREEN after the minimal implementation:
 

@@ -293,7 +293,10 @@ function walkTo(targetX) {
 
 function chooseBehavior() {
   const choices = activeManifest?.behavior?.random;
-  const usable = Array.isArray(choices) && choices.length ? choices : [
+  const filteredChoices = Array.isArray(choices)
+    ? choices.filter((item) => item?.state !== 'sleep')
+    : [];
+  const usable = filteredChoices.length ? filteredChoices : [
     { state: 'walk', weight: 50, minDuration: 1500, maxDuration: 4200 },
     { state: 'sit', weight: 28, minDuration: 4200, maxDuration: 6200 },
     { state: 'reaction', weight: 22, minDuration: 2200, maxDuration: 3400 }

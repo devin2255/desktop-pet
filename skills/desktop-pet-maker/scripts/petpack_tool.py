@@ -141,8 +141,6 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
         for item in behavior:
             if not isinstance(item, dict) or item.get("state") not in animations:
                 raise ValueError("behavior.random references an unknown animation")
-            if item.get("state") == "sleep":
-                raise ValueError("behavior.random must not schedule sleep")
             weight = item.get("weight")
             minimum = item.get("minDuration")
             maximum = item.get("maxDuration")

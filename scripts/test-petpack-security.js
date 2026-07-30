@@ -66,10 +66,9 @@ manifest.interactionActions.drag.action = 'walk';
 manifest.behavior = {
   random: [{ state: 'sleep', weight: 1, minDuration: 600, maxDuration: 1000 }]
 };
-assert.throws(
+assert.doesNotThrow(
   () => validateManifest(manifest),
-  /sleep/,
-  'behavior.random must never schedule sleep'
+  'schema-v1 validators must continue accepting legacy random sleep entries'
 );
 
 console.log('petpack archive security checks passed');

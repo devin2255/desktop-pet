@@ -152,7 +152,6 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     }
     for (const item of manifest.behavior.random) {
       if (!item || typeof item !== 'object' || !manifest.animations[item.state]) throw new Error('behavior.random 引用了不存在的动画');
-      if (item.state === 'sleep') throw new Error('behavior.random 禁止调度 sleep');
       if (!Number.isFinite(item.weight) || item.weight <= 0 || item.weight > 10000) throw new Error('behavior.random weight 不合法');
       if (!Number.isFinite(item.minDuration) || !Number.isFinite(item.maxDuration) || item.minDuration < 600 || item.maxDuration > 60000 || item.maxDuration < item.minDuration) {
         throw new Error('behavior.random duration 不合法');

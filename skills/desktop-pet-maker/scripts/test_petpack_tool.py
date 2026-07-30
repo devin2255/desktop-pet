@@ -84,14 +84,13 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "climb"):
             petpack_tool.validate_manifest_shape(manifest)
 
-    def test_behavior_random_cannot_schedule_sleep(self) -> None:
+    def test_schema_v1_legacy_behavior_random_can_contain_sleep(self) -> None:
         with zipfile.ZipFile(self.fixture) as source:
             manifest = json.loads(source.read("pet.json"))
         manifest["behavior"] = {
             "random": [{"state": "sleep", "weight": 1, "minDuration": 600, "maxDuration": 1000}]
         }
-        with self.assertRaisesRegex(ValueError, "sleep"):
-            petpack_tool.validate_manifest_shape(manifest)
+        petpack_tool.validate_manifest_shape(manifest)
 
 
 if __name__ == "__main__":
