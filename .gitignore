@@ -37,6 +37,10 @@ tmp/
 /pets/library/
 *.docx
 
+# Private interaction orchestration state and likeness previews
+/.orch/desktop-pet-window-interactions/
+/outputs/*-interactions-preview.png
+
 # Generated animation sources are reproducible and may contain private likenesses.
 /assets/animations/
 /assets/generated/*
