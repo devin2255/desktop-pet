@@ -71,14 +71,16 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
         raise ValueError("animations must be an object")
 
     frame_paths: list[str] = []
-    for action, expected in REQUIRED_ACTIONS.items():
+
+    def validate_animation(action: str, expected: int | None = None) -> None:
         config = animations.get(action)
         if not isinstance(config, dict):
-            raise ValueError(f"missing animation: {action}")
+            raise ValueError(f"{action}: animation must be an object")
         frames = config.get("frames")
         durations = config.get("durations")
-        if not isinstance(frames, list) or len(frames) != expected:
-            raise ValueError(f"{action}: expected {expected} frame paths")
+        if not isinstance(frames, list) or (len(frames) != expected if expected is not None else not frames):
+            expectation = f"{expected}" if expected is not None else "at least 1"
+            raise ValueError(f"{action}: expected {expectation} frame paths")
         if not isinstance(durations, list) or len(durations) != len(frames):
             raise ValueError(f"{action}: durations must match frames")
         if any(not isinstance(value, int) or isinstance(value, bool) or not 40 <= value <= 10000 for value in durations):
@@ -97,6 +99,11 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
             canonical_frames.add(canonical)
             frame_paths.append(relative.as_posix())
 
+    validated_animations: set[str] = set()
+    for action, expected in REQUIRED_ACTIONS.items():
+        validate_animation(action, expected)
+        validated_animations.add(action)
+
     interaction_actions = manifest.get("interactionActions")
     if interaction_actions is not None:
         if not isinstance(interaction_actions, dict):
@@ -107,6 +114,9 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
             action = config.get("action")
             if not isinstance(action, str) or action not in animations:
                 raise ValueError("interactionActions references an unknown animation")
+            if action not in validated_animations:
+                validate_animation(action)
+                validated_animations.add(action)
             if "anchor" in config:
                 anchor = config["anchor"]
                 if not isinstance(anchor, dict):
@@ -131,6 +141,8 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
         for item in behavior:
             if not isinstance(item, dict) or item.get("state") not in animations:
                 raise ValueError("behavior.random references an unknown animation")
+            if item.get("state") == "sleep":
+                raise ValueError("behavior.random must not schedule sleep")
             weight = item.get("weight")
             minimum = item.get("minDuration")
             maximum = item.get("maxDuration")

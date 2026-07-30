@@ -14,16 +14,17 @@ function selectTargetWindow(pointer, windows, excludedIds = new Set()) {
 
 function classifyWindowEdge(pointer, bounds, threshold = 32) {
   if (!contains(pointer, bounds)) return null;
+  const priority = ['top', 'bottom', 'left', 'right'];
   const distances = {
     top: Math.abs(pointer.y - bounds.y),
     bottom: Math.abs(bounds.y + bounds.height - pointer.y),
     left: Math.abs(pointer.x - bounds.x),
     right: Math.abs(bounds.x + bounds.width - pointer.x)
   };
-  for (const edge of ['top', 'bottom', 'left', 'right']) {
-    if (distances[edge] <= threshold) return edge;
-  }
-  return null;
+  const nearestDistance = Math.min(...priority.map((edge) => distances[edge]));
+  if (nearestDistance > threshold) return null;
+  const tieTolerance = 1e-6;
+  return priority.find((edge) => Math.abs(distances[edge] - nearestDistance) <= tieTolerance) || null;
 }
 
 function visibleRect(bounds, insets) {

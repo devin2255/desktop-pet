@@ -53,5 +53,23 @@ for (const inheritedAction of ['toString', 'constructor', '__proto__']) {
   manifest.interactionActions.drag.action = inheritedAction;
   assert.throws(() => validateManifest(manifest), /不存在/);
 }
+manifest.interactionActions.drag.action = 'climb';
+manifest.animations.climb = {};
+assert.throws(
+  () => validateManifest(manifest),
+  /climb/,
+  'every interaction animation must receive full structural validation'
+);
+delete manifest.animations.climb;
+manifest.interactionActions.drag.action = 'walk';
+
+manifest.behavior = {
+  random: [{ state: 'sleep', weight: 1, minDuration: 600, maxDuration: 1000 }]
+};
+assert.throws(
+  () => validateManifest(manifest),
+  /sleep/,
+  'behavior.random must never schedule sleep'
+);
 
 console.log('petpack archive security checks passed');

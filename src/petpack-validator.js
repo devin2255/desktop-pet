@@ -67,12 +67,18 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     throw new Error('animations 缺失');
   }
 
-  for (const [action, expected] of Object.entries(REQUIRED_ACTIONS)) {
+  function validateAnimation(action, expected) {
     const animation = manifest.animations[action];
-    if (!animation || !Array.isArray(animation.frames) || animation.frames.length !== expected) {
-      throw new Error(`${action} 必须包含 ${expected} 帧`);
+    if (!animation || typeof animation !== 'object' || Array.isArray(animation)) {
+      throw new Error(`${action} 动画配置不合法`);
     }
-    if (!Array.isArray(animation.durations) || animation.durations.length !== expected) {
+    if (!Array.isArray(animation.frames)
+      || (expected === undefined ? animation.frames.length < 1 : animation.frames.length !== expected)) {
+      throw new Error(expected === undefined
+        ? `${action} 必须包含至少 1 帧`
+        : `${action} 必须包含 ${expected} 帧`);
+    }
+    if (!Array.isArray(animation.durations) || animation.durations.length !== animation.frames.length) {
       throw new Error(`${action} 的 durations 数量不匹配`);
     }
     if (animation.durations.some((value) => !Number.isInteger(value) || value < 40 || value > 10000)) {
@@ -91,6 +97,12 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     }
   }
 
+  const validatedAnimations = new Set();
+  for (const [action, expected] of Object.entries(REQUIRED_ACTIONS)) {
+    validateAnimation(action, expected);
+    validatedAnimations.add(action);
+  }
+
   if (manifest.interactionActions !== undefined) {
     if (!manifest.interactionActions || typeof manifest.interactionActions !== 'object' || Array.isArray(manifest.interactionActions)) {
       throw new Error('interactionActions 必须是对象');
@@ -101,6 +113,10 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       }
       if (typeof config.action !== 'string' || !Object.hasOwn(manifest.animations, config.action)) {
         throw new Error(`interactionActions 引用了不存在的动画：${config.action}`);
+      }
+      if (!validatedAnimations.has(config.action)) {
+        validateAnimation(config.action);
+        validatedAnimations.add(config.action);
       }
       if (config.anchor !== undefined) {
         const { x, y } = config.anchor || {};
@@ -136,6 +152,7 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     }
     for (const item of manifest.behavior.random) {
       if (!item || typeof item !== 'object' || !manifest.animations[item.state]) throw new Error('behavior.random 引用了不存在的动画');
+      if (item.state === 'sleep') throw new Error('behavior.random 禁止调度 sleep');
       if (!Number.isFinite(item.weight) || item.weight <= 0 || item.weight > 10000) throw new Error('behavior.random weight 不合法');
       if (!Number.isFinite(item.minDuration) || !Number.isFinite(item.maxDuration) || item.minDuration < 600 || item.maxDuration > 60000 || item.maxDuration < item.minDuration) {
         throw new Error('behavior.random duration 不合法');

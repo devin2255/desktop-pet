@@ -16,6 +16,16 @@ assert.strictEqual(classifyWindowEdge({ x: 110, y: 110 }, windows[1].bounds, 32)
 assert.strictEqual(classifyWindowEdge({ x: 350, y: 490 }, windows[1].bounds, 32), 'bottom');
 assert.strictEqual(classifyWindowEdge({ x: 105, y: 300 }, windows[1].bounds, 32), 'left');
 assert.strictEqual(classifyWindowEdge({ x: 350, y: 300 }, windows[1].bounds, 32), null);
+assert.strictEqual(
+  classifyWindowEdge({ x: 101, y: 130 }, windows[1].bounds, 32),
+  'left',
+  'the nearest eligible edge wins instead of priority order'
+);
+assert.strictEqual(
+  classifyWindowEdge({ x: 101, y: 101 }, windows[1].bounds, 32),
+  'top',
+  'priority order breaks an exact distance tie'
+);
 assert.deepStrictEqual(
   visibleRect({ x: -20, y: -60, width: 220, height: 240 }, { left: 10, top: 60, right: 10, bottom: 5 }),
   { x: -10, y: 0, width: 200, height: 175 }

@@ -433,6 +433,10 @@ async function run() {
     const preload = fs.readFileSync(path.join(projectRoot, 'src', 'preload-v3.js'), 'utf8');
     const builder = fs.readFileSync(path.join(projectRoot, 'scripts', 'build-customer.js'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+    const manifestTemplate = JSON.parse(fs.readFileSync(
+      path.join(projectRoot, 'skills', 'desktop-pet-maker', 'assets', 'manifest-template.json'),
+      'utf8'
+    ));
     assert.match(main, /require\('\.\/window-discovery'\)/);
     assert.match(main, /require\('\.\/interaction-controller'\)/);
     assert.match(main, /shouldRestoreWindowBounds\(options\)/);
@@ -441,6 +445,19 @@ async function run() {
       /sendState:\s*\(state,\s*options\)\s*=>\s*sendState\(state,\s*'',\s*'',\s*state,\s*options\)/
     );
     assert.match(main, /interactionActions:\s*manifest\.interactionActions\s*\|\|\s*\{\}/);
+    const fallbackMatch = main.match(
+      /const usable = Array\.isArray\(choices\).*?\?\s*choices\s*:\s*\[([\s\S]*?)\];/
+    );
+    assert.ok(fallbackMatch, 'player exposes a generic random-behavior fallback');
+    assert.doesNotMatch(
+      fallbackMatch[1],
+      /state:\s*['"]sleep['"]/,
+      'player fallback must never schedule sleep'
+    );
+    assert.ok(
+      manifestTemplate.behavior.random.every((item) => item.state !== 'sleep'),
+      'new pet manifests must never randomly schedule sleep'
+    );
     for (const channel of ['pet:drag-start', 'pet:drag-move', 'pet:drag-end', 'pet:visible-insets']) {
       assert.match(main, new RegExp(`onTrusted\\('${channel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
     }

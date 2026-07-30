@@ -295,9 +295,8 @@ function chooseBehavior() {
   const choices = activeManifest?.behavior?.random;
   const usable = Array.isArray(choices) && choices.length ? choices : [
     { state: 'walk', weight: 50, minDuration: 1500, maxDuration: 4200 },
-    { state: 'sit', weight: 20, minDuration: 4200, maxDuration: 6200 },
-    { state: 'reaction', weight: 16, minDuration: 2200, maxDuration: 3400 },
-    { state: 'sleep', weight: 14, minDuration: 6800, maxDuration: 11000 }
+    { state: 'sit', weight: 28, minDuration: 4200, maxDuration: 6200 },
+    { state: 'reaction', weight: 22, minDuration: 2200, maxDuration: 3400 }
   ];
   const total = usable.reduce((sum, item) => sum + Math.max(0, Number(item.weight) || 0), 0);
   let cursor = Math.random() * total;
