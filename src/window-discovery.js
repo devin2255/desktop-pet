@@ -79,9 +79,11 @@ function createWindowDiscovery({
       const records = await openWindows();
       return records.flatMap((item) => {
         const windowId = item?.id;
+        const title = String(item?.title || '').trim();
         const listedPid = item?.owner?.processId;
         const nativeBounds = item?.bounds;
-        if (!isValidWindowId(windowId) || !isValidPid(listedPid) || !isValidBounds(nativeBounds)) return [];
+        if (!title || !isValidWindowId(windowId) || !isValidPid(listedPid)
+          || !isValidBounds(nativeBounds)) return [];
 
         const metadata = getWindowMetadata(windowId);
         if (!metadata || metadata.id !== windowId || !isValidPid(metadata.ownerPid)

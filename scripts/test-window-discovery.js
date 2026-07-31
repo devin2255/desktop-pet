@@ -25,9 +25,9 @@ const metadataById = (entries) => (id) => entries.get(id) || null;
       [3, { id: 3, ownerPid: 99, visible: true, minimized: false, className: 'Shell_TrayWnd' }]
     ])),
     loadOpenWindows: async () => async () => [
-      { id: 1, owner: { processId: 77, name: 'son-pet' }, bounds: { x: 0, y: 0, width: 200, height: 200 } },
-      { id: 2, owner: { processId: 88, name: 'notepad' }, bounds: { x: 200, y: 100, width: 800, height: 600 } },
-      { id: 3, owner: { processId: 99, name: 'explorer' }, bounds: { x: 0, y: 1000, width: 1920, height: 80 } }
+      { id: 1, title: 'pet', owner: { processId: 77, name: 'son-pet' }, bounds: { x: 0, y: 0, width: 200, height: 200 } },
+      { id: 2, title: 'notes', owner: { processId: 88, name: 'notepad' }, bounds: { x: 200, y: 100, width: 800, height: 600 } },
+      { id: 3, title: 'taskbar', owner: { processId: 99, name: 'explorer' }, bounds: { x: 0, y: 1000, width: 1920, height: 80 } }
     ]
   });
   assert.deepStrictEqual(await discovery.list(), [{
@@ -61,6 +61,33 @@ const metadataById = (entries) => (id) => entries.get(id) || null;
     }))
   });
   assert.deepStrictEqual(await stateFiltered.list(), []);
+
+  const untitledAuxiliary = createWindowDiscovery({
+    platform: 'win32', selfPid: 77, screen: dipScreen,
+    getWindowMetadata: metadataById(new Map([
+      [12, { id: 12, ownerPid: 88, visible: true, minimized: false, className: 'Windows.UI.Core.CoreWindow' }],
+      [13, { id: 13, ownerPid: 88, visible: true, minimized: false, className: 'CabinetWClass' }]
+    ])),
+    loadOpenWindows: async () => async () => [
+      {
+        id: 12,
+        title: '',
+        owner: { processId: 88, name: 'Windows Explorer' },
+        bounds: { x: 200, y: 600, width: 800, height: 80 }
+      },
+      {
+        id: 13,
+        title: 'outputs - File Explorer',
+        owner: { processId: 88, name: 'Windows Explorer' },
+        bounds: { x: 200, y: 100, width: 800, height: 500 }
+      }
+    ]
+  });
+  assert.deepStrictEqual(
+    (await untitledAuxiliary.list()).map((item) => item.id),
+    ['13'],
+    'untitled Explorer auxiliary surfaces must not cover the visible parent window edge'
+  );
 
   const invalidNumerics = createWindowDiscovery({
     platform: 'win32', screen: dipScreen,
@@ -97,7 +124,7 @@ const metadataById = (entries) => (id) => entries.get(id) || null;
     },
     getWindowMetadata: () => ({ id: 10, ownerPid: 88, visible: true, minimized: false, className: 'Notepad' }),
     loadOpenWindows: async () => async () => [
-      { id: 10, owner: { processId: 88 }, bounds: { x: 2500, y: 200, width: 600, height: 400 } }
+      { id: 10, title: 'notes', owner: { processId: 88 }, bounds: { x: 2500, y: 200, width: 600, height: 400 } }
     ]
   });
   assert.deepStrictEqual(await mixedDpi.list(), [{
