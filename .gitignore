@@ -1,0 +1,64 @@
+node_modules/
+dist/
+tmp/
+.worktrees/
+
+# Local Codex state. Repository-scoped skills under .agents/skills are public.
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+.codex/
+*.patch
+
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+*.log
+
+# Python caches
+**/__pycache__/
+*.py[cod]
+
+# Editor and merge backups
+*.orig
+*.bak
+*.tmp
+
+# Windows build outputs
+*.exe
+*.pdb
+*.blockmap
+
+# Private source photos and local production workspaces
+/名字：小狗/
+/assets/references/
+/pets/work/
+/pets/library/
+*.docx
+
+# Private interaction orchestration state and likeness previews
+/.orch/desktop-pet-window-interactions/
+/outputs/*-interactions-preview.png
+
+# Generated animation sources are reproducible and may contain private likenesses.
+/assets/animations/
+/assets/generated/*
+!/assets/generated/xiaogou.ico
+!/assets/generated/xiaogou-tray.png
+
+# Publish one reviewed demo pet only. Customer packages stay local.
+/pets/packages/*
+!/pets/packages/xiaogou.petpack
+
+# Historical player snapshots are kept locally but not shipped as source.
+/src/index.html
+/src/index-v2.html
+/src/main.js
+/src/main-v2.js
+/src/preload.js
+/src/preload-v2.js
+/src/renderer.js
+/src/renderer-v2.js
+/src/styles.css
+/src/styles-v2.css

@@ -1,0 +1,499 @@
+'use strict';
+
+const {
+  clampByVisibleBounds,
+  classifyWindowEdge,
+  nextFallFrame,
+  positionForAttachment,
+  selectDisplayTopWindow,
+  selectTargetWindow
+} = require('./window-interactions');
+
+const INTERACTIVE_STATES = new Set([
+  'dragging', 'climbing', 'perched', 'hanging',
+  'falling', 'impact', 'recovering'
+]);
+const ATTACHED_STATES = new Set(['perched', 'hanging']);
+const FALLBACK_ACTIONS = {
+  drag: 'walk',
+  climb: 'walk',
+  perch: 'sit',
+  hang: 'sit',
+  fall: 'reaction',
+  impact: 'reaction',
+  recover: 'reaction'
+};
+const DEFAULT_ANCHORS = {
+  climb: { x: 0.5, y: 0.5 },
+  perch: { x: 0.5, y: 0.7 },
+  hang: { x: 0.5, y: 0.1 }
+};
+const CONTROLLER_STATE_OPTIONS = Object.freeze({ preserveBounds: true });
+
+function pointFrom(value) {
+  if (!value) return null;
+  const x = Number.isFinite(value.x) ? value.x : value.screenX;
+  const y = Number.isFinite(value.y) ? value.y : value.screenY;
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
+function validTarget(target) {
+  const bounds = target?.bounds;
+  return target && target.id !== undefined && target.id !== null
+    && target.visible !== false && target.minimized !== true
+    && bounds && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(bounds[key]))
+    && bounds.width > 0 && bounds.height > 0;
+}
+
+function shouldRestoreWindowBounds(options) {
+  return options?.preserveBounds !== true;
+}
+
+function createInteractionController(dependencies) {
+  const petWindow = dependencies.window || dependencies.petWindow;
+  const discovery = dependencies.discovery;
+  const screen = dependencies.screen;
+  const getCurrentSize = dependencies.getCurrentSize || dependencies.currentSize;
+  const getManifest = dependencies.getManifest || (() => dependencies.manifest || {});
+  const sendState = dependencies.sendState;
+  const pauseBehavior = dependencies.pauseBehavior || (() => {});
+  const resumeBehavior = dependencies.resumeBehavior || (() => {});
+  const ensureOnTop = dependencies.ensureOnTop || (() => {});
+  const setTimeoutFn = dependencies.setTimeout || setTimeout;
+  const clearTimeoutFn = dependencies.clearTimeout || clearTimeout;
+  const setIntervalFn = dependencies.setInterval || setInterval;
+  const clearIntervalFn = dependencies.clearInterval || clearInterval;
+  const now = dependencies.now || Date.now;
+  const scheduleFrame = dependencies.scheduleFrame
+    || ((callback) => setTimeoutFn(() => callback(now()), 16));
+  const cancelFrame = dependencies.cancelFrame || clearTimeoutFn;
+  const excludedIds = dependencies.excludedIds || new Set();
+  const edgeThreshold = Number.isFinite(dependencies.edgeThreshold) ? dependencies.edgeThreshold : 32;
+  const visibleTopThreshold = Number.isFinite(dependencies.visibleTopThreshold)
+    ? dependencies.visibleTopThreshold
+    : 6;
+  const attachmentPollMs = Number.isFinite(dependencies.attachmentPollMs)
+    ? dependencies.attachmentPollMs
+    : 100;
+  const edgeGap = Number.isFinite(dependencies.edgeGap) ? dependencies.edgeGap : 14;
+  const bottomOffset = Number.isFinite(dependencies.bottomOffset) ? dependencies.bottomOffset : 6;
+
+  if (!petWindow || !discovery || !screen || typeof getCurrentSize !== 'function'
+    || typeof sendState !== 'function') {
+    throw new TypeError('interaction controller dependencies are incomplete');
+  }
+
+  let currentState = 'normal';
+  let visibleInsets = { left: 0, top: 0, right: 0, bottom: 0 };
+  let dragOrigin;
+  let topSnap;
+  let attachment;
+  let attachmentTimer;
+  let attachmentPollPending;
+  let frameTimer;
+  let animationTimer;
+  let cancelAnimation;
+  let generation = 0;
+  let disposed = false;
+
+  function currentSize() {
+    const size = getCurrentSize();
+    return { width: size.width, height: size.height };
+  }
+
+  function setPosition(position) {
+    if (disposed || petWindow.isDestroyed?.()) return;
+    const size = currentSize();
+    petWindow.setBounds({
+      x: Math.round(position.x),
+      y: Math.round(position.y),
+      width: size.width,
+      height: size.height
+    }, false);
+  }
+
+  function transition(next, logicalRole) {
+    if (disposed) return;
+    currentState = next;
+    if (INTERACTIVE_STATES.has(next)) pauseBehavior();
+    sendState(logicalRole || next, CONTROLLER_STATE_OPTIONS);
+    ensureOnTop();
+    if (next === 'normal') resumeBehavior();
+  }
+
+  function clearAttachmentPolling() {
+    if (attachmentTimer !== undefined) clearIntervalFn(attachmentTimer);
+    attachmentTimer = undefined;
+    attachmentPollPending = undefined;
+  }
+
+  function clearMotionTimers() {
+    if (frameTimer !== undefined) cancelFrame(frameTimer);
+    frameTimer = undefined;
+    if (animationTimer !== undefined) clearTimeoutFn(animationTimer);
+    animationTimer = undefined;
+    if (cancelAnimation) {
+      const cancel = cancelAnimation;
+      cancelAnimation = undefined;
+      cancel();
+    }
+  }
+
+  function displayForPoint(point) {
+    return screen.getDisplayNearestPoint({ x: Math.round(point.x), y: Math.round(point.y) });
+  }
+
+  function displayForWindow() {
+    const bounds = petWindow.getBounds();
+    return displayForPoint({
+      x: bounds.x + Math.round(bounds.width / 2),
+      y: bounds.y + Math.round(bounds.height / 2)
+    });
+  }
+
+  function actionFor(role) {
+    const manifest = getManifest() || {};
+    return manifest.interactionActions?.[role]?.action || FALLBACK_ACTIONS[role] || role;
+  }
+
+  function animationDuration(role) {
+    const animation = getManifest()?.animations?.[actionFor(role)];
+    if (!Array.isArray(animation?.durations)) return 0;
+    return animation.durations.reduce(
+      (total, duration) => total + (Number.isFinite(duration) && duration > 0 ? duration : 0),
+      0
+    );
+  }
+
+  function anchorFor(role) {
+    return getManifest()?.interactionActions?.[role]?.anchor || DEFAULT_ANCHORS[role] || { x: 0.5, y: 0.5 };
+  }
+
+  function startupPosition(display) {
+    const size = currentSize();
+    const workArea = display.workArea || display.bounds;
+    return {
+      x: workArea.x + workArea.width - size.width - edgeGap,
+      y: workArea.y + workArea.height - size.height + bottomOffset
+    };
+  }
+
+  function attachmentPosition(target, edge, offset, role) {
+    return positionForAttachment(
+      target.bounds,
+      edge,
+      anchorFor(role),
+      currentSize(),
+      visibleInsets,
+      offset
+    );
+  }
+
+  function applyAttachment(target) {
+    if (!attachment || String(target.id) !== attachment.id) return;
+    attachment.bounds = { ...target.bounds };
+    setPosition(attachmentPosition(target, attachment.edge, attachment.offset, attachment.role));
+  }
+
+  function startAttachmentPolling() {
+    clearAttachmentPolling();
+    attachmentTimer = setIntervalFn(async () => {
+      if (disposed || !attachment || attachmentPollPending) return;
+      const pollGeneration = generation;
+      const pollAttachment = attachment;
+      const pollAttachmentId = attachment.id;
+      if (!ATTACHED_STATES.has(currentState)) return;
+      const pollToken = {};
+      attachmentPollPending = pollToken;
+      const isCurrentPoll = () => !disposed
+        && generation === pollGeneration
+        && ATTACHED_STATES.has(currentState)
+        && attachment === pollAttachment
+        && attachment?.id === pollAttachmentId;
+      try {
+        const windows = await discovery.list();
+        if (!isCurrentPoll()) return;
+        const target = windows.find((item) => validTarget(item) && String(item.id) === attachment.id);
+        if (!target) {
+          detachAndFall('target-unavailable');
+          return;
+        }
+        applyAttachment(target);
+      } catch {
+        if (isCurrentPoll()) detachAndFall('attachment-poll-failed');
+      } finally {
+        if (attachmentPollPending === pollToken) attachmentPollPending = undefined;
+      }
+    }, attachmentPollMs);
+  }
+
+  function attach(target, edge, offset, role, nextState) {
+    attachment = {
+      id: String(target.id),
+      edge,
+      offset,
+      role,
+      bounds: { ...target.bounds }
+    };
+    applyAttachment(target);
+    transition(nextState, role);
+    startAttachmentPolling();
+  }
+
+  function defaultAnimatePosition({ from, to, duration, setPosition: update, isCurrent }) {
+    if (duration <= 0) {
+      update(to);
+      return Promise.resolve();
+    }
+    const startedAt = now();
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (cancelAnimation === finish) cancelAnimation = undefined;
+        resolve();
+      };
+      cancelAnimation = finish;
+      const tick = (timestamp) => {
+        frameTimer = undefined;
+        if (!isCurrent()) return finish();
+        const elapsed = Math.max(0, (Number.isFinite(timestamp) ? timestamp : now()) - startedAt);
+        const progress = Math.min(1, elapsed / duration);
+        update({
+          x: from.x + (to.x - from.x) * progress,
+          y: from.y + (to.y - from.y) * progress
+        });
+        if (progress >= 1) return finish();
+        frameTimer = scheduleFrame(tick);
+      };
+      frameTimer = scheduleFrame(tick);
+    });
+  }
+
+  const animatePosition = dependencies.animatePosition || defaultAnimatePosition;
+
+  async function climbToTop(target, pointer, token) {
+    const offset = pointer.x - target.bounds.x;
+    const fromBounds = petWindow.getBounds();
+    const from = { x: fromBounds.x, y: fromBounds.y };
+    const to = attachmentPosition(target, 'top', offset, 'perch');
+    transition('climbing', 'climb');
+    await animatePosition({
+      from,
+      to,
+      duration: animationDuration('climb'),
+      setPosition,
+      isCurrent: () => !disposed && generation === token && currentState === 'climbing'
+    });
+    if (disposed || generation !== token || currentState !== 'climbing') return;
+    attach(target, 'top', offset, 'perch', 'perched');
+  }
+
+  function finishFall(display, token) {
+    if (disposed || generation !== token || currentState !== 'falling') return;
+    transition('impact', 'impact');
+    animationTimer = setTimeoutFn(() => {
+      animationTimer = undefined;
+      if (disposed || generation !== token || currentState !== 'impact') return;
+      transition('recovering', 'recover');
+      animationTimer = setTimeoutFn(() => {
+        animationTimer = undefined;
+        if (disposed || generation !== token || currentState !== 'recovering') return;
+        setPosition(startupPosition(display));
+        transition('normal', 'normal');
+      }, animationDuration('recover'));
+    }, animationDuration('impact'));
+  }
+
+  function detachAndFall(_reason) {
+    if (disposed) return;
+    generation += 1;
+    const token = generation;
+    dragOrigin = undefined;
+    topSnap = undefined;
+    attachment = undefined;
+    clearAttachmentPolling();
+    clearMotionTimers();
+    const display = displayForWindow();
+    const landing = startupPosition(display);
+    let velocity = 0;
+    let previousTime = now();
+    transition('falling', 'fall');
+
+    const tick = (timestamp) => {
+      frameTimer = undefined;
+      if (disposed || generation !== token || currentState !== 'falling') return;
+      const frameTime = Number.isFinite(timestamp) ? timestamp : now();
+      const elapsed = Math.max(0, frameTime - previousTime);
+      previousTime = frameTime;
+      const bounds = petWindow.getBounds();
+      const next = nextFallFrame({ y: bounds.y, velocity }, elapsed, landing.y);
+      velocity = next.velocity;
+      setPosition({ x: bounds.x, y: next.y });
+      if (next.landed) finishFall(display, token);
+      else frameTimer = scheduleFrame(tick);
+    };
+    frameTimer = scheduleFrame(tick);
+  }
+
+  function startDrag(pointerValue) {
+    const pointer = pointFrom(pointerValue);
+    if (!pointer || disposed || petWindow.isDestroyed?.()) return false;
+    generation += 1;
+    topSnap = undefined;
+    attachment = undefined;
+    clearAttachmentPolling();
+    clearMotionTimers();
+    const bounds = petWindow.getBounds();
+    dragOrigin = {
+      pointer,
+      bounds: { x: bounds.x, y: bounds.y }
+    };
+    transition('dragging', 'drag');
+    return true;
+  }
+
+  function moveDrag(pointerValue) {
+    const pointer = pointFrom(pointerValue);
+    if (!pointer || !dragOrigin || currentState !== 'dragging' || disposed) return false;
+    const display = displayForPoint(pointer);
+    const size = currentSize();
+    const desired = {
+      x: dragOrigin.bounds.x + pointer.x - dragOrigin.pointer.x,
+      y: dragOrigin.bounds.y + pointer.y - dragOrigin.pointer.y,
+      width: size.width,
+      height: size.height
+    };
+    const next = clampByVisibleBounds(desired, visibleInsets, display.bounds);
+    if (pointer.y - display.bounds.y <= visibleTopThreshold) {
+      next.y = Math.round(display.bounds.y - visibleInsets.top);
+      topSnap = {
+        displayId: String(display.id),
+        displayTop: display.bounds.y
+      };
+    } else {
+      topSnap = undefined;
+    }
+    setPosition(next);
+    return true;
+  }
+
+  async function endDrag(pointerValue) {
+    const pointer = pointFrom(pointerValue);
+    if (!pointer || !dragOrigin || currentState !== 'dragging' || disposed) return false;
+    dragOrigin = undefined;
+    const releasedTopSnap = topSnap;
+    topSnap = undefined;
+    const token = generation;
+    let windows;
+    try {
+      windows = await discovery.list();
+    } catch {
+      if (!disposed && generation === token && currentState === 'dragging') {
+        if (releasedTopSnap) detachAndFall('screen-top-discovery-unavailable');
+        else transition('normal', 'normal');
+      }
+      return false;
+    }
+    if (disposed || generation !== token || currentState !== 'dragging') return false;
+
+    const display = displayForPoint(pointer);
+    const candidates = Array.isArray(windows) ? windows : [];
+    const target = selectTargetWindow(pointer, candidates, excludedIds);
+    if (target) {
+      const edge = classifyWindowEdge(pointer, target.bounds, edgeThreshold);
+      if (edge === 'left' || edge === 'right') {
+        await climbToTop(target, pointer, token);
+        return true;
+      }
+      if (edge === 'top') {
+        attach(target, 'top', pointer.x - target.bounds.x, 'perch', 'perched');
+        return true;
+      }
+      if (edge === 'bottom') {
+        attach(target, 'bottom', pointer.x - target.bounds.x, 'hang', 'hanging');
+        return true;
+      }
+      transition('normal', 'normal');
+      return true;
+    }
+
+    const displayTopTarget = releasedTopSnap
+      ? selectDisplayTopWindow(pointer, candidates, display.bounds, excludedIds, edgeThreshold)
+      : null;
+    if (displayTopTarget) {
+      attach(
+        displayTopTarget,
+        'top',
+        pointer.x - displayTopTarget.bounds.x,
+        'perch',
+        'perched'
+      );
+      return true;
+    }
+
+    const bounds = petWindow.getBounds();
+    const visibleTop = bounds.y + visibleInsets.top;
+    const releasedSnappedToDisplay = releasedTopSnap
+      && releasedTopSnap.displayId === String(display.id)
+      && releasedTopSnap.displayTop === display.bounds.y;
+    const pointerWithinTopBand = pointer.y - display.bounds.y <= visibleTopThreshold;
+    if (releasedSnappedToDisplay
+      || (pointerWithinTopBand && visibleTop - display.bounds.y <= visibleTopThreshold)) {
+      detachAndFall('screen-top');
+      return true;
+    }
+    transition('normal', 'normal');
+    return true;
+  }
+
+  function updateVisibleInsets(nextInsets) {
+    const size = currentSize();
+    const valid = nextInsets && ['left', 'top', 'right', 'bottom'].every((side) => {
+      const limit = side === 'left' || side === 'right' ? size.width : size.height;
+      return Number.isFinite(nextInsets[side]) && nextInsets[side] >= 0 && nextInsets[side] < limit;
+    });
+    if (!valid) return false;
+    visibleInsets = {
+      left: nextInsets.left,
+      top: nextInsets.top,
+      right: nextInsets.right,
+      bottom: nextInsets.bottom
+    };
+    if (topSnap && currentState === 'dragging') {
+      const bounds = petWindow.getBounds();
+      setPosition({ x: bounds.x, y: topSnap.displayTop - visibleInsets.top });
+    }
+    if (attachment) applyAttachment({ id: attachment.id, bounds: attachment.bounds });
+    return true;
+  }
+
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    generation += 1;
+    dragOrigin = undefined;
+    topSnap = undefined;
+    attachment = undefined;
+    clearAttachmentPolling();
+    clearMotionTimers();
+    pauseBehavior();
+  }
+
+  return {
+    startDrag,
+    moveDrag,
+    endDrag,
+    updateVisibleInsets,
+    detachAndFall,
+    dispose,
+    state: () => currentState
+  };
+}
+
+module.exports = {
+  createInteractionController,
+  INTERACTIVE_STATES,
+  shouldRestoreWindowBounds
+};

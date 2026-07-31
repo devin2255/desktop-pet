@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: pet-asset:; style-src 'self'; script-src 'self'" />
+    <title>桌宠播放器</title>
+    <link rel="stylesheet" href="styles-v3.css" />
+  </head>
+  <body>
+    <main id="pet" class="pet state-idle" aria-label="桌面宠物" title="左键互动，拖动移动，右键打开菜单">
+      <div id="bubble" class="bubble" role="status" aria-live="polite"></div>
+      <div id="hearts" class="hearts" aria-hidden="true"></div>
+      <img id="pet-image" class="pet-image" draggable="false" alt="桌面宠物" />
+      <div class="ground" aria-hidden="true"></div>
+    </main>
+    <script src="renderer-v3.js"></script>
+  </body>
+</html>
