@@ -49,7 +49,7 @@ tmp/
 
 # Publish one reviewed demo pet only. Customer packages stay local.
 /pets/packages/*
-!/pets/packages/boss.petpack
+!/pets/packages/laopo.petpack
 
 # Historical player snapshots are kept locally but not shipped as source.
 /src/index.html
