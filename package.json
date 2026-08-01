@@ -29,7 +29,7 @@
     "productName": "Desktop Pet",
     "asar": true,
     "win": {
-      "icon": "assets/generated/boss.ico",
+      "icon": "assets/generated/laopo.ico",
       "target": [
         "portable"
       ],
@@ -50,7 +50,7 @@
       "src/window-discovery.js",
       "src/interaction-controller.js",
       "src/topmost-guard.js",
-      "assets/generated/boss-tray.png",
+      "assets/generated/laopo-tray.png",
       "pets/packages/laopo.petpack",
       "package.json"
     ]
