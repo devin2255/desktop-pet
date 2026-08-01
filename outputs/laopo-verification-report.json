@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "laopo",
+  "appName": "老婆桌面宠物",
+  "packageVersion": "0.1.0",
+  "playerVersion": "0.4.0",
+  "generatedAt": "2026-08-01T17:50:00.000Z",
+  "artifacts": {
+    "exe": "dist/customers/laopo/老婆桌面宠物-0.1.0.exe",
+    "exeSha256": "d2edc03cbf4af0b57f87d2301b67ce8a19d8354a943cb5019355940a7217edb8",
+    "petpack": "pets/packages/laopo.petpack",
+    "petpackSha256": "3643769ca8e90d6c9b163347b193427aff02db32d5a20a1bf781d09e48960f10",
+    "buildReport": "dist/customers/laopo/build-report.json",
+    "cdpRuntimeReport": "outputs/laopo-cdp-runtime.json",
+    "liveProbe": "outputs/laopo-live-probe.json"
+  },
+  "gates": {
+    "testRegression": "PASS",
+    "npmTest": "PASS",
+    "validateDemo": "valid: laopo (老婆)"
+  },
+  "buildFix": {
+    "issue": "Customer EXE initially failed to start with Error dialog: Cannot find module './startup-greeting'",
+    "cause": "scripts/build-customer.js electron-builder files whitelist omitted src/startup-greeting.js",
+    "fix": "Added src/startup-greeting.js to build files; snapshot/restore package.json around electron-builder to prevent extraMetadata from stripping root package.json"
+  },
+  "verified": [
+    "npm run test:regression PASS",
+    "npm test PASS (incl. laopo petpack + startup greeting unit tests)",
+    "petpack validate: laopo (老婆)",
+    "customer EXE 0.1.0 built to dist/customers/laopo/",
+    "build-report.json written with matching SHA256",
+    "portable EXE launches; child process window title is 桌宠播放器 (not Error)",
+    "independent userData created at %APPDATA%/Desktop Pet Deliveries/laopo with pets/laopo and player-settings.json",
+    "runtime CDP: pet image loads 480x480, manifest id=laopo, required actions present",
+    "runtime CDP role sampling (drag/climb/perch/hang/fall/impact/recover) 50 samples each: passed, zero unexpected resize/displacement/scale",
+    "live CDP: startupGreeting === 老公，我来啦~, speechGender=female",
+    "live CDP: context menu ids call-hubby / kowtow / talent-show; no perch-cross-phone",
+    "live CDP: bubble observed 老公喝茶 during roaming; animation frame sources changed (imageSourceCount>=6)",
+    "initial CDP state sampling observed sit / encourage / serve-tea class transitions",
+    "process terminates when force-stopped (no orphan after kill)"
+  ],
+  "configVerified": {
+    "packageVersion": "0.1.0",
+    "startupGreeting": "老公，我来啦~",
+    "speechGender": "female",
+    "contextMenuActions": ["call-hubby", "kowtow", "talent-show"],
+    "hasPerchCrossPhone": false,
+    "userDataDir": "%APPDATA%/Desktop Pet Deliveries/laopo",
+    "playerSettings": {
+      "petId": "laopo",
+      "sizeKey": "small",
+      "roaming": true
+    }
+  },
+  "unverifiedManual": [
+    "启动瞬间气泡是否实际弹出「老公，我来啦~」（manifest 字段已在运行时确认，首启气泡时机未截到）",
+    "右键菜单实机点选：叫老公 / 磕头 / 上才艺（扭屁股）及对应女声音频",
+    "漫游随机四句（老公喝茶、爱你老公、宝贝真棒、老公辛苦了）完整轮换与预录女声播放（已见气泡「老公喝茶」）",
+    "坐边：撩头发、飞吻、左看右看；确认无跷二郎腿打电话",
+    "透明像素鼠标穿透实机点选后方窗口",
+    "拖动、左右朝向、吊挂/坠落恢复手感",
+    "托盘图标点击显示/隐藏、托盘退出菜单",
+    "静止连点 50 次无缩放/平移（CDP 角色采样已覆盖 350 次帧切换无位移，非真实指针连点）",
+    "EXE 数字签名"
+  ],
+  "knownReleaseGaps": [
+    "EXE 未做数字签名 (signExecutable=false)",
+    "本机构建 npmRebuild=false，依赖 get-windows/koffi 预编译 N-API 二进制",
+    "dist/ 与 *.exe 被 .gitignore 忽略，交付物仅存在于本机 dist/customers/laopo/"
+  ]
+}

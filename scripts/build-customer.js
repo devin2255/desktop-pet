@@ -27,7 +27,7 @@ function printUsage() {
     '  --help                    显示帮助',
     '',
     '示例：',
-    '  npm run build:customer -- --pet pets/packages/boss.petpack --name "老板桌面宠物" --delivery-id boss'
+    '  npm run build:customer -- --pet pets/packages/laopo.petpack --name "老婆桌面宠物" --delivery-id laopo'
   ].join('\n'));
 }
 
@@ -169,6 +169,7 @@ function buildCustomer(options) {
         'src/styles-v3.css',
         'src/renderer-v3.js',
         'src/petpack-validator.js',
+        'src/startup-greeting.js',
         'src/window-interactions.js',
         'src/window-discovery.js',
         'src/interaction-controller.js',
@@ -183,7 +184,15 @@ function buildCustomer(options) {
     console.log('[4/5] 构建 Windows 便携版 EXE');
     const builderCli = path.join(projectRoot, 'node_modules', 'electron-builder', 'out', 'cli', 'cli.js');
     if (!fs.statSync(builderCli, { throwIfNoEntry: false })?.isFile()) throw new Error('找不到 electron-builder，请先运行 npm install');
-    const result = spawnSync(process.execPath, [builderCli, '--win', 'portable', '--config', configPath, '--publish', 'never'], { cwd: projectRoot, stdio: 'inherit' });
+    // electron-builder extraMetadata can rewrite package.json in-place; snapshot and restore.
+    const packageJsonPath = path.join(projectRoot, 'package.json');
+    const packageJsonSnapshot = fs.readFileSync(packageJsonPath);
+    let result;
+    try {
+      result = spawnSync(process.execPath, [builderCli, '--win', 'portable', '--config', configPath, '--publish', 'never'], { cwd: projectRoot, stdio: 'inherit' });
+    } finally {
+      fs.writeFileSync(packageJsonPath, packageJsonSnapshot);
+    }
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error('electron-builder 构建失败');
 
