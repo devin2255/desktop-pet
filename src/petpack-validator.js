@@ -39,10 +39,15 @@ function resolveInside(root, relative) {
   return resolved;
 }
 
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg']);
+
 function referencedFiles(manifest) {
   const referenced = new Set(['pet.json', manifest.preview]);
   for (const animation of Object.values(manifest.animations || {})) {
     for (const frame of animation.frames || []) referenced.add(frame);
+  }
+  for (const item of manifest.contextMenuActions || []) {
+    if (item && typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
   }
   return referenced;
 }
@@ -60,6 +65,11 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     if (!Array.isArray(manifest.personality) || manifest.personality.length > 12 || manifest.personality.some((item) => typeof item !== 'string' || !item.trim() || item.length > 32)) {
       throw new Error('personality 必须是最多 12 个非空短字符串');
     }
+  }
+  if (manifest.speechGender !== undefined
+    && manifest.speechGender !== 'male'
+    && manifest.speechGender !== 'female') {
+    throw new Error('speechGender 只能是 male 或 female');
   }
   safeRelative(manifest.preview);
   if (path.posix.extname(manifest.preview).toLowerCase() !== '.png') throw new Error('preview 必须是 PNG');
@@ -87,13 +97,9 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     if (animation.scale !== undefined && (!Number.isFinite(animation.scale) || animation.scale < 0.5 || animation.scale > 1.5)) {
       throw new Error(`${action} 的 scale 必须在 0.5 到 1.5 之间`);
     }
-    const uniqueFrames = new Set();
     for (const frame of animation.frames) {
       safeRelative(frame);
       if (path.posix.extname(frame).toLowerCase() !== '.png') throw new Error(`${action} 的帧必须是 PNG`);
-      const canonical = frame.toLowerCase();
-      if (uniqueFrames.has(canonical)) throw new Error(`${action} 包含重复帧路径`);
-      uniqueFrames.add(canonical);
     }
   }
 
@@ -142,21 +148,45 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       if (typeof item.action !== 'string' || !manifest.animations[item.action]) throw new Error('右键动作引用了不存在的动画：' + item.action);
       if (item.message !== undefined && (typeof item.message !== 'string' || item.message.length > 80)) throw new Error('右键动作 message 不能超过 80 个字符');
       if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) throw new Error('右键动作 speech 不能超过 20 个字符');
+      if (item.speechAudio !== undefined) {
+        if (typeof item.speechAudio !== 'string' || !item.speechAudio) throw new Error('右键动作 speechAudio 路径不合法');
+        safeRelative(item.speechAudio);
+        if (!AUDIO_EXTENSIONS.has(path.posix.extname(item.speechAudio).toLowerCase())) {
+          throw new Error('右键动作 speechAudio 只支持 mp3/wav/ogg');
+        }
+      }
       if (item.duration !== undefined && (!Number.isInteger(item.duration) || item.duration < 600 || item.duration > 10000)) throw new Error('右键动作 duration 必须为 600 到 10000 毫秒');
     }
   }
 
-  if (manifest.behavior?.random !== undefined) {
-    if (!Array.isArray(manifest.behavior.random) || !manifest.behavior.random.length || manifest.behavior.random.length > 20) {
-      throw new Error('behavior.random 必须是 1 到 20 项的数组');
+  function validateBehaviorList(list, label) {
+    if (!Array.isArray(list) || !list.length || list.length > 20) {
+      throw new Error(`${label} 必须是 1 到 20 项的数组`);
     }
-    for (const item of manifest.behavior.random) {
-      if (!item || typeof item !== 'object' || !manifest.animations[item.state]) throw new Error('behavior.random 引用了不存在的动画');
-      if (!Number.isFinite(item.weight) || item.weight <= 0 || item.weight > 10000) throw new Error('behavior.random weight 不合法');
+    for (const item of list) {
+      if (!item || typeof item !== 'object' || !manifest.animations[item.state]) throw new Error(`${label} 引用了不存在的动画`);
+      if (!validatedAnimations.has(item.state)) {
+        validateAnimation(item.state);
+        validatedAnimations.add(item.state);
+      }
+      if (!Number.isFinite(item.weight) || item.weight <= 0 || item.weight > 10000) throw new Error(`${label} weight 不合法`);
       if (!Number.isFinite(item.minDuration) || !Number.isFinite(item.maxDuration) || item.minDuration < 600 || item.maxDuration > 60000 || item.maxDuration < item.minDuration) {
-        throw new Error('behavior.random duration 不合法');
+        throw new Error(`${label} duration 不合法`);
+      }
+      if (item.message !== undefined && (typeof item.message !== 'string' || item.message.length > 80)) {
+        throw new Error(`${label} message 不能超过 80 个字符`);
+      }
+      if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) {
+        throw new Error(`${label} speech 不能超过 20 个字符`);
       }
     }
+  }
+
+  if (manifest.behavior?.random !== undefined) {
+    validateBehaviorList(manifest.behavior.random, 'behavior.random');
+  }
+  if (manifest.behavior?.perched !== undefined) {
+    validateBehaviorList(manifest.behavior.perched, 'behavior.perched');
   }
 
   if (requireFiles) {
@@ -224,6 +254,10 @@ function validatePetpack(filePath) {
     const entry = files.get(relative);
     if (!entry) throw new Error(`资源包缺少文件：${relative}`);
     if (relative.endsWith('.png')) validatePngEntry(entry, relative);
+    else if (AUDIO_EXTENSIONS.has(path.posix.extname(relative).toLowerCase())) {
+      const size = Number(entry.header?.size || 0);
+      if (size <= 0 || size > MAX_ASSET_BYTES) throw new Error(`音频文件大小不合法：${relative}`);
+    }
   }
   return { zip, manifest, previewEntry: files.get(manifest.preview) };
 }

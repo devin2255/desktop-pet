@@ -77,6 +77,14 @@ function createInteractionController(dependencies) {
     : 100;
   const edgeGap = Number.isFinite(dependencies.edgeGap) ? dependencies.edgeGap : 14;
   const bottomOffset = Number.isFinite(dependencies.bottomOffset) ? dependencies.bottomOffset : 6;
+  const climbHoldMs = Number.isFinite(dependencies.climbHoldMs) ? dependencies.climbHoldMs : 3000;
+  const climbPxPerSecond = Number.isFinite(dependencies.climbPxPerSecond) ? dependencies.climbPxPerSecond : 55;
+  const minClimbDurationMs = Number.isFinite(dependencies.minClimbDurationMs)
+    ? dependencies.minClimbDurationMs
+    : 2800;
+  const dragFacingThresholdPx = Number.isFinite(dependencies.dragFacingThresholdPx)
+    ? dependencies.dragFacingThresholdPx
+    : 4;
 
   if (!petWindow || !discovery || !screen || typeof getCurrentSize !== 'function'
     || typeof sendState !== 'function') {
@@ -86,12 +94,14 @@ function createInteractionController(dependencies) {
   let currentState = 'normal';
   let visibleInsets = { left: 0, top: 0, right: 0, bottom: 0 };
   let dragOrigin;
+  let dragFacing = 'right';
   let topSnap;
   let attachment;
   let attachmentTimer;
   let attachmentPollPending;
   let frameTimer;
   let animationTimer;
+  let perchedIdleTimer;
   let cancelAnimation;
   let generation = 0;
   let disposed = false;
@@ -112,13 +122,47 @@ function createInteractionController(dependencies) {
     }, false);
   }
 
-  function transition(next, logicalRole) {
+  function facingState(role, facing) {
+    if ((role === 'drag' || role === 'climb') && (facing === 'left' || facing === 'right')) {
+      return `${role}-${facing}`;
+    }
+    return role;
+  }
+
+  function emitRole(role, extras = {}) {
+    if (disposed) return;
+    const facing = extras.facing;
+    sendState(facingState(role, facing), {
+      ...CONTROLLER_STATE_OPTIONS,
+      ...extras,
+      logicalRole: role
+    });
+    ensureOnTop();
+  }
+
+  function transition(next, logicalRole, extras = {}) {
     if (disposed) return;
     currentState = next;
     if (INTERACTIVE_STATES.has(next)) pauseBehavior();
-    sendState(logicalRole || next, CONTROLLER_STATE_OPTIONS);
-    ensureOnTop();
+    emitRole(logicalRole || next, extras);
     if (next === 'normal') resumeBehavior();
+  }
+
+  function wait(ms, isCurrent) {
+    if (ms <= 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      animationTimer = setTimeoutFn(() => {
+        animationTimer = undefined;
+        if (!isCurrent()) return resolve();
+        resolve();
+      }, ms);
+    });
+  }
+
+  function climbDurationMs(from, to) {
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    const travelMs = climbPxPerSecond > 0 ? (distance / climbPxPerSecond) * 1000 : minClimbDurationMs;
+    return Math.max(minClimbDurationMs, Math.round(travelMs));
   }
 
   function clearAttachmentPolling() {
@@ -127,16 +171,69 @@ function createInteractionController(dependencies) {
     attachmentPollPending = undefined;
   }
 
+  function clearPerchedIdle() {
+    if (perchedIdleTimer !== undefined) clearTimeoutFn(perchedIdleTimer);
+    perchedIdleTimer = undefined;
+  }
+
   function clearMotionTimers() {
     if (frameTimer !== undefined) cancelFrame(frameTimer);
     frameTimer = undefined;
     if (animationTimer !== undefined) clearTimeoutFn(animationTimer);
     animationTimer = undefined;
+    clearPerchedIdle();
     if (cancelAnimation) {
       const cancel = cancelAnimation;
       cancelAnimation = undefined;
       cancel();
     }
+  }
+
+  function pickWeighted(choices) {
+    const usable = Array.isArray(choices)
+      ? choices.filter((item) => item && typeof item.state === 'string' && getManifest()?.animations?.[item.state])
+      : [];
+    if (!usable.length) return null;
+    const total = usable.reduce((sum, item) => sum + Math.max(0, Number(item.weight) || 0), 0);
+    if (total <= 0) return usable[0];
+    let cursor = Math.random() * total;
+    for (const item of usable) {
+      cursor -= Math.max(0, Number(item.weight) || 0);
+      if (cursor <= 0) return item;
+    }
+    return usable[0];
+  }
+
+  function schedulePerchedIdle(delayMs) {
+    clearPerchedIdle();
+    if (disposed || currentState !== 'perched') return;
+    const choices = getManifest()?.behavior?.perched;
+    if (!Array.isArray(choices) || !choices.length) return;
+    const wait = Number.isFinite(delayMs)
+      ? Math.max(400, delayMs)
+      : 1800 + Math.random() * 2200;
+    const token = generation;
+    perchedIdleTimer = setTimeoutFn(() => {
+      perchedIdleTimer = undefined;
+      if (disposed || generation !== token || currentState !== 'perched') return;
+      const choice = pickWeighted(choices);
+      if (!choice) return;
+      const playMs = Math.max(
+        600,
+        Number(choice.minDuration) + Math.random() * Math.max(0, Number(choice.maxDuration) - Number(choice.minDuration))
+      );
+      // Keep controller state as perched for attachment; only swap the visible action.
+      emitRole(choice.state, {
+        message: typeof choice.message === 'string' ? choice.message : '',
+        speech: typeof choice.speech === 'string' ? choice.speech : ''
+      });
+      perchedIdleTimer = setTimeoutFn(() => {
+        perchedIdleTimer = undefined;
+        if (disposed || generation !== token || currentState !== 'perched') return;
+        emitRole('perch');
+        schedulePerchedIdle();
+      }, playMs);
+    }, wait);
   }
 
   function displayForPoint(point) {
@@ -165,8 +262,14 @@ function createInteractionController(dependencies) {
     );
   }
 
-  function anchorFor(role) {
-    return getManifest()?.interactionActions?.[role]?.anchor || DEFAULT_ANCHORS[role] || { x: 0.5, y: 0.5 };
+  function anchorFor(role, edge) {
+    const base = getManifest()?.interactionActions?.[role]?.anchor
+      || DEFAULT_ANCHORS[role]
+      || { x: 0.5, y: 0.5 };
+    // Side-profile climb art reaches a vertical wall on the facing side.
+    if (role === 'climb' && edge === 'left') return { x: 0.84, y: base.y };
+    if (role === 'climb' && edge === 'right') return { x: 0.16, y: base.y };
+    return base;
   }
 
   function startupPosition(display) {
@@ -182,7 +285,7 @@ function createInteractionController(dependencies) {
     return positionForAttachment(
       target.bounds,
       edge,
-      anchorFor(role),
+      anchorFor(role, edge),
       currentSize(),
       visibleInsets,
       offset
@@ -227,7 +330,7 @@ function createInteractionController(dependencies) {
     }, attachmentPollMs);
   }
 
-  function attach(target, edge, offset, role, nextState) {
+  function attach(target, edge, offset, role, nextState, extras = {}) {
     attachment = {
       id: String(target.id),
       edge,
@@ -236,8 +339,9 @@ function createInteractionController(dependencies) {
       bounds: { ...target.bounds }
     };
     applyAttachment(target);
-    transition(nextState, role);
+    transition(nextState, role, extras);
     startAttachmentPolling();
+    if (nextState === 'perched') schedulePerchedIdle(900);
   }
 
   function defaultAnimatePosition({ from, to, duration, setPosition: update, isCurrent }) {
@@ -273,21 +377,34 @@ function createInteractionController(dependencies) {
 
   const animatePosition = dependencies.animatePosition || defaultAnimatePosition;
 
-  async function climbToTop(target, pointer, token) {
-    const offset = pointer.x - target.bounds.x;
+  async function climbToTop(target, pointer, edge, token) {
+    const sideOffset = pointer.y - target.bounds.y;
+    const topOffset = pointer.x - target.bounds.x;
+    // Face into the window while clinging to the side edge.
+    const clingFacing = edge === 'right' ? 'left' : 'right';
+    attach(target, edge, sideOffset, 'climb', 'climbing', { facing: clingFacing });
+    const stillClimbing = () => !disposed && generation === token && currentState === 'climbing';
+    await wait(climbHoldMs, stillClimbing);
+    if (!stillClimbing()) return;
+
+    const liveTarget = attachment?.id === String(target.id)
+      ? { id: target.id, bounds: { ...attachment.bounds } }
+      : target;
     const fromBounds = petWindow.getBounds();
     const from = { x: fromBounds.x, y: fromBounds.y };
-    const to = attachmentPosition(target, 'top', offset, 'perch');
-    transition('climbing', 'climb');
+    const to = attachmentPosition(liveTarget, 'top', topOffset, 'perch');
+    clearAttachmentPolling();
+    attachment = undefined;
+    emitRole('climb', { facing: clingFacing });
     await animatePosition({
       from,
       to,
-      duration: animationDuration('climb'),
+      duration: climbDurationMs(from, to),
       setPosition,
-      isCurrent: () => !disposed && generation === token && currentState === 'climbing'
+      isCurrent: stillClimbing
     });
-    if (disposed || generation !== token || currentState !== 'climbing') return;
-    attach(target, 'top', offset, 'perch', 'perched');
+    if (!stillClimbing()) return;
+    attach(liveTarget, 'top', topOffset, 'perch', 'perched');
   }
 
   function finishFall(display, token) {
@@ -348,9 +465,11 @@ function createInteractionController(dependencies) {
     const bounds = petWindow.getBounds();
     dragOrigin = {
       pointer,
-      bounds: { x: bounds.x, y: bounds.y }
+      bounds: { x: bounds.x, y: bounds.y },
+      lastPointer: pointer
     };
-    transition('dragging', 'drag');
+    dragFacing = 'right';
+    transition('dragging', 'drag', { facing: dragFacing });
     return true;
   }
 
@@ -375,6 +494,16 @@ function createInteractionController(dependencies) {
     } else {
       topSnap = undefined;
     }
+    const dx = pointer.x - (dragOrigin.lastPointer?.x ?? dragOrigin.pointer.x);
+    if (Math.abs(dx) >= dragFacingThresholdPx) {
+      // Drag sprites face the direction they are being pulled from (trail opposite of travel).
+      const nextFacing = dx < 0 ? 'right' : 'left';
+      if (nextFacing !== dragFacing) {
+        dragFacing = nextFacing;
+        emitRole('drag', { facing: dragFacing });
+      }
+    }
+    dragOrigin.lastPointer = pointer;
     setPosition(next);
     return true;
   }
@@ -383,6 +512,7 @@ function createInteractionController(dependencies) {
     const pointer = pointFrom(pointerValue);
     if (!pointer || !dragOrigin || currentState !== 'dragging' || disposed) return false;
     dragOrigin = undefined;
+    dragFacing = 'right';
     const releasedTopSnap = topSnap;
     topSnap = undefined;
     const token = generation;
@@ -404,7 +534,7 @@ function createInteractionController(dependencies) {
     if (target) {
       const edge = classifyWindowEdge(pointer, target.bounds, edgeThreshold);
       if (edge === 'left' || edge === 'right') {
-        await climbToTop(target, pointer, token);
+        await climbToTop(target, pointer, edge, token);
         return true;
       }
       if (edge === 'top') {
@@ -474,6 +604,7 @@ function createInteractionController(dependencies) {
     disposed = true;
     generation += 1;
     dragOrigin = undefined;
+    dragFacing = 'right';
     topSnap = undefined;
     attachment = undefined;
     clearAttachmentPolling();

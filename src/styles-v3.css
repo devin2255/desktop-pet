@@ -10,7 +10,8 @@ body { -webkit-app-region: no-drag; }
   left: 5%;
   bottom: 5px;
   width: 90%;
-  height: calc(100% - 30px);
+  /* Leave only a slim band for the speech bubble above the sprite. */
+  height: calc(100% - 16px);
   object-fit: contain;
   object-position: center bottom;
   transform: scale(var(--action-scale, 1));
@@ -20,7 +21,11 @@ body { -webkit-app-region: no-drag; }
   filter: drop-shadow(0 4px 4px rgba(65, 42, 22, 0.16));
 }
 .pet-image.ready { opacity: 1; }
-.state-walk-left .pet-image { transform: scaleX(-1) scale(var(--action-scale, 1)); }
+.state-walk-left .pet-image,
+.state-drag-left .pet-image,
+.state-climb-left .pet-image {
+  transform: scaleX(-1) scale(var(--action-scale, 1));
+}
 .ground {
   position: absolute;
   z-index: 1;

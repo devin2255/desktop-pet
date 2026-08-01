@@ -20,13 +20,14 @@ function printUsage() {
     '  --name <程序名称>          默认：<宠物名称>桌面宠物',
     '  --icon <icon.ico|png>      默认：使用宠物包预览图',
     '  --delivery-id <ascii-id>  默认：宠物 id',
+    '  --version <x.y.z>         客户交付版本；默认用 pet.json packageVersion，否则 0.1.0',
     '  --output <目录>            默认：dist/customers/<宠物 id>',
     '  --allow-management        显示导入、切换和宠物库菜单',
     '  --keep-temp               保留临时构建目录便于排错',
     '  --help                    显示帮助',
     '',
     '示例：',
-    '  npm run build:customer -- --pet pets/packages/xiaogou.petpack --name "小狗桌面宠物"'
+    '  npm run build:customer -- --pet pets/packages/boss.petpack --name "老板桌面宠物" --delivery-id boss'
   ].join('\n'));
 }
 
@@ -37,14 +38,29 @@ function parseArgs(argv) {
     if (argument === '--help' || argument === '-h') options.help = true;
     else if (argument === '--allow-management') options.allowManagement = true;
     else if (argument === '--keep-temp') options.keepTemp = true;
-    else if (['--pet', '--name', '--icon', '--delivery-id', '--output'].includes(argument)) {
+    else if (['--pet', '--name', '--icon', '--delivery-id', '--output', '--version'].includes(argument)) {
       const value = argv[index + 1];
       if (!value || value.startsWith('--')) throw new Error('参数缺少值：' + argument);
-      options[{ '--pet': 'pet', '--name': 'name', '--icon': 'icon', '--delivery-id': 'deliveryId', '--output': 'output' }[argument]] = value;
+      options[{
+        '--pet': 'pet',
+        '--name': 'name',
+        '--icon': 'icon',
+        '--delivery-id': 'deliveryId',
+        '--output': 'output',
+        '--version': 'version'
+      }[argument]] = value;
       index += 1;
     } else throw new Error('未知参数：' + argument);
   }
   return options;
+}
+
+function resolveDeliveryVersion(options, manifest) {
+  const candidate = String(options.version || manifest.packageVersion || '0.1.0').trim();
+  if (!/^\d+\.\d+\.\d+$/.test(candidate)) {
+    throw new Error('客户交付版本必须是 x.y.z，例如 0.1.0');
+  }
+  return candidate;
 }
 
 function sha256(filePath) {
@@ -94,7 +110,7 @@ function buildCustomer(options) {
   if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(deliveryId)) throw new Error('delivery-id 只能使用小写字母、数字和连字符');
   const artifactBase = safeFileBase(appName);
   const packageHash = sha256(petPath);
-  const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+  const deliveryVersion = resolveDeliveryVersion(options, manifest);
   const tempBase = path.join(projectRoot, 'tmp', 'customer-build');
   const stageRoot = path.join(tempBase, deliveryId + '-' + process.pid + '-' + Date.now());
   ensureInside(tempBase, stageRoot);
@@ -122,7 +138,8 @@ function buildCustomer(options) {
     fs.writeFileSync(path.join(deliveryRoot, iconName), iconData);
     const delivery = {
       schemaVersion: 1, mode: 'customer', deliveryId, petId: manifest.id, appName,
-      petpack: 'pet.petpack', packageSha256: packageHash, allowPetManagement: options.allowManagement
+      petpack: 'pet.petpack', packageSha256: packageHash, allowPetManagement: options.allowManagement,
+      version: deliveryVersion
     };
     fs.writeFileSync(path.join(deliveryRoot, 'delivery.json'), JSON.stringify(delivery, null, 2) + '\n', 'utf8');
 
@@ -133,12 +150,18 @@ function buildCustomer(options) {
       appId: 'com.desktop-pet.delivery.' + deliveryId.replace(/-/g, '.'),
       productName: appName,
       asar: true,
+      // Customer EXE versions follow the pet package, not the player package.json version.
+      extraMetadata: { version: deliveryVersion },
+      // get-windows / koffi ship N-API prebuilds; skip node-gyp when local Windows SDK is missing.
+      // Set CUSTOMER_NPM_REBUILD=1 to force @electron/rebuild.
+      npmRebuild: process.env.CUSTOMER_NPM_REBUILD === '1' ? true : false,
+      nodeGypRebuild: false,
       ...(process.env.CUSTOMER_ELECTRON_DIST
         ? { electronDist: path.resolve(process.env.CUSTOMER_ELECTRON_DIST) }
         : {}),
       directories: { output: buildOutput },
       win: { icon: relativeIcon, target: ['portable'], signExecutable: false },
-      portable: { artifactName: artifactBase + '-' + packageJson.version + '.${ext}' },
+      portable: { artifactName: artifactBase + '-' + deliveryVersion + '.${ext}' },
       files: [
         'src/main-v3.js',
         'src/preload-v3.js',
@@ -171,10 +194,25 @@ function buildCustomer(options) {
     fs.mkdirSync(destinationRoot, { recursive: true });
     const destination = path.join(destinationRoot, path.basename(executable));
     fs.copyFileSync(executable, destination);
+    // Remove stale customer EXE names from prior player-version builds.
+    for (const name of fs.readdirSync(destinationRoot)) {
+      if (!name.toLowerCase().endsWith('.exe')) continue;
+      if (path.join(destinationRoot, name) === destination) continue;
+      if (!name.startsWith(artifactBase + '-')) continue;
+      try {
+        fs.rmSync(path.join(destinationRoot, name), { force: true });
+      } catch (error) {
+        if (error && (error.code === 'EBUSY' || error.code === 'EPERM')) {
+          console.warn('跳过仍在占用的旧 EXE：' + name);
+          continue;
+        }
+        throw error;
+      }
+    }
     const report = {
       schemaVersion: 1, builtAt: new Date().toISOString(), appName, deliveryId, petId: manifest.id,
       petName: manifest.name, petpack: path.basename(petPath), petpackSha256: packageHash,
-      executable: path.basename(destination), executableSha256: sha256(destination), version: packageJson.version
+      executable: path.basename(destination), executableSha256: sha256(destination), version: deliveryVersion
     };
     fs.writeFileSync(path.join(destinationRoot, 'build-report.json'), JSON.stringify(report, null, 2) + '\n', 'utf8');
     console.log('\n客户交付构建完成：\n' + destination);

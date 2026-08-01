@@ -11,7 +11,7 @@
 - 宠物界面：`src/index-v3.html`、`src/styles-v3.css`、`src/renderer-v3.js`
 - 标准资源包：`pets/packages/*.petpack`
 - 解包检查目录：`pets/library/<pet-id>/`
-- 第一个标准宠物：`pets/packages/xiaogou.petpack`
+- 当前标准演示宠物：`pets/packages/boss.petpack`（牛斯克 / 老板桌宠）
 - Codex 自动发现入口：`.agents/skills/desktop-pet-maker/`
 - 制作 Skill 源码：`skills/desktop-pet-maker/`
 - 客户专属构建器：`scripts/build-customer.js`
@@ -93,8 +93,9 @@ npm run build:customer -- --pet pets/packages/<pet-id>.petpack --name "<宠物�
 powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
 npm start
 npm run build
-npm run build:customer -- --pet pets/packages/xiaogou.petpack --name "小狗桌面宠物" --delivery-id xiaogou
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/xiaogou.petpack
+npm run build:boss
+npm run build:customer -- --pet pets/packages/boss.petpack --name "老板桌面宠物" --delivery-id boss
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/boss.petpack
 ```
 
 ## 交付检查

@@ -249,7 +249,9 @@ def alpha_geometry(image: Image.Image) -> tuple[int, float]:
     width = mask.width
     area = 0
     weighted_x = 0
-    for offset, value in enumerate(mask.get_flattened_data()):
+    # Pillow<11 lacks get_flattened_data; getdata() works across versions.
+    pixels = mask.get_flattened_data() if hasattr(mask, "get_flattened_data") else mask.getdata()
+    for offset, value in enumerate(pixels):
         if not value:
             continue
         area += 1

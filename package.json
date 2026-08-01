@@ -10,14 +10,15 @@
   },
   "scripts": {
     "test": "npm run test:js && npm run test:python && npm run validate:demo",
-    "test:js": "node --check src/main-v3.js && node --check src/preload-v3.js && node --check src/renderer-v3.js && node --check src/petpack-validator.js && node --check src/window-discovery.js && node --check src/interaction-controller.js && node --check src/topmost-guard.js && node --check scripts/build-customer.js && node scripts/test-renderer-interaction.js && node scripts/test-petpack-security.js && node scripts/test-window-interactions.js && node scripts/test-window-discovery.js && node scripts/test-interaction-controller.js && node scripts/test-topmost-guard.js && node scripts/test-runtime-cdp-contract.js",
+    "test:js": "node --check src/main-v3.js && node --check src/preload-v3.js && node --check src/renderer-v3.js && node --check src/petpack-validator.js && node --check src/window-discovery.js && node --check src/interaction-controller.js && node --check src/topmost-guard.js && node --check scripts/build-customer.js && node scripts/test-renderer-interaction.js && node scripts/test-petpack-security.js && node scripts/test-window-interactions.js && node scripts/test-window-discovery.js && node scripts/test-interaction-controller.js && node scripts/test-topmost-guard.js && node scripts/test-runtime-cdp-contract.js && node scripts/test-boss-petpack.js",
     "test:python": "python -m unittest discover -s skills/desktop-pet-maker/scripts -p test_*.py -v",
     "test:regression": "node scripts/test-renderer-interaction.js && python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v",
-    "validate:demo": "python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/xiaogou.petpack",
+    "validate:demo": "python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/boss.petpack",
     "start": "electron .",
     "pack": "electron-builder --dir --publish never",
     "build": "electron-builder --win portable --publish never",
-    "build:customer": "node scripts/build-customer.js"
+    "build:customer": "node scripts/build-customer.js",
+    "build:boss": "node scripts/build-customer.js --pet pets/packages/boss.petpack --name \"老板桌面宠物\" --delivery-id boss"
   },
   "devDependencies": {
     "electron": "43.2.0",
@@ -28,7 +29,7 @@
     "productName": "Desktop Pet",
     "asar": true,
     "win": {
-      "icon": "assets/generated/xiaogou.ico",
+      "icon": "assets/generated/boss.ico",
       "target": [
         "portable"
       ],
@@ -48,8 +49,8 @@
       "src/window-discovery.js",
       "src/interaction-controller.js",
       "src/topmost-guard.js",
-      "assets/generated/xiaogou-tray.png",
-      "pets/packages/xiaogou.petpack",
+      "assets/generated/boss-tray.png",
+      "pets/packages/boss.petpack",
       "package.json"
     ]
   },

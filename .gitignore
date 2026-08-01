@@ -44,12 +44,12 @@ tmp/
 # Generated animation sources are reproducible and may contain private likenesses.
 /assets/animations/
 /assets/generated/*
-!/assets/generated/xiaogou.ico
-!/assets/generated/xiaogou-tray.png
+!/assets/generated/boss.ico
+!/assets/generated/boss-tray.png
 
 # Publish one reviewed demo pet only. Customer packages stay local.
 /pets/packages/*
-!/pets/packages/xiaogou.petpack
+!/pets/packages/boss.petpack
 
 # Historical player snapshots are kept locally but not shipped as source.
 /src/index.html

@@ -1,15 +1,13 @@
 # Asset license
 
-The following files are licensed under the [Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/):
+当前仓库公开跟踪的演示资源：
 
-- `pets/packages/xiaogou.petpack`
-- `assets/generated/xiaogou.ico`
-- `assets/generated/xiaogou-tray.png`
+- `pets/packages/boss.petpack`
+- `assets/generated/boss.ico`
+- `assets/generated/boss-tray.png`
 
-Copyright © 2026 redniu123.
+这些文件是本项目的老板桌宠（牛斯克）演示与客户交付基线素材，仅用于本仓库开发、测试和已授权交付；未经授权请勿对外再分发形象素材。
 
-Required attribution: **Desktop Pet Player sample pet assets by redniu123, licensed under CC BY 4.0.**
+源代码仍按 `LICENSE` 中的 MIT License 授权。
 
-The source code is licensed separately under the MIT License in `LICENSE`.
-
-Private source photos, customer pet packages, generated production workspaces, and other files excluded by `.gitignore` are not part of this public distribution and are not covered by this asset license.
+被 `.gitignore` 排除的私有原片、客户包、生成工作区和构建产物不属于本仓库公开分发内容。

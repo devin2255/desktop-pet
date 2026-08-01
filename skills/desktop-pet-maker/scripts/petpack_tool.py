@@ -35,12 +35,18 @@ def safe_relative(value: str) -> Path:
     return Path(*pure.parts)
 
 
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg"}
+
+
 def referenced_files(manifest: dict) -> set[str]:
     referenced = {"pet.json", safe_relative(str(manifest.get("preview", ""))).as_posix()}
     for config in manifest.get("animations", {}).values():
         if isinstance(config, dict):
             for frame in config.get("frames", []):
                 referenced.add(safe_relative(str(frame)).as_posix())
+    for item in manifest.get("contextMenuActions") or []:
+        if isinstance(item, dict) and item.get("speechAudio"):
+            referenced.add(safe_relative(str(item["speechAudio"])).as_posix())
     return referenced
 
 
@@ -62,6 +68,9 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
         or any(not isinstance(item, str) or not item.strip() or len(item) > 32 for item in personality)
     ):
         raise ValueError("personality must contain at most 12 non-empty short strings")
+    speech_gender = manifest.get("speechGender")
+    if speech_gender is not None and speech_gender not in {"male", "female"}:
+        raise ValueError("speechGender must be male or female")
 
     preview = safe_relative(str(manifest.get("preview", "")))
     if preview.suffix.lower() != ".png":
@@ -88,15 +97,11 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
         scale = config.get("scale", 1)
         if not isinstance(scale, (int, float)) or isinstance(scale, bool) or not 0.5 <= scale <= 1.5:
             raise ValueError(f"{action}: scale must be a number from 0.5 to 1.5")
-        canonical_frames: set[str] = set()
         for frame_path in frames:
             relative = safe_relative(str(frame_path))
             if relative.suffix.lower() != ".png":
                 raise ValueError(f"{action}: frames must be PNG files")
-            canonical = relative.as_posix().casefold()
-            if canonical in canonical_frames:
-                raise ValueError(f"{action}: duplicate frame path")
-            canonical_frames.add(canonical)
+            # Allow reused frame paths so actions can ping-pong or settle on a shared pose.
             frame_paths.append(relative.as_posix())
 
     validated_animations: set[str] = set()
@@ -134,18 +139,58 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 ):
                     raise ValueError("interactionActions anchor must be within 0..1")
 
-    behavior = manifest.get("behavior", {}).get("random") if isinstance(manifest.get("behavior", {}), dict) else None
-    if behavior is not None:
+    context_menu_actions = manifest.get("contextMenuActions")
+    if context_menu_actions is not None:
+        if not isinstance(context_menu_actions, list) or len(context_menu_actions) > 8:
+            raise ValueError("contextMenuActions must be an array with at most 8 items")
+        action_ids: set[str] = set()
+        for item in context_menu_actions:
+            if not isinstance(item, dict):
+                raise ValueError("contextMenuActions entries must be objects")
+            item_id = item.get("id")
+            if not isinstance(item_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,31}", item_id) or item_id in action_ids:
+                raise ValueError("contextMenuActions id is invalid or duplicated")
+            action_ids.add(item_id)
+            label = item.get("label")
+            if not isinstance(label, str) or not label.strip() or len(label) > 24:
+                raise ValueError("contextMenuActions label must be 1 to 24 characters")
+            action = item.get("action")
+            if not isinstance(action, str) or action not in animations:
+                raise ValueError("contextMenuActions references an unknown animation")
+            if action not in validated_animations:
+                validate_animation(action)
+                validated_animations.add(action)
+            if "message" in item and (not isinstance(item["message"], str) or len(item["message"]) > 80):
+                raise ValueError("contextMenuActions message must be a string up to 80 characters")
+            if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
+                raise ValueError("contextMenuActions speech must be a string up to 20 characters")
+            if "speechAudio" in item:
+                audio = item["speechAudio"]
+                if not isinstance(audio, str) or not audio.strip():
+                    raise ValueError("contextMenuActions speechAudio must be a non-empty path")
+                audio_path = safe_relative(audio)
+                if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
+                    raise ValueError("contextMenuActions speechAudio must be mp3/wav/ogg")
+            if "duration" in item:
+                duration = item["duration"]
+                if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000:
+                    raise ValueError("contextMenuActions duration must be an integer from 600 to 10000")
+
+    def validate_behavior_list(behavior: object, label: str) -> None:
         if not isinstance(behavior, list) or not 1 <= len(behavior) <= 20:
-            raise ValueError("behavior.random must contain 1 to 20 entries")
+            raise ValueError(f"{label} must contain 1 to 20 entries")
         for item in behavior:
             if not isinstance(item, dict) or item.get("state") not in animations:
-                raise ValueError("behavior.random references an unknown animation")
+                raise ValueError(f"{label} references an unknown animation")
+            action = item["state"]
+            if action not in validated_animations:
+                validate_animation(action)
+                validated_animations.add(action)
             weight = item.get("weight")
             minimum = item.get("minDuration")
             maximum = item.get("maxDuration")
             if not isinstance(weight, (int, float)) or isinstance(weight, bool) or not 0 < weight <= 10000:
-                raise ValueError("behavior.random weight is invalid")
+                raise ValueError(f"{label} weight is invalid")
             if (
                 not isinstance(minimum, (int, float))
                 or isinstance(minimum, bool)
@@ -155,7 +200,18 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 or maximum > 60000
                 or maximum < minimum
             ):
-                raise ValueError("behavior.random duration is invalid")
+                raise ValueError(f"{label} duration is invalid")
+            if "message" in item and (not isinstance(item["message"], str) or len(item["message"]) > 80):
+                raise ValueError(f"{label} message must be a string up to 80 characters")
+            if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
+                raise ValueError(f"{label} speech must be a string up to 20 characters")
+
+    behavior_root = manifest.get("behavior", {})
+    if isinstance(behavior_root, dict):
+        if behavior_root.get("random") is not None:
+            validate_behavior_list(behavior_root.get("random"), "behavior.random")
+        if behavior_root.get("perched") is not None:
+            validate_behavior_list(behavior_root.get("perched"), "behavior.perched")
     return frame_paths
 
 
@@ -218,6 +274,12 @@ def validate_directory(root: Path) -> dict:
     subject_areas: list[int] = []
     for relative_value in sorted(referenced - {"pet.json"}):
         path = root / safe_relative(relative_value)
+        suffix = path.suffix.lower()
+        if suffix in AUDIO_EXTENSIONS:
+            size = path.stat().st_size
+            if size <= 0 or size > MAX_SINGLE_FILE_BYTES:
+                raise ValueError(f"audio size invalid: {relative_value}")
+            continue
         canvas_size, subject_area, subject_span = validate_png(path, relative_value)
         if relative_value in frame_paths:
             canvas_sizes.add(canvas_size)

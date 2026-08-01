@@ -11,6 +11,7 @@ let animationToken = 0;
 let pendingState = { state: 'idle', message: '' };
 const DRAG_THRESHOLD_PX = 6;
 const HIT_ALPHA_CUTOFF = 32;
+const BUBBLE_GAP_PX = 2;
 const FALLBACKS = {
   drag: 'walk', climb: 'walk', perch: 'sit', hang: 'sit',
   fall: 'reaction', impact: 'reaction', recover: 'reaction'
@@ -24,12 +25,33 @@ function resolveLogicalRole(role) {
   return manifest.interactionActions?.[role]?.action || FALLBACKS[role] || role;
 }
 
+function facingSuffix(value) {
+  if (typeof value !== 'string') return '';
+  if (value.endsWith('-left')) return '-left';
+  if (value.endsWith('-right')) return '-right';
+  return '';
+}
+
+function baseActionName(value) {
+  const suffix = facingSuffix(value);
+  return suffix ? value.slice(0, -suffix.length) : value;
+}
+
 function resolveAction(state, logicalRole) {
-  const action = resolveLogicalRole(logicalRole || state);
-  if (action === 'walk-left' || action === 'walk-right') return 'walk';
-  if (action === 'clingy' || action === 'shy') return 'reaction';
-  if (manifest.animations[action]) return action;
-  return manifest.animations[state] ? state : 'idle';
+  const role = logicalRole || state;
+  const action = resolveLogicalRole(baseActionName(role));
+  const normalized = baseActionName(action);
+  if (normalized === 'walk-left' || normalized === 'walk-right') return 'walk';
+  if (normalized === 'clingy' || normalized === 'shy') return 'reaction';
+  if (manifest.animations[normalized]) return normalized;
+  const stateBase = baseActionName(state);
+  return manifest.animations[stateBase] ? stateBase : 'idle';
+}
+
+function isFacingLeft() {
+  return pet.classList.contains('state-walk-left')
+    || pet.classList.contains('state-drag-left')
+    || pet.classList.contains('state-climb-left');
 }
 
 function preloadFrames() {
@@ -69,17 +91,99 @@ function showBubble(message, duration = 2200) {
   clearTimeout(bubbleTimer);
   bubble.textContent = message;
   bubble.classList.add('visible');
+  // Re-measure after text/layout so the bubble sits just above the visible head.
+  if (lastVisibleInsets) positionBubble(lastVisibleInsets);
+  requestAnimationFrame(() => {
+    if (lastVisibleInsets) positionBubble(lastVisibleInsets);
+  });
   bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), duration);
 }
 
-function speak(text) {
+const MALE_VOICE_RE = /kang|yunyang|yunxi|yunjian|yunfeng|dongni|male|男|kangkang/i;
+const FEMALE_VOICE_RE = /huihui|yaoyao|xiaoxiao|xiaoyi|xiaohan|female|女|zira|jenny|aria/i;
+
+function listSpeechVoices() {
+  if (!window.speechSynthesis?.getVoices) return [];
+  return window.speechSynthesis.getVoices() || [];
+}
+
+function pickSpeechVoice(preferredGender) {
+  const voices = listSpeechVoices();
+  if (!voices.length) return null;
+  const zh = voices.filter((voice) => /^zh(-|$)/i.test(voice.lang) || /chinese|中文/i.test(voice.name));
+  const pool = zh.length ? zh : voices;
+  if (preferredGender === 'male') {
+    return pool.find((voice) => MALE_VOICE_RE.test(voice.name))
+      || pool.find((voice) => !FEMALE_VOICE_RE.test(voice.name))
+      || pool[0];
+  }
+  if (preferredGender === 'female') {
+    return pool.find((voice) => FEMALE_VOICE_RE.test(voice.name))
+      || pool.find((voice) => !MALE_VOICE_RE.test(voice.name))
+      || pool[0];
+  }
+  return pool.find((voice) => voice.default) || pool[0];
+}
+
+let speechAudio;
+
+function stopSpeechAudio() {
+  if (!speechAudio) return;
+  speechAudio.pause();
+  speechAudio.src = '';
+  speechAudio = undefined;
+}
+
+function resolveSpeechAudio(state) {
+  const items = Array.isArray(manifest?.contextMenuActions) ? manifest.contextMenuActions : [];
+  const match = items.find((item) => item && item.action === baseActionName(state) && item.speechAudio);
+  return match?.speechAudio || '';
+}
+
+function playSpeechAudio(url) {
+  if (!url) return false;
+  stopSpeechAudio();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  speechAudio = new Audio(url);
+  speechAudio.play().catch(() => {});
+  return true;
+}
+
+function speak(text, audioUrl = '') {
+  if (audioUrl && playSpeechAudio(audioUrl)) return;
   if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  stopSpeechAudio();
   window.speechSynthesis.cancel();
   const utterance = new window.SpeechSynthesisUtterance(text);
   utterance.lang = 'zh-CN';
-  utterance.rate = 0.88;
-  utterance.pitch = 0.9;
-  window.speechSynthesis.speak(utterance);
+  utterance.rate = 0.92;
+  const gender = manifest?.speechGender === 'male' || manifest?.speechGender === 'female'
+    ? manifest.speechGender
+    : '';
+  const voice = pickSpeechVoice(gender);
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang || 'zh-CN';
+  }
+  // Keep male lines near natural pitch; only soften slightly when no male voice is available.
+  utterance.pitch = gender === 'male' && voice && MALE_VOICE_RE.test(voice.name) ? 1 : gender === 'male' ? 0.75 : 1;
+  const start = () => window.speechSynthesis.speak(utterance);
+  if (voice || listSpeechVoices().length) {
+    start();
+    return;
+  }
+  // Chromium may expose voices asynchronously on first use.
+  const retry = () => {
+    const lateVoice = pickSpeechVoice(gender);
+    if (lateVoice) {
+      utterance.voice = lateVoice;
+      utterance.lang = lateVoice.lang || 'zh-CN';
+      if (gender === 'male' && MALE_VOICE_RE.test(lateVoice.name)) utterance.pitch = 1;
+    }
+    start();
+  };
+  window.speechSynthesis.addEventListener('voiceschanged', retry, { once: true });
+  setTimeout(retry, 250);
 }
 
 function setState(state, message = '', speech = '', logicalRole) {
@@ -87,12 +191,20 @@ function setState(state, message = '', speech = '', logicalRole) {
   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
   if (!manifest) return;
   playAnimation(state, logicalRole);
-  if (message) showBubble(message, state === 'sleep' ? 4200 : 2400);
-  if (speech) speak(speech);
+  if (message) {
+    const bubbleMs = state === 'sleep'
+      ? 4200
+      : baseActionName(state).startsWith('perch-')
+        ? 4800
+        : 2400;
+    showBubble(message, bubbleMs);
+  }
+  if (speech || resolveSpeechAudio(state)) speak(speech, resolveSpeechAudio(state));
 }
 
 function loadPet(nextManifest) {
   manifest = nextManifest;
+  petImage.crossOrigin = 'anonymous';
   petImage.alt = `${manifest.name}桌面宠物`;
   petImage.classList.remove('ready');
   preloadFrames();
@@ -127,8 +239,9 @@ function scanVisibleInsets() {
   const contentHeight = height * fit;
   const contentLeft = rect.left + (rect.width - contentWidth) / 2;
   const contentTop = rect.bottom - contentHeight;
-  const visibleMinX = pet.classList.contains('state-walk-left') ? width - 1 - maxX : minX;
-  const visibleMaxX = pet.classList.contains('state-walk-left') ? width - 1 - minX : maxX;
+  const mirrored = isFacingLeft();
+  const visibleMinX = mirrored ? width - 1 - maxX : minX;
+  const visibleMaxX = mirrored ? width - 1 - minX : maxX;
   return {
     left: Math.round(contentLeft + visibleMinX * fit),
     top: Math.round(contentTop + minY * fit),
@@ -153,7 +266,9 @@ function stabilizeVisibleInsets(insets) {
 }
 
 function positionBubble(insets) {
-  const top = Math.max(0, Math.round(insets.top - bubble.offsetHeight - 6));
+  const height = bubble.offsetHeight || 22;
+  // Keep the bubble bottom a few pixels above the visible subject top.
+  const top = Math.max(0, Math.round(insets.top - height - BUBBLE_GAP_PX));
   bubble.style.setProperty('--bubble-top', `${top}px`);
 }
 
@@ -188,7 +303,7 @@ function visiblePixelAt(clientX, clientY) {
   if (clientX < contentLeft || clientX >= contentLeft + contentWidth || clientY < contentTop || clientY >= rect.bottom) return false;
   let sourceX = Math.floor((clientX - contentLeft) / fit);
   const sourceY = Math.floor((clientY - contentTop) / fit);
-  if (pet.classList.contains('state-walk-left')) sourceX = hitCanvas.width - 1 - sourceX;
+  if (isFacingLeft()) sourceX = hitCanvas.width - 1 - sourceX;
   const radius = 7;
   const x = Math.max(0, sourceX - radius);
   const y = Math.max(0, sourceY - radius);

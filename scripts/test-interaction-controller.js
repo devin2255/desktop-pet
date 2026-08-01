@@ -59,12 +59,25 @@ function createClock() {
     flushTimeouts(limit = 1000) {
       let count = 0;
       while (timeouts.size) {
-        if (count++ >= limit) throw new Error('timeout loop did not settle');
+        if (count >= limit) throw new Error('timeout loop did not settle');
+        count += 1;
         const [id, task] = [...timeouts.entries()].sort((left, right) => left[1].due - right[1].due)[0];
         timeouts.delete(id);
         currentTime = Math.max(currentTime, task.due);
         task.callback();
       }
+    },
+    /** Process up to max timeouts without requiring the queue to empty. */
+    runTimeouts(max = 1) {
+      let count = 0;
+      while (timeouts.size && count < max) {
+        count += 1;
+        const [id, task] = [...timeouts.entries()].sort((left, right) => left[1].due - right[1].due)[0];
+        timeouts.delete(id);
+        currentTime = Math.max(currentTime, task.due);
+        task.callback();
+      }
+      return count;
     },
     async tickIntervals() {
       for (const task of [...intervals.values()]) await task.callback();
@@ -173,7 +186,11 @@ function createHarness({
     clearTimeout: clock.clearTimeout,
     setInterval: clock.setInterval,
     clearInterval: clock.clearInterval,
-    now: clock.now
+    now: clock.now,
+    // Keep unit tests snappy; production defaults remain 3s hold + slow climb.
+    climbHoldMs: 0,
+    minClimbDurationMs: 300,
+    climbPxPerSecond: 1000
   };
   const climbs = [];
   if (autoAnimate) {
@@ -222,13 +239,62 @@ async function run() {
   {
     const harness = createHarness({ windows: [target] });
     harness.controller.startDrag({ x: 200, y: 150 });
-    assert.deepStrictEqual(harness.states, ['drag']);
+    assert.deepStrictEqual(harness.states, ['drag-right']);
     assert.strictEqual(harness.topmostEnsures(), 1, 'drag state reasserts topmost ordering');
     await harness.controller.endDrag({ x: 100, y: 250 });
-    assert.deepStrictEqual(harness.states.slice(-2), ['climb', 'perch']);
+    assert.deepStrictEqual(harness.states.slice(-2), ['climb-right', 'perch']);
     assert.strictEqual(harness.controller.state(), 'perched');
-    assert.strictEqual(harness.climbs[0].duration, 300);
+    assert.ok(harness.climbs[0].duration >= 300, 'side climb uses timed travel duration');
     assert.deepStrictEqual(harness.clock.intervalDelays(), [100]);
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.dependencies.climbHoldMs = 3000;
+    harness.dependencies.minClimbDurationMs = 2800;
+    harness.dependencies.climbPxPerSecond = 55;
+    harness.controller = createInteractionController(harness.dependencies);
+    harness.controller.startDrag({ x: 200, y: 150 });
+    const climbPromise = harness.controller.endDrag({ x: 100, y: 250 });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(harness.states.includes('climb-right'), 'side release clings before climbing');
+    assert.strictEqual(harness.climbs.length, 0, 'climb travel waits for the hold delay');
+    assert.ok(harness.clock.scheduledTimeoutDelays.includes(3000), 'side cling waits 3 seconds');
+    const done = climbPromise.then(() => 'done');
+    harness.clock.flushTimeouts();
+    assert.strictEqual(await done, 'done');
+    assert.ok(harness.climbs[0].duration >= 2800, 'climb to the top edge is intentionally slow');
+    assert.strictEqual(harness.controller.state(), 'perched');
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    harness.controller.moveDrag({ x: 120, y: 150 });
+    assert.ok(harness.states.includes('drag-right'), 'dragging left faces right (butt-drag trail)');
+    harness.controller.moveDrag({ x: 260, y: 150 });
+    assert.strictEqual(harness.states.at(-1), 'drag-left', 'dragging right faces left (butt-drag trail)');
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.manifest.behavior = {
+      perched: [
+        { state: 'perch-swing', weight: 1, minDuration: 800, maxDuration: 800, message: '喂, 军儿吗?' }
+      ]
+    };
+    harness.manifest.animations['perch-swing'] = { durations: [200, 200] };
+    harness.manifest.animations['perch-action'] = { durations: [500] };
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    assert.strictEqual(harness.controller.state(), 'perched');
+    assert.ok(harness.clock.scheduledTimeoutDelays.includes(900), 'perched idle starts after a short settle');
+    // Perched idle reschedules forever; only run settle + one action + return-to-perch.
+    harness.clock.runTimeouts(3);
+    assert.ok(harness.states.includes('perch-swing'), 'perched idle can play configured sitting actions');
+    const perchedSignal = harness.stateSignals.find((item) => item?.logicalRole === 'perch-swing');
+    assert.strictEqual(perchedSignal?.message, '喂, 军儿吗?', 'perched idle can show a dialogue bubble');
+    assert.strictEqual(harness.controller.state(), 'perched', 'perched idle must not detach from the window');
+    harness.controller.dispose();
   }
 
   {
@@ -455,7 +521,7 @@ async function run() {
     await dragAndEnd(harness, { x: 350, y: 100 });
     harness.controller.startDrag({ x: 350, y: 100 });
     assert.strictEqual(harness.controller.state(), 'dragging');
-    assert.deepStrictEqual(harness.states.slice(-1), ['drag']);
+    assert.deepStrictEqual(harness.states.slice(-1), ['drag-right']);
     assert.strictEqual(harness.clock.pending().intervals, 0);
     assert.ok(!harness.states.includes('fall'));
   }
@@ -587,7 +653,7 @@ async function run() {
     assert.match(main, /shouldRestoreWindowBounds\(options\)/);
     assert.match(
       main,
-      /sendState:\s*\(state,\s*options\)\s*=>\s*sendState\(state,\s*'',\s*'',\s*state,\s*options\)/
+      /sendState:\s*\(state,\s*options\)\s*=>\s*sendState\(\s*state,\s*typeof options\?\.message === 'string' \? options\.message : '',\s*typeof options\?\.speech === 'string' \? options\.speech : '',\s*options\?\.logicalRole\s*\|\|\s*state,\s*options\s*\)/
     );
     assert.match(main, /interactionActions:\s*manifest\.interactionActions\s*\|\|\s*\{\}/);
     const fallbackMatch = main.match(

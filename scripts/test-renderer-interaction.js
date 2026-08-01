@@ -51,7 +51,7 @@ const bubble = element();
 bubble.offsetHeight = 24;
 const hearts = element();
 const windowListeners = new Map();
-const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], spoken: [], insets: [] };
+const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], spoken: [], audio: [], insets: [] };
 let loadCallback;
 let stateCallback;
 
@@ -76,14 +76,25 @@ const canvasContext = {
 };
 const canvas = { width: 0, height: 0, getContext: () => canvasContext };
 
+const rafCallbacks = [];
 const context = {
   console,
   Uint8ClampedArray,
   innerWidth: 180,
   innerHeight: 180,
   Image: function Image() {},
+  Audio: function Audio(src) {
+    calls.audio.push(src);
+    this.src = src || '';
+    this.pause = () => {};
+    this.play = () => Promise.resolve();
+  },
   setTimeout: () => 1,
   clearTimeout: () => {},
+  requestAnimationFrame: (callback) => {
+    rafCallbacks.push(callback);
+    return rafCallbacks.length;
+  },
   document: {
     getElementById: (id) => ({ pet, 'pet-image': petImage, bubble, hearts }[id]),
     createElement: (name) => name === 'canvas' ? canvas : element()
@@ -93,7 +104,16 @@ const context = {
     SpeechSynthesisUtterance: function SpeechSynthesisUtterance(text) { this.text = text; },
     speechSynthesis: {
       cancel: () => {},
-      speak: (utterance) => calls.spoken.push(utterance.text)
+      getVoices: () => [
+        { name: 'Microsoft Huihui - Chinese (Simplified, PRC)', lang: 'zh-CN', default: true },
+        { name: 'Microsoft Kangkang - Chinese (Simplified, PRC)', lang: 'zh-CN', default: false }
+      ],
+      addEventListener: () => {},
+      speak: (utterance) => calls.spoken.push({
+        text: utterance.text,
+        voice: utterance.voice?.name || '',
+        pitch: utterance.pitch
+      })
     },
     petApi: {
       onLoad: (callback) => { loadCallback = callback; },
@@ -115,12 +135,17 @@ vm.runInNewContext(fs.readFileSync(rendererPath, 'utf8'), context, { filename: r
 
 const manifest = {
   name: '测试宠物',
+  speechGender: 'male',
   animations: {
     idle: { frames: ['idle.png'], durations: [100], loop: true },
     walk: { frames: ['walk.png'], durations: [100], loop: true },
     sit: { frames: ['sit.png'], durations: [100], loop: true },
-    reaction: { frames: ['reaction.png'], durations: [100], loop: false }
-  }
+    reaction: { frames: ['reaction.png'], durations: [100], loop: false },
+    'call-dad': { frames: ['call.png'], durations: [100], loop: false }
+  },
+  contextMenuActions: [
+    { id: 'call-dad', label: '叫大爷', action: 'call-dad', speech: '大爷', speechAudio: 'audio/call-dad.mp3' }
+  ]
 };
 loadCallback(manifest);
 
@@ -155,7 +180,14 @@ assert.strictEqual(pet.style.getPropertyValue('--action-scale'), '1', 'repeated 
 assert.strictEqual(pet.className, 'pet state-reaction', 'repeated reactions must replace state classes, not accumulate them');
 
 stateCallback({ state: 'reaction', message: '爸！', speech: '爸' });
-assert.deepStrictEqual(calls.spoken, ['爸'], 'configured speech should be spoken once');
+assert.deepStrictEqual(calls.spoken, [{
+  text: '爸',
+  voice: 'Microsoft Kangkang - Chinese (Simplified, PRC)',
+  pitch: 1
+}], 'configured speech should use a male zh-CN voice when speechGender is male');
+
+stateCallback({ state: 'call-dad', message: '大爷!', speech: '大爷' });
+assert.deepStrictEqual(calls.audio, ['audio/call-dad.mp3'], 'bundled speechAudio should play instead of system TTS');
 
 petImage.listeners.get('load')();
 assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
@@ -163,9 +195,26 @@ assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
 });
 assert.strictEqual(
   bubble.style.getPropertyValue('--bubble-top'),
-  '0px',
-  'bubble is clamped after placing its bottom 6px above visible pixels'
+  '4px',
+  'bubble sits 2px above the visible head when space allows (30 - 24 - 2)'
 );
+
+alphaBounds = { left: 30, top: 200, right: 449, bottom: 479 };
+petImage.getBoundingClientRect = () => ({ left: 0, top: 0, right: 180, bottom: 180, width: 180, height: 180 });
+petImage.listeners.get('load')();
+assert.strictEqual(
+  bubble.style.getPropertyValue('--bubble-top'),
+  '49px',
+  'bubble must hug a lower visible head instead of staying at the window top'
+);
+stateCallback({ state: 'call-dad', message: '大爷!' });
+assert.strictEqual(
+  bubble.style.getPropertyValue('--bubble-top'),
+  '49px',
+  'showing a bubble should keep the last head-relative position'
+);
+while (rafCallbacks.length) rafCallbacks.shift()();
+assert.strictEqual(bubble.style.getPropertyValue('--bubble-top'), '49px');
 stateCallback({ state: 'drag', logicalRole: 'drag', message: '' });
 assert.strictEqual(petImage.src, 'walk.png', 'drag role falls back to walk');
 for (let index = 0; index < 50; index += 1) {
@@ -174,6 +223,7 @@ for (let index = 0; index < 50; index += 1) {
 assert.strictEqual(pet.style.getPropertyValue('--action-scale'), '1');
 
 alphaBounds = { left: 30, top: 60, right: 419, bottom: 479 };
+petImage.getBoundingClientRect = () => ({ left: 10, top: 10, right: 170, bottom: 170, width: 160, height: 160 });
 stateCallback({ state: 'walk-left', message: '' });
 petImage.listeners.get('load')();
 assert.deepStrictEqual({ ...calls.insets.at(-1) }, {

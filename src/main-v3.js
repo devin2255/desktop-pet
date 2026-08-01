@@ -22,7 +22,6 @@ const {
   ipcMain,
   Menu,
   nativeImage,
-  net,
   protocol,
   screen,
   shell,
@@ -30,7 +29,16 @@ const {
 } = require('electron');
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'pet-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+  {
+    scheme: 'pet-asset',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
 ]);
 
 const PET_SIZES = {
@@ -97,6 +105,9 @@ function publicManifest(manifest) {
     description: manifest.description || '',
     personality: Array.isArray(manifest.personality) ? manifest.personality : [],
     defaultSize: PET_SIZES[manifest.defaultSize] ? manifest.defaultSize : 'small',
+    speechGender: manifest.speechGender === 'male' || manifest.speechGender === 'female'
+      ? manifest.speechGender
+      : '',
     preview: petAssetUrl(manifest.id, manifest.preview),
     animations,
     interactionActions: manifest.interactionActions || {},
@@ -107,6 +118,9 @@ function publicManifest(manifest) {
         action: item.action,
         message: typeof item.message === 'string' ? item.message : '',
         speech: typeof item.speech === 'string' ? item.speech : '',
+        speechAudio: typeof item.speechAudio === 'string' && item.speechAudio
+          ? petAssetUrl(manifest.id, item.speechAudio)
+          : '',
         duration: Number.isInteger(item.duration) ? item.duration : 3000
       }))
       : []
@@ -327,8 +341,12 @@ function runBehavior() {
     walkTo(Math.max(workArea.x, Math.min(workArea.x + workArea.width - bounds.width, bounds.x + delta)));
     return;
   }
-  const messages = { sit: '我就在这里陪你。', reaction: '别走太远……', sleep: 'z Z' };
-  sendState(behavior.state, messages[behavior.state] || '');
+  const fallbackMessages = { sit: '我就在这里陪你。', reaction: '别走太远……', sleep: 'z Z' };
+  const message = typeof behavior.message === 'string' && behavior.message
+    ? behavior.message
+    : (fallbackMessages[behavior.state] || '');
+  const speech = typeof behavior.speech === 'string' ? behavior.speech : '';
+  sendState(behavior.state, message, speech);
   scheduleBehavior(duration);
 }
 
@@ -390,7 +408,15 @@ function runContextMenuAction(item) {
     || (interaction && interaction.state() !== 'normal')) return;
   pauseBehavior();
   sendState(item.action, item.message || '', item.speech || '');
-  scheduleBehavior(Number.isInteger(item.duration) ? item.duration : 3000);
+  const duration = Number.isInteger(item.duration) ? item.duration : 3000;
+  // Return to kneel/idle before random roaming so custom actions don't hard-cut mid-pose.
+  if (behaviorTimer) clearTimeout(behaviorTimer);
+  behaviorTimer = setTimeout(() => {
+    behaviorTimer = undefined;
+    if (!activeManifest || (interaction && interaction.state() !== 'normal')) return;
+    sendState('idle');
+    scheduleBehavior(900);
+  }, duration);
 }
 
 function buildTrayMenu() {
@@ -483,7 +509,13 @@ function createWindow() {
     screen,
     getCurrentSize: currentSize,
     getManifest: () => activeManifest,
-    sendState: (state, options) => sendState(state, '', '', state, options),
+    sendState: (state, options) => sendState(
+      state,
+      typeof options?.message === 'string' ? options.message : '',
+      typeof options?.speech === 'string' ? options.speech : '',
+      options?.logicalRole || state,
+      options
+    ),
     pauseBehavior,
     resumeBehavior: () => scheduleBehavior(2500),
     ensureOnTop: () => topmostGuard?.ensure(),
@@ -597,7 +629,7 @@ if (!gotLock) {
     settingsPath = path.join(app.getPath('userData'), 'player-settings.json');
     fs.mkdirSync(libraryRoot, { recursive: true });
     loadSettings();
-    protocol.handle('pet-asset', (request) => {
+    protocol.handle('pet-asset', async (request) => {
       const url = new URL(request.url);
       const petId = url.hostname;
       if (!PET_ID_PATTERN.test(petId) || !activeManifest || petId !== activeManifest.id) {
@@ -607,7 +639,19 @@ if (!gotLock) {
       safeRelative(relative);
       if (!referencedFiles(activeManifest).has(relative)) throw new Error('拒绝访问清单外资源');
       const root = resolveInside(libraryRoot, petId);
-      return net.fetch(pathToFileURL(resolveInside(root, relative)).toString());
+      const filePath = resolveInside(root, relative);
+      const data = await fs.promises.readFile(filePath);
+      const extension = path.extname(filePath).toLowerCase();
+      const contentType = extension === '.mp3' ? 'audio/mpeg'
+        : extension === '.wav' ? 'audio/wav'
+          : extension === '.ogg' ? 'audio/ogg'
+            : 'image/png';
+      return new Response(data, {
+        headers: {
+          'content-type': contentType,
+          'access-control-allow-origin': '*'
+        }
+      });
     });
     ensureBundledPets();
     const pets = listPets();

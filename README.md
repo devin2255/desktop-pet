@@ -85,7 +85,7 @@ animations/
 验证示例资源包：
 
 ```powershell
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/xiaogou.petpack
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/boss.petpack
 ```
 
 播放器将外部资源包视为不受信任输入。导入前会检查路径穿越、反斜杠路径、重复及大小写冲突、文件数量、解压体积、未引用文件、清单字段和 PNG 格式。格式细节见 [petpack-schema.md](skills/desktop-pet-maker/references/petpack-schema.md)。
@@ -102,7 +102,9 @@ python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/x
 构建客户专属版本：
 
 ```powershell
-npm run build:customer -- --pet pets/packages/xiaogou.petpack --name "小狗桌面宠物" --delivery-id xiaogou
+npm run build:boss
+# 或：
+npm run build:customer -- --pet pets/packages/boss.petpack --name "老板桌面宠物" --delivery-id boss
 ```
 
 输出位于 `dist/customers/<delivery-id>/`，包含便携版 EXE 和 `build-report.json`。客户版默认只包含指定宠物，并隐藏导入、切换宠物和打开宠物库入口；添加 `--allow-management` 可保留管理功能。
@@ -131,7 +133,7 @@ scripts/build-customer.js         客户专属便携版构建器
 Desktop Pet 基于 [redniu123/pet-player](https://github.com/redniu123/pet-player) 修改和扩展。感谢原作者及所有贡献者。
 
 - 源代码采用 [MIT License](LICENSE)，并保留上游项目的原始版权声明
-- `xiaogou.petpack`、程序图标和托盘图片采用 [CC BY 4.0](ASSETS_LICENSE.md)，素材作者为 redniu123
+- 当前演示资源为 `boss.petpack`（牛斯克 / 老板桌宠）及对应图标，见 [ASSETS_LICENSE.md](ASSETS_LICENSE.md)
 - 当前项目维护者：devin2255
 
 重新建立 Git 仓库不会改变上游许可证或素材署名义务。
