@@ -2,7 +2,7 @@
 
 **Branch:** feat/laopo-pet  
 **Status:** complete  
-**Commit:** (see git log after commit)
+**Commit:** `ef6d6f9` — fix: include startup-greeting in customer EXE packaging
 
 ## Summary
 
