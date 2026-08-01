@@ -71,6 +71,11 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     && manifest.speechGender !== 'female') {
     throw new Error('speechGender 只能是 male 或 female');
   }
+  if (manifest.startupGreeting !== undefined) {
+    if (typeof manifest.startupGreeting !== 'string' || manifest.startupGreeting.length > 80) {
+      throw new Error('startupGreeting 必须是不超过 80 个字符的字符串');
+    }
+  }
   safeRelative(manifest.preview);
   if (path.posix.extname(manifest.preview).toLowerCase() !== '.png') throw new Error('preview 必须是 PNG');
   if (!manifest.animations || typeof manifest.animations !== 'object' || Array.isArray(manifest.animations)) {

@@ -20,6 +20,7 @@ Manifest fields:
 - `id`: required lowercase ASCII letters, numbers, and hyphens; 2–48 characters.
 - `name`: required display name.
 - `personality`: array of short strings.
+- `startupGreeting`: optional custom greeting shown when the pet first appears or when switching to this pet. If omitted or blank after trimming, the player uses `我是${name}。` on startup and `你好，我是${name}。` when switching. Maximum 80 characters.
 - `preview`: required relative PNG path.
 - `normalizationMetric`: optional scale-validation mode. New packages use `alpha-area-v1` to compare opaque visual mass; packages that omit it retain legacy `bbox-span-v1` validation for schema-v1 compatibility.
 - `animations`: required object keyed by action.

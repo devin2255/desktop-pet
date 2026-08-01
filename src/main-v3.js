@@ -15,6 +15,7 @@ const {
   shouldRestoreWindowBounds
 } = require('./interaction-controller');
 const { createTopmostGuard } = require('./topmost-guard');
+const { resolveStartupGreeting } = require('./startup-greeting');
 const {
   app,
   BrowserWindow,
@@ -108,6 +109,9 @@ function publicManifest(manifest) {
     speechGender: manifest.speechGender === 'male' || manifest.speechGender === 'female'
       ? manifest.speechGender
       : '',
+    ...(typeof manifest.startupGreeting === 'string' && manifest.startupGreeting.trim()
+      ? { startupGreeting: manifest.startupGreeting.trim() }
+      : {}),
     preview: petAssetUrl(manifest.id, manifest.preview),
     animations,
     interactionActions: manifest.interactionActions || {},
@@ -390,7 +394,7 @@ function switchPet(id) {
   updateTrayIcon();
   tray?.setContextMenu(buildTrayMenu());
   petWindow?.webContents.send('pet:load', publicManifest(next));
-  sendState('reaction', `你好，我是${next.name}。`);
+  sendState('reaction', resolveStartupGreeting(next, { switching: true }));
   scheduleBehavior(3200);
   return true;
 }
@@ -534,7 +538,7 @@ function createWindow() {
   petWindow.once('ready-to-show', () => {
     petWindow.showInactive();
     topmostGuard?.ensure();
-    sendState('reaction', `我是${activeManifest.name}。`);
+    sendState('reaction', resolveStartupGreeting(activeManifest));
     scheduleBehavior(3600);
   });
   petWindow.on('close', (event) => {

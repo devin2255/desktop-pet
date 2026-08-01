@@ -71,6 +71,11 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
     speech_gender = manifest.get("speechGender")
     if speech_gender is not None and speech_gender not in {"male", "female"}:
         raise ValueError("speechGender must be male or female")
+    startup_greeting = manifest.get("startupGreeting")
+    if startup_greeting is not None and (
+        not isinstance(startup_greeting, str) or len(startup_greeting) > 80
+    ):
+        raise ValueError("startupGreeting must be a string of at most 80 characters")
 
     preview = safe_relative(str(manifest.get("preview", "")))
     if preview.suffix.lower() != ".png":
