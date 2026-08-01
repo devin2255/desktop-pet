@@ -92,20 +92,34 @@ python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/b
 
 ## 制作专属桌面宠物
 
-项目包含可由 Codex 自动发现的 `desktop-pet-maker` Skill：
+项目包含可由 Codex / Cursor Agent 自动发现的 `desktop-pet-maker` Skill：
 
 - 自动发现入口：`.agents/skills/desktop-pet-maker/`
 - Skill 源码：`skills/desktop-pet-maker/`
 
-在 Codex 中打开本项目并附上同一只宠物的清晰照片后，可以要求它生成动作帧、处理透明背景、统一体量与基线、验证资源包并构建客户专属 EXE。
+在编辑器中打开本项目并附上同一只宠物的清晰照片后，可以要求它生成动作帧、处理透明背景、统一体量与基线、验证资源包并构建客户专属 EXE。
 
-构建客户专属版本：
+### 用本项目制作老板桌宠（牛斯克）
+
+当前演示基线就是老板桌宠。若要在新会话中重做或继续迭代，按下面流程即可：
+
+1. 准备 1～8 张同一角色的清晰参考图（正脸、全身、侧脸更好）。
+2. 打开本仓库，把照片和提示词一起发给 Agent。
+3. 提示词文件：[docs/prompts/make-boss-pet.txt](docs/prompts/make-boss-pet.txt)（可整份复制）。
+4. Agent 完成后应交付：
+   - `pets/packages/boss.petpack`
+   - `dist/customers/boss/老板桌面宠物-<version>.exe`
+   - `dist/customers/boss/build-report.json`
+5. 本地也可单独验证和封装：
 
 ```powershell
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/boss.petpack
 npm run build:boss
 # 或：
 npm run build:customer -- --pet pets/packages/boss.petpack --name "老板桌面宠物" --delivery-id boss
 ```
+
+老板桌宠能力摘要：跪姿待机、爬行移动、叫大爷 / 磕头 / 错了没?、端茶送水、窗口顶边坐下与侧爬吊挂、坐边跷二郎腿打电话，以及男声台词。
 
 输出位于 `dist/customers/<delivery-id>/`，包含便携版 EXE 和 `build-report.json`。客户版默认只包含指定宠物，并隐藏导入、切换宠物和打开宠物库入口；添加 `--allow-management` 可保留管理功能。
 
@@ -115,6 +129,7 @@ npm run build:customer -- --pet pets/packages/boss.petpack --name "老板桌面�
 src/                              通用播放器与安全桥接
 pets/packages/                    可发布的 .petpack 资源包
 pets/library/                     本地解包检查目录（默认不提交）
+docs/prompts/                     可复制制作提示词
 skills/desktop-pet-maker/         宠物制作流程、脚本和格式文档
 .agents/skills/desktop-pet-maker/ Codex 自动发现入口
 scripts/build-customer.js         客户专属便携版构建器
