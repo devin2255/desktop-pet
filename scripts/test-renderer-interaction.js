@@ -189,6 +189,18 @@ assert.deepStrictEqual(calls.spoken, [{
 stateCallback({ state: 'call-dad', message: '大爷!', speech: '大爷' });
 assert.deepStrictEqual(calls.audio, ['audio/call-dad.mp3'], 'bundled speechAudio should play instead of system TTS');
 
+stateCallback({
+  state: 'reaction',
+  message: '老公喝茶',
+  speech: '老公喝茶',
+  speechAudio: 'pet-asset://demo/audio/serve-tea.mp3'
+});
+assert.deepStrictEqual(
+  calls.audio.slice(-1),
+  ['pet-asset://demo/audio/serve-tea.mp3'],
+  'behavior speechAudio from pet:state should play instead of system TTS'
+);
+
 petImage.listeners.get('load')();
 assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
   left: 20, top: 30, right: 20, bottom: 10

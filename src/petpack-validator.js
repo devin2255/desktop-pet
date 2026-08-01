@@ -49,6 +49,12 @@ function referencedFiles(manifest) {
   for (const item of manifest.contextMenuActions || []) {
     if (item && typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
   }
+  for (const list of [manifest.behavior?.random, manifest.behavior?.perched]) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (item && typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
+    }
+  }
   return referenced;
 }
 
@@ -183,6 +189,13 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       }
       if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) {
         throw new Error(`${label} speech 不能超过 20 个字符`);
+      }
+      if (item.speechAudio !== undefined) {
+        if (typeof item.speechAudio !== 'string' || !item.speechAudio) throw new Error(`${label} speechAudio 路径不合法`);
+        safeRelative(item.speechAudio);
+        if (!AUDIO_EXTENSIONS.has(path.posix.extname(item.speechAudio).toLowerCase())) {
+          throw new Error(`${label} speechAudio 只支持 mp3/wav/ogg`);
+        }
       }
     }
   }

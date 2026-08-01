@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const AdmZip = require('adm-zip');
-const { safeRelative, validateManifest, validatePetpack } = require('../src/petpack-validator');
+const { referencedFiles, safeRelative, validateManifest, validatePetpack } = require('../src/petpack-validator');
 
 const fixture = path.join(__dirname, '..', 'pets', 'packages', 'boss.petpack');
 assert.doesNotThrow(() => validatePetpack(fixture), 'reviewed demo package must validate');
@@ -70,5 +70,29 @@ assert.doesNotThrow(
   () => validateManifest(manifest),
   'schema-v1 validators must continue accepting legacy random sleep entries'
 );
+
+manifest.behavior = {
+  random: [{
+    state: 'sit',
+    weight: 1,
+    minDuration: 600,
+    maxDuration: 1000,
+    speechAudio: 'audio/roam.mp3'
+  }]
+};
+assert.ok(referencedFiles(manifest).has('audio/roam.mp3'), 'behavior.random speechAudio must be referenced');
+assert.doesNotThrow(() => validateManifest(manifest));
+manifest.behavior.random[0].speechAudio = 'audio/roam.txt';
+assert.throws(() => validateManifest(manifest), /speechAudio/);
+manifest.behavior.random[0].speechAudio = 'audio/roam.mp3';
+manifest.behavior.perched = [{
+  state: 'sit',
+  weight: 1,
+  minDuration: 600,
+  maxDuration: 1000,
+  speechAudio: 'audio/perched.mp3'
+}];
+assert.ok(referencedFiles(manifest).has('audio/perched.mp3'), 'behavior.perched speechAudio must be referenced');
+assert.doesNotThrow(() => validateManifest(manifest));
 
 console.log('petpack archive security checks passed');

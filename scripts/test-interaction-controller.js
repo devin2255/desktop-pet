@@ -280,7 +280,14 @@ async function run() {
     const harness = createHarness({ windows: [target] });
     harness.manifest.behavior = {
       perched: [
-        { state: 'perch-swing', weight: 1, minDuration: 800, maxDuration: 800, message: '喂, 军儿吗?' }
+        {
+          state: 'perch-swing',
+          weight: 1,
+          minDuration: 800,
+          maxDuration: 800,
+          message: '喂, 军儿吗?',
+          speechAudio: 'audio/perch-swing.mp3'
+        }
       ]
     };
     harness.manifest.animations['perch-swing'] = { durations: [200, 200] };
@@ -293,6 +300,7 @@ async function run() {
     assert.ok(harness.states.includes('perch-swing'), 'perched idle can play configured sitting actions');
     const perchedSignal = harness.stateSignals.find((item) => item?.logicalRole === 'perch-swing');
     assert.strictEqual(perchedSignal?.message, '喂, 军儿吗?', 'perched idle can show a dialogue bubble');
+    assert.strictEqual(perchedSignal?.speechAudio, 'audio/perch-swing.mp3', 'perched idle forwards speechAudio');
     assert.strictEqual(harness.controller.state(), 'perched', 'perched idle must not detach from the window');
     harness.controller.dispose();
   }

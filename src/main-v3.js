@@ -255,7 +255,11 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
 function sendState(state, message = '', speech = '', logicalRole = state, options) {
   if (!petWindow || petWindow.isDestroyed()) return;
   if (shouldRestoreWindowBounds(options)) restorePetWindowSize();
-  petWindow.webContents.send('pet:state', { state, logicalRole, message, speech });
+  let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
+  if (speechAudio && !speechAudio.startsWith('pet-asset:') && activeManifest) {
+    speechAudio = petAssetUrl(activeManifest.id, speechAudio);
+  }
+  petWindow.webContents.send('pet:state', { state, logicalRole, message, speech, speechAudio });
 }
 
 function setMouseThrough(ignore) {
@@ -350,7 +354,10 @@ function runBehavior() {
     ? behavior.message
     : (fallbackMessages[behavior.state] || '');
   const speech = typeof behavior.speech === 'string' ? behavior.speech : '';
-  sendState(behavior.state, message, speech);
+  const speechAudio = typeof behavior.speechAudio === 'string' && behavior.speechAudio
+    ? petAssetUrl(activeManifest.id, behavior.speechAudio)
+    : '';
+  sendState(behavior.state, message, speech, behavior.state, { speechAudio });
   scheduleBehavior(duration);
 }
 

@@ -186,8 +186,8 @@ function speak(text, audioUrl = '') {
   setTimeout(retry, 250);
 }
 
-function setState(state, message = '', speech = '', logicalRole) {
-  pendingState = { state, message, speech, logicalRole };
+function setState(state, message = '', speech = '', logicalRole, speechAudio = '') {
+  pendingState = { state, message, speech, logicalRole, speechAudio };
   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
   if (!manifest) return;
   playAnimation(state, logicalRole);
@@ -199,7 +199,8 @@ function setState(state, message = '', speech = '', logicalRole) {
         : 2400;
     showBubble(message, bubbleMs);
   }
-  if (speech || resolveSpeechAudio(state)) speak(speech, resolveSpeechAudio(state));
+  const audio = speechAudio || resolveSpeechAudio(state);
+  if (speech || audio) speak(speech, audio);
 }
 
 function loadPet(nextManifest) {
@@ -212,7 +213,8 @@ function loadPet(nextManifest) {
     pendingState.state || 'idle',
     pendingState.message || '',
     pendingState.speech || '',
-    pendingState.logicalRole
+    pendingState.logicalRole,
+    pendingState.speechAudio || ''
   );
 }
 
@@ -379,5 +381,6 @@ pet.addEventListener('contextmenu', (event) => {
 });
 
 window.petApi.onLoad(loadPet);
-window.petApi.onState(({ state, message, speech, logicalRole }) => setState(state, message, speech, logicalRole));
+window.petApi.onState(({ state, message, speech, logicalRole, speechAudio }) =>
+  setState(state, message, speech, logicalRole, speechAudio || ''));
 window.petApi.getCurrentPet().then(loadPet);

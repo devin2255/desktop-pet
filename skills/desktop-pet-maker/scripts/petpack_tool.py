@@ -47,6 +47,12 @@ def referenced_files(manifest: dict) -> set[str]:
     for item in manifest.get("contextMenuActions") or []:
         if isinstance(item, dict) and item.get("speechAudio"):
             referenced.add(safe_relative(str(item["speechAudio"])).as_posix())
+    behavior_root = manifest.get("behavior")
+    if isinstance(behavior_root, dict):
+        for key in ("random", "perched"):
+            for item in behavior_root.get(key) or []:
+                if isinstance(item, dict) and item.get("speechAudio"):
+                    referenced.add(safe_relative(str(item["speechAudio"])).as_posix())
     return referenced
 
 
@@ -210,6 +216,13 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 raise ValueError(f"{label} message must be a string up to 80 characters")
             if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
                 raise ValueError(f"{label} speech must be a string up to 20 characters")
+            if "speechAudio" in item:
+                audio = item["speechAudio"]
+                if not isinstance(audio, str) or not audio.strip():
+                    raise ValueError(f"{label} speechAudio must be a non-empty path")
+                audio_path = safe_relative(audio)
+                if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
+                    raise ValueError(f"{label} speechAudio must be mp3/wav/ogg")
 
     behavior_root = manifest.get("behavior", {})
     if isinstance(behavior_root, dict):

@@ -225,7 +225,8 @@ function createInteractionController(dependencies) {
       // Keep controller state as perched for attachment; only swap the visible action.
       emitRole(choice.state, {
         message: typeof choice.message === 'string' ? choice.message : '',
-        speech: typeof choice.speech === 'string' ? choice.speech : ''
+        speech: typeof choice.speech === 'string' ? choice.speech : '',
+        speechAudio: typeof choice.speechAudio === 'string' ? choice.speechAudio : ''
       });
       perchedIdleTimer = setTimeoutFn(() => {
         perchedIdleTimer = undefined;
