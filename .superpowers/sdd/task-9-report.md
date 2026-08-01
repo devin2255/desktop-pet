@@ -2,6 +2,7 @@
 
 **Status:** PASS  
 **Date:** 2026-08-02  
+**Commit:** `66e606b` Switch demo baseline from boss to laopo petpack.
 
 ## Summary
 
