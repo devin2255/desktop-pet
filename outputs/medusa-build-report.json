@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "builtAt": "2026-08-02T06:41:21.400Z",
+  "appName": "美杜莎桌面宠物",
+  "deliveryId": "medusa",
+  "petId": "medusa",
+  "petName": "美杜莎",
+  "petpack": "medusa.petpack",
+  "petpackSha256": "aa1379dc910fbbaaa6823cf7d4fde88d5bd9376e562cb7809e0f7a01e4ddf7f9",
+  "executable": "美杜莎桌面宠物-0.1.0.exe",
+  "executableSha256": "71b6d5c4561584e58f55bee802eb322c771094b6ac725b1af2354d2da6c0b9c9",
+  "version": "0.1.0"
+}

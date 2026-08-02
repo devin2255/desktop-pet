@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "medusa",
+  "appName": "美杜莎桌面宠物",
+  "packageVersion": "0.1.0",
+  "playerVersion": "0.4.0",
+  "generatedAt": "2026-08-02T06:50:00.000Z",
+  "artifacts": {
+    "exe": "dist/customers/medusa/美杜莎桌面宠物-0.1.0.exe",
+    "exeSha256": "71b6d5c4561584e58f55bee802eb322c771094b6ac725b1af2354d2da6c0b9c9",
+    "petpack": "pets/packages/medusa.petpack",
+    "petpackSha256": "aa1379dc910fbbaaa6823cf7d4fde88d5bd9376e562cb7809e0f7a01e4ddf7f9",
+    "buildReport": "dist/customers/medusa/build-report.json",
+    "buildReportCopy": "outputs/medusa-build-report.json",
+    "cdpRuntimeReport": "outputs/medusa-cdp-runtime.json",
+    "liveProbe": "outputs/medusa-live-probe.json"
+  },
+  "gates": {
+    "testRendererInteraction": "PASS",
+    "testProcessAnimationStrips": "PASS (7 tests)",
+    "npmTest": "PASS (js + python + validate:demo medusa)",
+    "validateDemo": "valid: medusa (美杜莎)"
+  },
+  "verified": [
+    "node scripts/test-renderer-interaction.js PASS",
+    "python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v PASS",
+    "npm test PASS (incl. medusa petpack + startup greeting unit tests)",
+    "petpack validate: medusa (美杜莎)",
+    "customer EXE 0.1.0 built to dist/customers/medusa/",
+    "build-report.json written with matching SHA256",
+    "portable EXE launches with --remote-debugging-port=9334; window title 桌宠播放器",
+    "independent userData at %APPDATA%/Desktop Pet Deliveries/medusa with pets/medusa and player-settings.json",
+    "runtime CDP: pet image loads 480x480, manifest id=medusa, required + custom actions present",
+    "runtime CDP role sampling (drag/climb/perch/hang/fall/impact/recover) 50 samples each: passed, zero unexpected resize/displacement/scale",
+    "live CDP: startupGreeting === 本女王来了。, speechGender=female",
+    "live CDP: context menu ids cold-smile / heaven-python / kneel-before-me; no call-hubby",
+    "live CDP: bubble observed 看你表现 during roaming; animation frame sources changed (imageSourceCount>=6)",
+    "initial CDP state sampling observed idle / reaction / sit / inspect class transitions",
+    "body background rgba(0,0,0,0) (transparent renderer)",
+    "player-settings: petId=medusa, sizeKey=small, roaming=true",
+    "installed pet.json perched: perch-chin-rest / perch-hair-sweep / perch-look",
+    "process terminates when force-stopped (no orphan after kill)"
+  ],
+  "configVerified": {
+    "packageVersion": "0.1.0",
+    "startupGreeting": "本女王来了。",
+    "speechGender": "female",
+    "contextMenuActions": ["cold-smile", "heaven-python", "kneel-before-me"],
+    "hasCallHubby": false,
+    "roamingBubbleObserved": "看你表现",
+    "userDataDir": "%APPDATA%/Desktop Pet Deliveries/medusa",
+    "playerSettings": {
+      "petId": "medusa",
+      "sizeKey": "small",
+      "roaming": true
+    }
+  },
+  "unverifiedManual": [
+    "启动瞬间气泡是否实际弹出「本女王来了。」（manifest 字段已在运行时确认，首启气泡时机未截到）",
+    "右键菜单实机点选：冷笑 / 吞天蟒 / 跪下 及对应女声音频",
+    "漫游随机台词（看你表现、侍奉本座、有趣）完整轮换与预录女声播放（已见气泡「看你表现」）",
+    "坐边：托腮 / 扫发 / 扫视，屁股贴边",
+    "透明像素鼠标穿透实机点选后方窗口",
+    "拖动、左右朝向、吊挂/坠落恢复手感",
+    "托盘图标点击显示/隐藏、托盘退出菜单",
+    "静止连点 50 次无缩放/平移（CDP 角色采样已覆盖 350 次帧切换无位移，非真实指针连点）",
+    "吞天蟒短特效后恢复、无尺度跳动（未在 UI 触发 heaven-python）",
+    "EXE 数字签名",
+    "商店上架"
+  ],
+  "knownReleaseGaps": [
+    "EXE 未做数字签名 (signExecutable=false)",
+    "未做应用商店上架",
+    "本机构建 npmRebuild=false，依赖 get-windows/koffi 预编译 N-API 二进制",
+    "dist/ 与 *.exe 被 .gitignore 忽略，交付物仅存在于本机 dist/customers/medusa/"
+  ]
+}

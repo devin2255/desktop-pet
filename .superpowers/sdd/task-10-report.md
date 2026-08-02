@@ -1,43 +1,64 @@
-# Task 10 Report — laopo icons + docs baseline cleanup
+# Task 10 Report — 客户 EXE 构建与实机验证（Medusa）
 
-**Branch:** feat/laopo-pet  
+**Branch:** feat/medusa-pet  
 **Status:** complete  
-**Commit:** `5ecb62e` — Switch demo icons and docs baseline to laopo.
 
 ## Summary
 
-Generated laopo tray/ICO assets from `pets/library/laopo/preview.png`, rewired `package.json` build icon/tray paths from boss → laopo, updated README/AGENTS/ASSETS_LICENSE baseline statements, removed tracked boss icon files, and verified full test suite.
+发布门禁全部 PASS，`npm run build:medusa` 产出便携版 EXE，CDP 实机探针通过（启动、独立 userData、漫游气泡、菜单配置、交互角色 ×50 无尺度/位移）。未做数字签名与商店上架。
 
-## Changes
-
-1. **Icons (PIL)**
-   - `assets/generated/laopo-tray.png` — 64×64 RGBA from preview (matches boss-tray size)
-   - `assets/generated/laopo.ico` — multi-size ICO (16–256px) via Pillow `append_images`
-   - Removed `assets/generated/boss.ico`, `assets/generated/boss-tray.png`
-
-2. **`package.json`**
-   - `build.win.icon` → `assets/generated/laopo.ico`
-   - `build.files` tray → `assets/generated/laopo-tray.png`
-
-3. **Docs / gitignore**
-   - `README.md`, `AGENTS.md`, `ASSETS_LICENSE.md` — current demo baseline is laopo / 老婆桌面宠物
-   - `.gitignore` exceptions: boss icon paths → laopo icon paths
-
-## Tests
+## Gates
 
 ```
-npm test → PASS
-  test:js (incl. laopo petpack + security) → PASS
-  test:python (14 tests) → PASS
-  validate:demo → valid: laopo (老婆)
+node scripts/test-renderer-interaction.js                          → PASS
+python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v → PASS (7)
+npm test                                                           → PASS
+  validate:demo → valid: medusa (美杜莎)
 ```
 
-## Concerns
+## Build
 
-- `scripts/build-customer.js` help example still mentions boss path (cosmetic; Task 11 may touch).
-- `scripts/test-boss-petpack.js` may remain locally untracked; not referenced by npm test.
-- Historical boss references intentionally kept in `docs/superpowers/plans/` and SDD briefs.
+```
+npm run build:medusa
+```
 
-## Next
+| Artifact | Path |
+|---|---|
+| EXE | `dist/customers/medusa/美杜莎桌面宠物-0.1.0.exe` |
+| EXE SHA256 | `71b6d5c4561584e58f55bee802eb322c771094b6ac725b1af2354d2da6c0b9c9` |
+| build-report | `dist/customers/medusa/build-report.json` |
+| build-report copy | `outputs/medusa-build-report.json` |
+| petpack SHA256 | `aa1379dc910fbbaaa6823cf7d4fde88d5bd9376e562cb7809e0f7a01e4ddf7f9` |
 
-Task 11: `npm run build:laopo`, customer EXE verification, `outputs/laopo-verification-report.json`.
+## Runtime verification
+
+Launched portable EXE with `--remote-debugging-port=9334`.
+
+| Check | Result |
+|---|---|
+| App starts, pet appears | PASS — window title 桌宠播放器; userData `Desktop Pet Deliveries/medusa` |
+| `startupGreeting` in live manifest | PASS — `本女王来了。` |
+| `speechGender` | PASS — `female` |
+| Animations / roaming | PASS — CDP sampled idle/reaction/sit/inspect; live bubble `看你表现`; frame sources change |
+| CDP interaction roles ×50 | PASS — drag/climb/perch/hang/fall/impact/recover; 0 resize/displace/scale |
+| Menu config present | PASS — cold-smile / heaven-python / kneel-before-me; no call-hubby |
+| Transparent body bg | PASS — `rgba(0,0,0,0)` |
+| Process exit | PARTIAL — force-kill clean; tray Quit not UI-automated |
+| 50 real clicks / perch UI / audio / hit-test | MANUAL-PENDING — see verification JSON |
+
+Full detail: `outputs/medusa-verification-report.json`
+
+## Artifacts
+
+- `dist/customers/medusa/美杜莎桌面宠物-0.1.0.exe` (gitignored)
+- `dist/customers/medusa/build-report.json` (under gitignored `dist/`)
+- `outputs/medusa-build-report.json`
+- `outputs/medusa-cdp-runtime.json`
+- `outputs/medusa-live-probe.json`
+- `outputs/medusa-verification-report.json`
+
+## Known gaps
+
+- No code signing
+- No store listing
+- Tray quit / transparent hit-testing / 50 physical clicks / perched idle / heaven-python VFX need human eyes/ears

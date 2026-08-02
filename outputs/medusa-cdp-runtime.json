@@ -1,0 +1,882 @@
+{
+    "target":  {
+                   "url":  "file:///C:/Users/Devin/AppData/Local/Temp/3HLghAjnZi3vPSiHUyjmvMPS016/resources/app.asar/src/index-v3.html",
+                   "title":  "桌宠播放器"
+               },
+    "initial":  {
+                    "readyState":  "complete",
+                    "title":  "桌宠播放器",
+                    "viewport":  [
+                                     170,
+                                     190
+                                 ],
+                    "bodyBackground":  "rgba(0, 0, 0, 0)",
+                    "petClass":  "pet state-idle",
+                    "imageComplete":  true,
+                    "naturalSize":  [
+                                        480,
+                                        480
+                                    ],
+                    "imageSource":  "pet-asset://medusa/animations/idle/03.png",
+                    "manifest":  {
+                                     "id":  "medusa",
+                                     "name":  "美杜莎",
+                                     "actions":  [
+                                                     "climb",
+                                                     "cold-smile",
+                                                     "command",
+                                                     "drag",
+                                                     "fall",
+                                                     "hang",
+                                                     "heaven-python",
+                                                     "idle",
+                                                     "impact",
+                                                     "inspect",
+                                                     "kneel-before-me",
+                                                     "pat-butt",
+                                                     "perch",
+                                                     "perch-chin-rest",
+                                                     "perch-hair-sweep",
+                                                     "perch-look",
+                                                     "reaction",
+                                                     "sit",
+                                                     "sleep",
+                                                     "smirk-line",
+                                                     "walk"
+                                                 ],
+                                     "animations":  {
+                                                        "idle":  {
+                                                                     "frames":  [
+                                                                                    "pet-asset://medusa/animations/idle/01.png",
+                                                                                    "pet-asset://medusa/animations/idle/02.png",
+                                                                                    "pet-asset://medusa/animations/idle/03.png",
+                                                                                    "pet-asset://medusa/animations/idle/04.png"
+                                                                                ],
+                                                                     "durations":  [
+                                                                                       420,
+                                                                                       300,
+                                                                                       260,
+                                                                                       420
+                                                                                   ],
+                                                                     "loop":  true,
+                                                                     "holdLastFrame":  false,
+                                                                     "scale":  1
+                                                                 },
+                                                        "walk":  {
+                                                                     "frames":  [
+                                                                                    "pet-asset://medusa/animations/walk/01.png",
+                                                                                    "pet-asset://medusa/animations/walk/02.png",
+                                                                                    "pet-asset://medusa/animations/walk/03.png",
+                                                                                    "pet-asset://medusa/animations/walk/04.png",
+                                                                                    "pet-asset://medusa/animations/walk/05.png",
+                                                                                    "pet-asset://medusa/animations/walk/06.png"
+                                                                                ],
+                                                                     "durations":  [
+                                                                                       140,
+                                                                                       140,
+                                                                                       140,
+                                                                                       140,
+                                                                                       140,
+                                                                                       140
+                                                                                   ],
+                                                                     "loop":  true,
+                                                                     "holdLastFrame":  false,
+                                                                     "scale":  1
+                                                                 },
+                                                        "sit":  {
+                                                                    "frames":  [
+                                                                                   "pet-asset://medusa/animations/sit/01.png",
+                                                                                   "pet-asset://medusa/animations/sit/02.png",
+                                                                                   "pet-asset://medusa/animations/sit/03.png",
+                                                                                   "pet-asset://medusa/animations/sit/04.png"
+                                                                               ],
+                                                                    "durations":  [
+                                                                                      220,
+                                                                                      220,
+                                                                                      260,
+                                                                                      2000
+                                                                                  ],
+                                                                    "loop":  false,
+                                                                    "holdLastFrame":  true,
+                                                                    "scale":  1
+                                                                },
+                                                        "sleep":  {
+                                                                      "frames":  [
+                                                                                     "pet-asset://medusa/animations/sleep/01.png",
+                                                                                     "pet-asset://medusa/animations/sleep/02.png",
+                                                                                     "pet-asset://medusa/animations/sleep/03.png",
+                                                                                     "pet-asset://medusa/animations/sleep/04.png"
+                                                                                 ],
+                                                                      "durations":  [
+                                                                                        650,
+                                                                                        650,
+                                                                                        420,
+                                                                                        650
+                                                                                    ],
+                                                                      "loop":  true,
+                                                                      "holdLastFrame":  false,
+                                                                      "scale":  1
+                                                                  },
+                                                        "reaction":  {
+                                                                         "frames":  [
+                                                                                        "pet-asset://medusa/animations/reaction/01.png",
+                                                                                        "pet-asset://medusa/animations/reaction/02.png",
+                                                                                        "pet-asset://medusa/animations/reaction/03.png",
+                                                                                        "pet-asset://medusa/animations/reaction/04.png"
+                                                                                    ],
+                                                                         "durations":  [
+                                                                                           160,
+                                                                                           180,
+                                                                                           220,
+                                                                                           1500
+                                                                                       ],
+                                                                         "loop":  false,
+                                                                         "holdLastFrame":  true,
+                                                                         "scale":  1
+                                                                     },
+                                                        "drag":  {
+                                                                     "frames":  [
+                                                                                    "pet-asset://medusa/animations/drag/01.png",
+                                                                                    "pet-asset://medusa/animations/drag/02.png",
+                                                                                    "pet-asset://medusa/animations/drag/03.png",
+                                                                                    "pet-asset://medusa/animations/drag/04.png",
+                                                                                    "pet-asset://medusa/animations/drag/05.png",
+                                                                                    "pet-asset://medusa/animations/drag/06.png"
+                                                                                ],
+                                                                     "durations":  [
+                                                                                       120,
+                                                                                       120,
+                                                                                       120,
+                                                                                       120,
+                                                                                       120,
+                                                                                       120
+                                                                                   ],
+                                                                     "loop":  true,
+                                                                     "holdLastFrame":  false,
+                                                                     "scale":  1
+                                                                 },
+                                                        "climb":  {
+                                                                      "frames":  [
+                                                                                     "pet-asset://medusa/animations/climb/01.png",
+                                                                                     "pet-asset://medusa/animations/climb/02.png",
+                                                                                     "pet-asset://medusa/animations/climb/03.png",
+                                                                                     "pet-asset://medusa/animations/climb/04.png",
+                                                                                     "pet-asset://medusa/animations/climb/05.png",
+                                                                                     "pet-asset://medusa/animations/climb/06.png"
+                                                                                 ],
+                                                                      "durations":  [
+                                                                                        140,
+                                                                                        140,
+                                                                                        140,
+                                                                                        140,
+                                                                                        140,
+                                                                                        140
+                                                                                    ],
+                                                                      "loop":  true,
+                                                                      "holdLastFrame":  false,
+                                                                      "scale":  1
+                                                                  },
+                                                        "perch":  {
+                                                                      "frames":  [
+                                                                                     "pet-asset://medusa/animations/perch/01.png",
+                                                                                     "pet-asset://medusa/animations/perch/02.png",
+                                                                                     "pet-asset://medusa/animations/perch/03.png",
+                                                                                     "pet-asset://medusa/animations/perch/04.png"
+                                                                                 ],
+                                                                      "durations":  [
+                                                                                        220,
+                                                                                        220,
+                                                                                        220,
+                                                                                        1800
+                                                                                    ],
+                                                                      "loop":  true,
+                                                                      "holdLastFrame":  false,
+                                                                      "scale":  1
+                                                                  },
+                                                        "perch-chin-rest":  {
+                                                                                "frames":  [
+                                                                                               "pet-asset://medusa/animations/perch-chin-rest/01.png",
+                                                                                               "pet-asset://medusa/animations/perch-chin-rest/02.png",
+                                                                                               "pet-asset://medusa/animations/perch-chin-rest/03.png",
+                                                                                               "pet-asset://medusa/animations/perch-chin-rest/04.png",
+                                                                                               "pet-asset://medusa/animations/perch-chin-rest/05.png",
+                                                                                               "pet-asset://medusa/animations/perch-chin-rest/06.png"
+                                                                                           ],
+                                                                                "durations":  [
+                                                                                                  200,
+                                                                                                  220,
+                                                                                                  240,
+                                                                                                  260,
+                                                                                                  280,
+                                                                                                  600
+                                                                                              ],
+                                                                                "loop":  false,
+                                                                                "holdLastFrame":  true,
+                                                                                "scale":  1
+                                                                            },
+                                                        "perch-hair-sweep":  {
+                                                                                 "frames":  [
+                                                                                                "pet-asset://medusa/animations/perch-hair-sweep/01.png",
+                                                                                                "pet-asset://medusa/animations/perch-hair-sweep/02.png",
+                                                                                                "pet-asset://medusa/animations/perch-hair-sweep/03.png",
+                                                                                                "pet-asset://medusa/animations/perch-hair-sweep/04.png",
+                                                                                                "pet-asset://medusa/animations/perch-hair-sweep/05.png",
+                                                                                                "pet-asset://medusa/animations/perch-hair-sweep/06.png"
+                                                                                            ],
+                                                                                 "durations":  [
+                                                                                                   200,
+                                                                                                   220,
+                                                                                                   240,
+                                                                                                   260,
+                                                                                                   280,
+                                                                                                   600
+                                                                                               ],
+                                                                                 "loop":  false,
+                                                                                 "holdLastFrame":  true,
+                                                                                 "scale":  1
+                                                                             },
+                                                        "perch-look":  {
+                                                                           "frames":  [
+                                                                                          "pet-asset://medusa/animations/perch-look/01.png",
+                                                                                          "pet-asset://medusa/animations/perch-look/02.png",
+                                                                                          "pet-asset://medusa/animations/perch-look/03.png",
+                                                                                          "pet-asset://medusa/animations/perch-look/04.png",
+                                                                                          "pet-asset://medusa/animations/perch-look/05.png",
+                                                                                          "pet-asset://medusa/animations/perch-look/06.png"
+                                                                                      ],
+                                                                           "durations":  [
+                                                                                             200,
+                                                                                             220,
+                                                                                             200,
+                                                                                             220,
+                                                                                             200,
+                                                                                             400
+                                                                                         ],
+                                                                           "loop":  false,
+                                                                           "holdLastFrame":  true,
+                                                                           "scale":  1
+                                                                       },
+                                                        "hang":  {
+                                                                     "frames":  [
+                                                                                    "pet-asset://medusa/animations/hang/01.png",
+                                                                                    "pet-asset://medusa/animations/hang/02.png",
+                                                                                    "pet-asset://medusa/animations/hang/03.png",
+                                                                                    "pet-asset://medusa/animations/hang/04.png"
+                                                                                ],
+                                                                     "durations":  [
+                                                                                       220,
+                                                                                       220,
+                                                                                       220,
+                                                                                       1800
+                                                                                   ],
+                                                                     "loop":  true,
+                                                                     "holdLastFrame":  false,
+                                                                     "scale":  1
+                                                                 },
+                                                        "fall":  {
+                                                                     "frames":  [
+                                                                                    "pet-asset://medusa/animations/fall/01.png",
+                                                                                    "pet-asset://medusa/animations/fall/02.png",
+                                                                                    "pet-asset://medusa/animations/fall/03.png",
+                                                                                    "pet-asset://medusa/animations/fall/04.png"
+                                                                                ],
+                                                                     "durations":  [
+                                                                                       120,
+                                                                                       120,
+                                                                                       120,
+                                                                                       120
+                                                                                   ],
+                                                                     "loop":  true,
+                                                                     "holdLastFrame":  false,
+                                                                     "scale":  1
+                                                                 },
+                                                        "impact":  {
+                                                                       "frames":  [
+                                                                                      "pet-asset://medusa/animations/impact/01.png",
+                                                                                      "pet-asset://medusa/animations/impact/02.png",
+                                                                                      "pet-asset://medusa/animations/impact/03.png",
+                                                                                      "pet-asset://medusa/animations/impact/04.png"
+                                                                                  ],
+                                                                       "durations":  [
+                                                                                         140,
+                                                                                         160,
+                                                                                         180,
+                                                                                         900
+                                                                                     ],
+                                                                       "loop":  false,
+                                                                       "holdLastFrame":  true,
+                                                                       "scale":  1
+                                                                   },
+                                                        "pat-butt":  {
+                                                                         "frames":  [
+                                                                                        "pet-asset://medusa/animations/pat-butt/01.png",
+                                                                                        "pet-asset://medusa/animations/pat-butt/02.png",
+                                                                                        "pet-asset://medusa/animations/pat-butt/03.png",
+                                                                                        "pet-asset://medusa/animations/pat-butt/04.png",
+                                                                                        "pet-asset://medusa/animations/pat-butt/05.png",
+                                                                                        "pet-asset://medusa/animations/pat-butt/06.png"
+                                                                                    ],
+                                                                         "durations":  [
+                                                                                           140,
+                                                                                           140,
+                                                                                           160,
+                                                                                           160,
+                                                                                           160,
+                                                                                           700
+                                                                                       ],
+                                                                         "loop":  false,
+                                                                         "holdLastFrame":  true,
+                                                                         "scale":  1
+                                                                     },
+                                                        "cold-smile":  {
+                                                                           "frames":  [
+                                                                                          "pet-asset://medusa/animations/cold-smile/01.png",
+                                                                                          "pet-asset://medusa/animations/cold-smile/02.png",
+                                                                                          "pet-asset://medusa/animations/cold-smile/03.png",
+                                                                                          "pet-asset://medusa/animations/cold-smile/04.png",
+                                                                                          "pet-asset://medusa/animations/cold-smile/05.png"
+                                                                                      ],
+                                                                           "durations":  [
+                                                                                             180,
+                                                                                             200,
+                                                                                             220,
+                                                                                             400,
+                                                                                             700
+                                                                                         ],
+                                                                           "loop":  false,
+                                                                           "holdLastFrame":  true,
+                                                                           "scale":  1
+                                                                       },
+                                                        "heaven-python":  {
+                                                                              "frames":  [
+                                                                                             "pet-asset://medusa/animations/heaven-python/01.png",
+                                                                                             "pet-asset://medusa/animations/heaven-python/02.png",
+                                                                                             "pet-asset://medusa/animations/heaven-python/03.png",
+                                                                                             "pet-asset://medusa/animations/heaven-python/04.png",
+                                                                                             "pet-asset://medusa/animations/heaven-python/05.png",
+                                                                                             "pet-asset://medusa/animations/heaven-python/06.png"
+                                                                                         ],
+                                                                              "durations":  [
+                                                                                                120,
+                                                                                                140,
+                                                                                                160,
+                                                                                                180,
+                                                                                                200,
+                                                                                                500
+                                                                                            ],
+                                                                              "loop":  false,
+                                                                              "holdLastFrame":  true,
+                                                                              "scale":  1
+                                                                          },
+                                                        "kneel-before-me":  {
+                                                                                "frames":  [
+                                                                                               "pet-asset://medusa/animations/kneel-before-me/01.png",
+                                                                                               "pet-asset://medusa/animations/kneel-before-me/02.png",
+                                                                                               "pet-asset://medusa/animations/kneel-before-me/03.png",
+                                                                                               "pet-asset://medusa/animations/kneel-before-me/04.png",
+                                                                                               "pet-asset://medusa/animations/kneel-before-me/05.png",
+                                                                                               "pet-asset://medusa/animations/kneel-before-me/06.png"
+                                                                                           ],
+                                                                                "durations":  [
+                                                                                                  180,
+                                                                                                  200,
+                                                                                                  220,
+                                                                                                  260,
+                                                                                                  400,
+                                                                                                  800
+                                                                                              ],
+                                                                                "loop":  false,
+                                                                                "holdLastFrame":  true,
+                                                                                "scale":  1
+                                                                            },
+                                                        "inspect":  {
+                                                                        "frames":  [
+                                                                                       "pet-asset://medusa/animations/inspect/01.png",
+                                                                                       "pet-asset://medusa/animations/inspect/02.png",
+                                                                                       "pet-asset://medusa/animations/inspect/03.png",
+                                                                                       "pet-asset://medusa/animations/inspect/04.png"
+                                                                                   ],
+                                                                        "durations":  [
+                                                                                          200,
+                                                                                          240,
+                                                                                          400,
+                                                                                          800
+                                                                                      ],
+                                                                        "loop":  false,
+                                                                        "holdLastFrame":  true,
+                                                                        "scale":  1
+                                                                    },
+                                                        "command":  {
+                                                                        "frames":  [
+                                                                                       "pet-asset://medusa/animations/command/01.png",
+                                                                                       "pet-asset://medusa/animations/command/02.png",
+                                                                                       "pet-asset://medusa/animations/command/03.png",
+                                                                                       "pet-asset://medusa/animations/command/04.png"
+                                                                                   ],
+                                                                        "durations":  [
+                                                                                          200,
+                                                                                          240,
+                                                                                          400,
+                                                                                          800
+                                                                                      ],
+                                                                        "loop":  false,
+                                                                        "holdLastFrame":  true,
+                                                                        "scale":  1
+                                                                    },
+                                                        "smirk-line":  {
+                                                                           "frames":  [
+                                                                                          "pet-asset://medusa/animations/smirk-line/01.png",
+                                                                                          "pet-asset://medusa/animations/smirk-line/02.png",
+                                                                                          "pet-asset://medusa/animations/smirk-line/03.png",
+                                                                                          "pet-asset://medusa/animations/smirk-line/04.png"
+                                                                                      ],
+                                                                           "durations":  [
+                                                                                             200,
+                                                                                             240,
+                                                                                             400,
+                                                                                             800
+                                                                                         ],
+                                                                           "loop":  false,
+                                                                           "holdLastFrame":  true,
+                                                                           "scale":  1
+                                                                       }
+                                                    },
+                                     "interactionActions":  {
+                                                                "drag":  {
+                                                                             "action":  "drag"
+                                                                         },
+                                                                "climb":  {
+                                                                              "action":  "climb",
+                                                                              "anchor":  {
+                                                                                             "x":  0.84,
+                                                                                             "y":  0.55
+                                                                                         }
+                                                                          },
+                                                                "perch":  {
+                                                                              "action":  "perch",
+                                                                              "anchor":  {
+                                                                                             "x":  0.5,
+                                                                                             "y":  0.52
+                                                                                         }
+                                                                          },
+                                                                "hang":  {
+                                                                             "action":  "hang",
+                                                                             "anchor":  {
+                                                                                            "x":  0.5,
+                                                                                            "y":  0.05
+                                                                                        }
+                                                                         },
+                                                                "fall":  {
+                                                                             "action":  "fall"
+                                                                         },
+                                                                "impact":  {
+                                                                               "action":  "impact"
+                                                                           },
+                                                                "recover":  {
+                                                                                "action":  "pat-butt"
+                                                                            }
+                                                            }
+                                 },
+                    "apiMethods":  [
+                                       "drag",
+                                       "endDrag",
+                                       "getCurrentPet",
+                                       "importPet",
+                                       "interact",
+                                       "onLoad",
+                                       "onState",
+                                       "openMenu",
+                                       "setMouseThrough",
+                                       "setVisibleInsets",
+                                       "startDrag"
+                                   ]
+                },
+    "interactionActions":  {
+                               "drag":  {
+                                            "action":  "drag"
+                                        },
+                               "climb":  {
+                                             "action":  "climb",
+                                             "anchor":  {
+                                                            "x":  0.84,
+                                                            "y":  0.55
+                                                        }
+                                         },
+                               "perch":  {
+                                             "action":  "perch",
+                                             "anchor":  {
+                                                            "x":  0.5,
+                                                            "y":  0.52
+                                                        }
+                                         },
+                               "hang":  {
+                                            "action":  "hang",
+                                            "anchor":  {
+                                                           "x":  0.5,
+                                                           "y":  0.05
+                                                       }
+                                        },
+                               "fall":  {
+                                            "action":  "fall"
+                                        },
+                               "impact":  {
+                                              "action":  "impact"
+                                          },
+                               "recover":  {
+                                               "action":  "pat-butt"
+                                           }
+                           },
+    "actualInteractionLock":  true,
+    "visibleInsets":  null,
+    "bubbleTop":  "24px",
+    "windowSize":  {
+                       "width":  170,
+                       "height":  190
+                   },
+    "sampledStates":  [
+                          "pet state-idle",
+                          "pet state-reaction",
+                          "pet state-sit",
+                          "pet state-inspect"
+                      ],
+    "sampledImageSourceCount":  14,
+    "roleSamples":  {
+                        "drag":  {
+                                     "action":  "drag",
+                                     "sampleCount":  50,
+                                     "anchor":  {
+                                                    "y":  0.5,
+                                                    "x":  0.5
+                                                },
+                                     "baselineAnchor":  {
+                                                            "x":  85,
+                                                            "y":  98
+                                                        },
+                                     "maxAnchorShiftDip":  0,
+                                     "expectedFrameSources":  [
+                                                                  "pet-asset://medusa/animations/drag/01.png",
+                                                                  "pet-asset://medusa/animations/drag/02.png",
+                                                                  "pet-asset://medusa/animations/drag/03.png",
+                                                                  "pet-asset://medusa/animations/drag/04.png",
+                                                                  "pet-asset://medusa/animations/drag/05.png",
+                                                                  "pet-asset://medusa/animations/drag/06.png"
+                                                              ],
+                                     "observedFrameSources":  [
+                                                                  "pet-asset://medusa/animations/drag/02.png",
+                                                                  "pet-asset://medusa/animations/drag/03.png",
+                                                                  "pet-asset://medusa/animations/drag/05.png",
+                                                                  "pet-asset://medusa/animations/drag/06.png",
+                                                                  "pet-asset://medusa/animations/drag/01.png",
+                                                                  "pet-asset://medusa/animations/drag/04.png"
+                                                              ],
+                                     "missingFrameSources":  [
+
+                                                             ],
+                                     "observedClassNames":  [
+                                                                "pet state-drag"
+                                                            ],
+                                     "observedTransforms":  [
+                                                                "none"
+                                                            ],
+                                     "unexpectedResize":  0,
+                                     "unexpectedDisplacement":  0,
+                                     "unexpectedScale":  0,
+                                     "classOrTransformAccumulation":  0,
+                                     "passed":  true
+                                 },
+                        "climb":  {
+                                      "action":  "climb",
+                                      "sampleCount":  50,
+                                      "anchor":  {
+                                                     "y":  0.55,
+                                                     "x":  0.84
+                                                 },
+                                      "baselineAnchor":  {
+                                                             "x":  137.01999999999998,
+                                                             "y":  106.7
+                                                         },
+                                      "maxAnchorShiftDip":  0,
+                                      "expectedFrameSources":  [
+                                                                   "pet-asset://medusa/animations/climb/01.png",
+                                                                   "pet-asset://medusa/animations/climb/02.png",
+                                                                   "pet-asset://medusa/animations/climb/03.png",
+                                                                   "pet-asset://medusa/animations/climb/04.png",
+                                                                   "pet-asset://medusa/animations/climb/05.png",
+                                                                   "pet-asset://medusa/animations/climb/06.png"
+                                                               ],
+                                      "observedFrameSources":  [
+                                                                   "pet-asset://medusa/animations/climb/01.png",
+                                                                   "pet-asset://medusa/animations/drag/04.png",
+                                                                   "pet-asset://medusa/animations/climb/03.png",
+                                                                   "pet-asset://medusa/animations/climb/04.png",
+                                                                   "pet-asset://medusa/animations/drag/05.png",
+                                                                   "pet-asset://medusa/animations/climb/06.png",
+                                                                   "pet-asset://medusa/animations/climb/02.png",
+                                                                   "pet-asset://medusa/animations/drag/06.png",
+                                                                   "pet-asset://medusa/animations/climb/05.png",
+                                                                   "pet-asset://medusa/animations/drag/03.png",
+                                                                   "pet-asset://medusa/animations/drag/01.png",
+                                                                   "pet-asset://medusa/animations/drag/02.png"
+                                                               ],
+                                      "missingFrameSources":  [
+
+                                                              ],
+                                      "observedClassNames":  [
+                                                                 "pet state-climb"
+                                                             ],
+                                      "observedTransforms":  [
+                                                                 "none"
+                                                             ],
+                                      "unexpectedResize":  0,
+                                      "unexpectedDisplacement":  0,
+                                      "unexpectedScale":  0,
+                                      "classOrTransformAccumulation":  0,
+                                      "passed":  true
+                                  },
+                        "perch":  {
+                                      "action":  "perch",
+                                      "sampleCount":  50,
+                                      "anchor":  {
+                                                     "y":  0.52,
+                                                     "x":  0.5
+                                                 },
+                                      "baselineAnchor":  {
+                                                             "x":  85,
+                                                             "y":  101.48
+                                                         },
+                                      "maxAnchorShiftDip":  0,
+                                      "expectedFrameSources":  [
+                                                                   "pet-asset://medusa/animations/perch/01.png",
+                                                                   "pet-asset://medusa/animations/perch/02.png",
+                                                                   "pet-asset://medusa/animations/perch/03.png",
+                                                                   "pet-asset://medusa/animations/perch/04.png"
+                                                               ],
+                                      "observedFrameSources":  [
+                                                                   "pet-asset://medusa/animations/perch/01.png",
+                                                                   "pet-asset://medusa/animations/perch/02.png",
+                                                                   "pet-asset://medusa/animations/perch/03.png",
+                                                                   "pet-asset://medusa/animations/drag/06.png",
+                                                                   "pet-asset://medusa/animations/drag/01.png",
+                                                                   "pet-asset://medusa/animations/perch/04.png",
+                                                                   "pet-asset://medusa/animations/drag/03.png",
+                                                                   "pet-asset://medusa/animations/drag/04.png",
+                                                                   "pet-asset://medusa/animations/drag/05.png",
+                                                                   "pet-asset://medusa/animations/drag/02.png"
+                                                               ],
+                                      "missingFrameSources":  [
+
+                                                              ],
+                                      "observedClassNames":  [
+                                                                 "pet state-perch"
+                                                             ],
+                                      "observedTransforms":  [
+                                                                 "none"
+                                                             ],
+                                      "unexpectedResize":  0,
+                                      "unexpectedDisplacement":  0,
+                                      "unexpectedScale":  0,
+                                      "classOrTransformAccumulation":  0,
+                                      "passed":  true
+                                  },
+                        "hang":  {
+                                     "action":  "hang",
+                                     "sampleCount":  50,
+                                     "anchor":  {
+                                                    "y":  0.05,
+                                                    "x":  0.5
+                                                },
+                                     "baselineAnchor":  {
+                                                            "x":  85,
+                                                            "y":  19.700000000000003
+                                                        },
+                                     "maxAnchorShiftDip":  0,
+                                     "expectedFrameSources":  [
+                                                                  "pet-asset://medusa/animations/hang/01.png",
+                                                                  "pet-asset://medusa/animations/hang/02.png",
+                                                                  "pet-asset://medusa/animations/hang/03.png",
+                                                                  "pet-asset://medusa/animations/hang/04.png"
+                                                              ],
+                                     "observedFrameSources":  [
+                                                                  "pet-asset://medusa/animations/hang/01.png",
+                                                                  "pet-asset://medusa/animations/hang/02.png",
+                                                                  "pet-asset://medusa/animations/hang/03.png",
+                                                                  "pet-asset://medusa/animations/hang/04.png",
+                                                                  "pet-asset://medusa/animations/drag/03.png",
+                                                                  "pet-asset://medusa/animations/drag/04.png",
+                                                                  "pet-asset://medusa/animations/drag/01.png",
+                                                                  "pet-asset://medusa/animations/drag/02.png",
+                                                                  "pet-asset://medusa/animations/drag/05.png",
+                                                                  "pet-asset://medusa/animations/drag/06.png"
+                                                              ],
+                                     "missingFrameSources":  [
+
+                                                             ],
+                                     "observedClassNames":  [
+                                                                "pet state-hang"
+                                                            ],
+                                     "observedTransforms":  [
+                                                                "none"
+                                                            ],
+                                     "unexpectedResize":  0,
+                                     "unexpectedDisplacement":  0,
+                                     "unexpectedScale":  0,
+                                     "classOrTransformAccumulation":  0,
+                                     "passed":  true
+                                 },
+                        "fall":  {
+                                     "action":  "fall",
+                                     "sampleCount":  50,
+                                     "anchor":  {
+                                                    "y":  0.5,
+                                                    "x":  0.5
+                                                },
+                                     "baselineAnchor":  {
+                                                            "x":  85,
+                                                            "y":  98
+                                                        },
+                                     "maxAnchorShiftDip":  0,
+                                     "expectedFrameSources":  [
+                                                                  "pet-asset://medusa/animations/fall/01.png",
+                                                                  "pet-asset://medusa/animations/fall/02.png",
+                                                                  "pet-asset://medusa/animations/fall/03.png",
+                                                                  "pet-asset://medusa/animations/fall/04.png"
+                                                              ],
+                                     "observedFrameSources":  [
+                                                                  "",
+                                                                  "pet-asset://medusa/animations/fall/02.png",
+                                                                  "pet-asset://medusa/animations/fall/03.png",
+                                                                  "pet-asset://medusa/animations/fall/04.png",
+                                                                  "pet-asset://medusa/animations/drag/03.png",
+                                                                  "pet-asset://medusa/animations/drag/04.png",
+                                                                  "pet-asset://medusa/animations/drag/05.png",
+                                                                  "pet-asset://medusa/animations/fall/01.png",
+                                                                  "pet-asset://medusa/animations/drag/06.png",
+                                                                  "pet-asset://medusa/animations/drag/01.png",
+                                                                  "pet-asset://medusa/animations/drag/02.png"
+                                                              ],
+                                     "missingFrameSources":  [
+
+                                                             ],
+                                     "observedClassNames":  [
+                                                                "pet state-fall"
+                                                            ],
+                                     "observedTransforms":  [
+                                                                "none"
+                                                            ],
+                                     "unexpectedResize":  0,
+                                     "unexpectedDisplacement":  0,
+                                     "unexpectedScale":  0,
+                                     "classOrTransformAccumulation":  0,
+                                     "passed":  true
+                                 },
+                        "impact":  {
+                                       "action":  "impact",
+                                       "sampleCount":  50,
+                                       "anchor":  {
+                                                      "y":  0.5,
+                                                      "x":  0.5
+                                                  },
+                                       "baselineAnchor":  {
+                                                              "x":  85,
+                                                              "y":  98
+                                                          },
+                                       "maxAnchorShiftDip":  0,
+                                       "expectedFrameSources":  [
+                                                                    "pet-asset://medusa/animations/impact/01.png",
+                                                                    "pet-asset://medusa/animations/impact/02.png",
+                                                                    "pet-asset://medusa/animations/impact/03.png",
+                                                                    "pet-asset://medusa/animations/impact/04.png"
+                                                                ],
+                                       "observedFrameSources":  [
+                                                                    "pet-asset://medusa/animations/impact/01.png",
+                                                                    "pet-asset://medusa/animations/impact/02.png",
+                                                                    "pet-asset://medusa/animations/drag/04.png",
+                                                                    "pet-asset://medusa/animations/impact/04.png",
+                                                                    "pet-asset://medusa/animations/impact/03.png",
+                                                                    "",
+                                                                    "pet-asset://medusa/animations/drag/01.png",
+                                                                    "pet-asset://medusa/animations/drag/02.png",
+                                                                    "pet-asset://medusa/animations/drag/05.png",
+                                                                    "pet-asset://medusa/animations/drag/06.png",
+                                                                    "pet-asset://medusa/animations/drag/03.png"
+                                                                ],
+                                       "missingFrameSources":  [
+
+                                                               ],
+                                       "observedClassNames":  [
+                                                                  "pet state-impact"
+                                                              ],
+                                       "observedTransforms":  [
+                                                                  "none"
+                                                              ],
+                                       "unexpectedResize":  0,
+                                       "unexpectedDisplacement":  0,
+                                       "unexpectedScale":  0,
+                                       "classOrTransformAccumulation":  0,
+                                       "passed":  true
+                                   },
+                        "recover":  {
+                                        "action":  "pat-butt",
+                                        "sampleCount":  50,
+                                        "anchor":  {
+                                                       "y":  0.5,
+                                                       "x":  0.5
+                                                   },
+                                        "baselineAnchor":  {
+                                                               "x":  85,
+                                                               "y":  98
+                                                           },
+                                        "maxAnchorShiftDip":  0,
+                                        "expectedFrameSources":  [
+                                                                     "pet-asset://medusa/animations/pat-butt/01.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/02.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/03.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/04.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/05.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/06.png"
+                                                                 ],
+                                        "observedFrameSources":  [
+                                                                     "pet-asset://medusa/animations/pat-butt/01.png",
+                                                                     "pet-asset://medusa/animations/drag/05.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/03.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/04.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/05.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/06.png",
+                                                                     "pet-asset://medusa/animations/pat-butt/02.png",
+                                                                     "pet-asset://medusa/animations/drag/01.png",
+                                                                     "pet-asset://medusa/animations/drag/02.png",
+                                                                     "pet-asset://medusa/animations/drag/06.png",
+                                                                     "pet-asset://medusa/animations/drag/03.png",
+                                                                     "pet-asset://medusa/animations/drag/04.png"
+                                                                 ],
+                                        "missingFrameSources":  [
+
+                                                                ],
+                                        "observedClassNames":  [
+                                                                   "pet state-recover"
+                                                               ],
+                                        "observedTransforms":  [
+                                                                   "none"
+                                                               ],
+                                        "unexpectedResize":  0,
+                                        "unexpectedDisplacement":  0,
+                                        "unexpectedScale":  0,
+                                        "classOrTransformAccumulation":  0,
+                                        "passed":  true
+                                    }
+                    },
+    "totals":  {
+                   "samplesPerRole":  50,
+                   "roleCount":  7,
+                   "transitionCount":  350,
+                   "unexpectedResize":  0,
+                   "unexpectedDisplacement":  0,
+                   "unexpectedScale":  0,
+                   "classOrTransformAccumulation":  0
+               },
+    "limitations":  [
+                        "Role sampling enters the real drag interaction lock, then drives renderer DOM roles and real packaged frame URLs through CDP; it does not emulate physical pointer movement or native window discovery.",
+                        "window.__petDebug.visibleInsets is recorded when exposed by the renderer and remains null otherwise."
+                    ],
+    "passed":  true
+}

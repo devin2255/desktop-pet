@@ -1,27 +1,30 @@
-﻿# SDD Progress Ledger — feat/laopo-pet
-Plan: docs/superpowers/plans/2026-08-01-laopo-pet.md
-Branch start: 3efae57c7bb635d54ac7b9d30947c9ccc0e42524
+﻿# SDD Progress Ledger — feat/medusa-pet
+Plan: docs/superpowers/plans/2026-08-02-medusa-pet.md
+Branch start: 73f3fd5
 
-Task 1: complete (commits 3efae57..0c654f0, review clean)
 
-Task 2: complete (commits 0c654f0..95d2f59, review clean; minors: no main URL unit test, no python speechAudio unit test)
+Task 1: complete (commits 73f3fd5..df243a9, review clean; minor: report table stale personality word)
 
-Task 3: complete (commits 95d2f59..c13cb94, review clean; minor: outfit mismatch portrait vs fullbody)
+Task 2: complete (no commit; master transparent ready; review clean; minors: R padding ~11.5%, earrings soft)
 
-Task 4: complete (no commit, gitignored assets; process_animation_strips PASS 22 frames; controller visual review OK; concerns: sleep curled, walk phase approximate)
+Task 3: complete (no commit; 22 frames gate PASS via per-frame compose; native strips failed gutters first)
 
-Task 5: complete (no commit; 34 interaction frames + perch/hang regen; concern: hang/perch still soft vs ideal dangling, tune anchors in Task 8)
+Task 3: complete (no commit; 22 frames PASS; review clean after walk/sit/sleep regen; minors: sleep seated, props, weak walk phases)
 
-Task 6: complete (no commit; 56 custom frames; concern: some perch-* still knee-tucked)
+Task 3: complete (no commit; 22 frames PASS; review clean after walk/sit/sleep regen; minors: sleep seated, props, weak walk phases)
 
-Task 7: complete (no commit; 6 female mp3 via edge-tts XiaoxiaoNeural)
+Task 4: complete (no commit; 34 interaction frames PASS; review clean; minors: hang/perch baseline for Task 7 anchors)
 
-Task 8: complete (no commit, library gitignored; validate PASS; alpha~23k comparable to boss~25k)
+Task 5: complete (no commit; 47 custom frames PASS; review clean; minors: weak VFX/smile, perch baseline)
 
-Task 9: complete (commits c13cb94..1ed4e3d, npm test PASS; icons still boss pending Task 10)
+Task 6: complete (no commit; 6 female mp3 via edge-tts XiaoxiaoNeural; review deferred listen to Task 10)
 
-Task 10: complete (commit 5ecb62e, npm test PASS)
+Task 7: complete (no commit; library assembled+renormed; validate PASS medusa; cold-smile 5f)
 
-Task 11: complete (commits through a8f5ac5; EXE at dist/customers/laopo/; packaging fix for startup-greeting.js)
+Task 7: complete (no commit; validate PASS; scale debt fixed to ~37k alpha)
 
-Final review: ready (no Critical; Important: dual files whitelist, manual pending, talent-show soft)
+Task 8: complete (commits df243a9..77cc87c, review clean after laopo git rm)
+
+Task 9: complete (commits a3a4948/cc7b70e; crown crop icons; review OK controller)
+
+Task 10: complete (EXE+CDP verify; see task-10-report.md; no signing/store)

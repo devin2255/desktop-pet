@@ -1,0 +1,55 @@
+{
+    "id":  "medusa",
+    "name":  "美杜莎",
+    "startupGreeting":  "本女王来了。",
+    "speechGender":  "female",
+    "bubbleText":  "看你表现",
+    "bubbleVisible":  false,
+    "petClass":  "pet state-recover",
+    "petClassSamples":  [
+                            "pet state-recover"
+                        ],
+    "bubbleSamples":  [
+                          "看你表现"
+                      ],
+    "imageSourceCount":  6,
+    "naturalSize":  [
+                        480,
+                        480
+                    ],
+    "contextMenuIds":  [
+                           "cold-smile",
+                           "heaven-python",
+                           "kneel-before-me"
+                       ],
+    "perched":  [
+
+                ],
+    "random":  [
+
+               ],
+    "hasCallHubby":  false,
+    "hasColdSmile":  true,
+    "hasHeavenPython":  true,
+    "hasKneelBeforeMe":  true,
+    "bodyBackground":  "rgba(0, 0, 0, 0)",
+    "title":  "桌宠播放器",
+    "apiMethods":  [
+                       "drag",
+                       "endDrag",
+                       "getCurrentPet",
+                       "importPet",
+                       "interact",
+                       "onLoad",
+                       "onState",
+                       "openMenu",
+                       "setMouseThrough",
+                       "setVisibleInsets",
+                       "startDrag"
+                   ],
+    "interactResult":  "triggered-cold-smile",
+    "afterInteract":  {
+                          "cls":  "pet state-recover",
+                          "bubble":  "看你表现"
+                      }
+}
