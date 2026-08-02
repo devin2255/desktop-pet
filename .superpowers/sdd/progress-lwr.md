@@ -7,4 +7,4 @@ Task 1: complete (cc16ca3; roam GREEN; interaction RED expected)
 
 Task 2: complete (99e4006; interaction PASS)
 
-Task 3: complete (edge-turn roam walk wired; tests GREEN)
+Task 3: complete (16a7611; edge-turn roam GREEN)

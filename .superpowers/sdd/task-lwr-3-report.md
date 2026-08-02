@@ -41,7 +41,7 @@ node scripts/test-interaction-controller.js
 
 | SHA | Subject |
 |-----|---------|
-| *(see git)* | `feat: turn around at work-area edges while roaming` |
+| `16a7611` | `feat: turn around at work-area edges while roaming` |
 
 ## Next Task
 
