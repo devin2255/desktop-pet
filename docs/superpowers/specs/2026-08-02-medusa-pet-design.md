@@ -2,7 +2,7 @@
 
 日期：2026-08-02  
 分支：`feat/medusa-pet`  
-状态：待用户审阅完整文档
+状态：已确认，实现计划见 `docs/superpowers/plans/2026-08-02-medusa-pet.md`
 
 ## 目标
 
