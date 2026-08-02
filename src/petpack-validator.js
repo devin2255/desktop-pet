@@ -5,7 +5,7 @@ const path = require('path');
 const AdmZip = require('adm-zip');
 
 const REQUIRED_ACTIONS = Object.freeze({ idle: 4, walk: 6, sit: 4, sleep: 4, reaction: 4 });
-const INTERACTION_ROLES = new Set(['drag', 'climb', 'perch', 'hang', 'fall', 'impact', 'recover']);
+const INTERACTION_ROLES = new Set(['drag', 'climb', 'lean', 'perch', 'hang', 'fall', 'impact', 'recover']);
 const PET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const MAX_ARCHIVE_ENTRIES = 300;
 const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;

@@ -14,7 +14,7 @@ from PIL import Image
 
 
 REQUIRED_ACTIONS = {"idle": 4, "walk": 6, "sit": 4, "sleep": 4, "reaction": 4}
-INTERACTION_ROLES = {"drag", "climb", "perch", "hang", "fall", "impact", "recover"}
+INTERACTION_ROLES = {"drag", "climb", "lean", "perch", "hang", "fall", "impact", "recover"}
 MAX_ARCHIVE_ENTRIES = 300
 MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 MAX_SINGLE_FILE_BYTES = 50 * 1024 * 1024

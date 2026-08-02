@@ -242,9 +242,12 @@ async function run() {
     assert.deepStrictEqual(harness.states, ['drag-right']);
     assert.strictEqual(harness.topmostEnsures(), 1, 'drag state reasserts topmost ordering');
     await harness.controller.endDrag({ x: 100, y: 250 });
-    assert.deepStrictEqual(harness.states.slice(-2), ['climb-right', 'perch']);
-    assert.strictEqual(harness.controller.state(), 'perched');
-    assert.ok(harness.climbs[0].duration >= 300, 'side climb uses timed travel duration');
+    assert.ok(
+      harness.states.some((state) => state === 'lean-right' || state.startsWith('lean-')),
+      'side release enters lean facing into the window'
+    );
+    assert.strictEqual(harness.controller.state(), 'leaning');
+    assert.strictEqual(harness.climbs.length, 0, 'side lean never starts climb travel');
     assert.deepStrictEqual(harness.clock.intervalDelays(), [100]);
   }
 
@@ -255,16 +258,19 @@ async function run() {
     harness.dependencies.climbPxPerSecond = 55;
     harness.controller = createInteractionController(harness.dependencies);
     harness.controller.startDrag({ x: 200, y: 150 });
-    const climbPromise = harness.controller.endDrag({ x: 100, y: 250 });
+    const leanPromise = harness.controller.endDrag({ x: 100, y: 250 });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.ok(harness.states.includes('climb-right'), 'side release clings before climbing');
-    assert.strictEqual(harness.climbs.length, 0, 'climb travel waits for the hold delay');
-    assert.ok(harness.clock.scheduledTimeoutDelays.includes(3000), 'side cling waits 3 seconds');
-    const done = climbPromise.then(() => 'done');
+    assert.ok(
+      harness.states.some((state) => state === 'lean-right' || state.startsWith('lean-')),
+      'side release leans immediately without climb cling'
+    );
+    assert.strictEqual(harness.climbs.length, 0, 'no climb travel on side lean');
+    assert.strictEqual(harness.controller.state(), 'leaning');
+    const done = leanPromise.then(() => 'done');
     harness.clock.flushTimeouts();
     assert.strictEqual(await done, 'done');
-    assert.ok(harness.climbs[0].duration >= 2800, 'climb to the top edge is intentionally slow');
-    assert.strictEqual(harness.controller.state(), 'perched');
+    assert.strictEqual(harness.climbs.length, 0, 'flushing former climb-hold timers still does not climb');
+    assert.strictEqual(harness.controller.state(), 'leaning', 'stays leaning after hold would have expired');
   }
 
   {
@@ -617,18 +623,14 @@ async function run() {
       windows: [target],
       autoAnimate: false
     });
-    const endPromise = (async () => {
-      harness.controller.startDrag({ x: 200, y: 150 });
-      return harness.controller.endDrag({ x: 100, y: 250 });
-    })();
-    await Promise.resolve();
-    await Promise.resolve();
-    assert.ok(harness.clock.pending().frames > 0, 'climb owns an animation frame');
+    harness.controller.startDrag({ x: 200, y: 150 });
+    await harness.controller.endDrag({ x: 100, y: 250 });
+    assert.strictEqual(harness.controller.state(), 'leaning');
+    assert.strictEqual(harness.climbs.length, 0, 'lean path does not own climb travel frames');
     harness.behavior.walkTimer = harness.clock.setInterval(() => {}, 16);
     harness.behavior.behaviorTimer = harness.clock.setTimeout(() => {}, 5000);
     harness.controller.dispose();
     assert.deepStrictEqual(harness.clock.pending(), { frames: 0, timeouts: 0, intervals: 0 });
-    void endPromise;
   }
 
   {
