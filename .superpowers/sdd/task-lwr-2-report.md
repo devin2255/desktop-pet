@@ -42,7 +42,7 @@ node scripts/test-interaction-controller.js
 
 | SHA | Subject |
 |-----|---------|
-| *(see git)* | `feat: lean on window side edges instead of climbing` |
+| `99e4006` | `feat: lean on window side edges instead of climbing` |
 
 ## Notes
 
