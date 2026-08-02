@@ -1,7 +1,7 @@
 # Task 9 Report — 图标与托盘图（Medusa）
 
 **Status:** complete  
-**Commit:** (see follow-up `git log -1` after commit)
+**Commit:** `a3a4948` — Refine Medusa tray and ICO from crown crop.
 
 ## Summary
 
