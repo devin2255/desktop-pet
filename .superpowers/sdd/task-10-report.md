@@ -2,6 +2,7 @@
 
 **Branch:** feat/medusa-pet  
 **Status:** complete  
+**Commit:** `64c60a6` — docs: record Medusa customer EXE build and CDP verification.
 
 ## Summary
 
