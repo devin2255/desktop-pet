@@ -30,9 +30,18 @@ assert.strictEqual(menu['kneel-before-me'].message, '跪下。');
 
 assert.ok(!menu['call-hubby'], 'laopo call-hubby must not exist');
 assert.ok(!menu.kowtow, 'laopo kowtow must not exist');
-assert.ok(!menu['talent-show'], 'laopo talent-show must not exist');
+assert.ok(menu['talent-show'], 'talent-show context action required');
+assert.strictEqual(menu['talent-show'].label, '上才艺');
+assert.strictEqual(menu['talent-show'].message, '给本座看好了。');
+assert.strictEqual(menu['talent-show'].speech, '看好了');
+assert.strictEqual(menu['talent-show'].speechAudio, 'audio/talent-show.mp3');
+assert.ok(menu['talent-show'].duration >= 5000, 'talent-show menu duration should be longer');
+const talent = manifest.animations['talent-show'];
+assert.ok(talent, 'talent-show animation required');
+assert.ok(talent.frames.length >= 12, 'talent-show needs a longer 12-frame dance');
+assert.ok(talent.durations.reduce((sum, ms) => sum + ms, 0) >= 4000, 'talent-show animation should play longer');
+assert.ok(!manifest.behavior.random.some((item) => item.state === 'talent-show'), 'talent-show must not be in random pool');
 assert.ok(!manifest.animations['call-hubby']);
-assert.ok(!manifest.animations['talent-show']);
 assert.ok(!manifest.animations['serve-tea']);
 
 for (const action of ['perch-chin-rest', 'perch-hair-sweep', 'perch-look']) {
@@ -57,7 +66,7 @@ for (const action of [
   'idle', 'walk', 'sit', 'sleep', 'reaction',
   'climb', 'perch', 'hang', 'fall', 'impact', 'pat-butt',
   'cold-smile', 'heaven-python', 'kneel-before-me',
-  'inspect', 'command', 'smirk-line',
+  'inspect', 'command', 'smirk-line', 'talent-show',
 ]) {
   assert.ok(manifest.animations[action], `missing animation ${action}`);
   assert.ok(manifest.animations[action].frames.length >= 4, `${action} needs enough frames`);
