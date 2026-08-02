@@ -245,25 +245,24 @@ async function run() {
     await harness.controller.endDrag({ x: 100, y: 250 });
     assert.strictEqual(
       harness.states.at(-1),
-      'lean-right',
-      'left edge faces right into the window with unflipped lean art'
+      'lean-left',
+      'left edge faces outward (left) with CSS-mirrored lean art'
     );
     assert.strictEqual(harness.controller.state(), 'leaning');
     assert.strictEqual(harness.climbs.length, 0, 'side lean never starts climb travel');
     assert.deepStrictEqual(harness.clock.intervalDelays(), [100]);
-    // Right-facing lean art keeps the back near x=0.15; left edge must pin that side,
-    // not the mirrored chest side (1-0.15), or the torso presses into the window.
+    // Outward lean-left mirrors the back to the right of the box; pin 1-0.15 at the left edge.
     assert.strictEqual(
       harness.bounds().x,
       positionForAttachment(
         target.bounds,
         'left',
-        { x: 0.15, y: 0.55 },
+        { x: 0.85, y: 0.55 },
         { width: 100, height: 120 },
         { left: 0, top: 0, right: 0, bottom: 0 },
         150
       ).x,
-      'left edge leans with the back/shoulder anchor, not the chest'
+      'left edge pins the mirrored back/shoulder while facing the desktop'
     );
   }
 
@@ -273,20 +272,20 @@ async function run() {
     await harness.controller.endDrag({ x: 600, y: 250 });
     assert.strictEqual(
       harness.states.at(-1),
-      'lean-left',
-      'right edge faces left into the window (CSS-mirrored lean art)'
+      'lean-right',
+      'right edge faces outward (right) with unflipped lean art'
     );
     assert.strictEqual(
       harness.bounds().x,
       positionForAttachment(
         target.bounds,
         'right',
-        { x: 0.85, y: 0.55 },
+        { x: 0.15, y: 0.55 },
         { width: 100, height: 120 },
         { left: 0, top: 0, right: 0, bottom: 0 },
         150
       ).x,
-      'right edge pins the mirrored back/shoulder (1 - lean.anchor.x)'
+      'right edge pins the unflipped back/shoulder while facing the desktop'
     );
   }
 
@@ -300,7 +299,7 @@ async function run() {
     const leanPromise = harness.controller.endDrag({ x: 100, y: 250 });
     await new Promise((resolve) => setImmediate(resolve));
     assert.ok(
-      harness.states.some((state) => state === 'lean-right' || state.startsWith('lean-')),
+      harness.states.some((state) => state === 'lean-left' || state.startsWith('lean-')),
       'side release leans immediately without climb cling'
     );
     assert.strictEqual(harness.climbs.length, 0, 'no climb travel on side lean');

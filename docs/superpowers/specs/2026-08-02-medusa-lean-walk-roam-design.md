@@ -31,7 +31,7 @@
 替换 `interaction-controller` 中侧边松手路径（现 `climbToTop`）：
 
 - 命中窗口 `left` / `right` → `attach(..., role: 'lean', state: 'leaning')`
-- 面向窗内（右边缘朝左，左边缘朝右）
+- 面向桌面/窗外（左边缘朝左，右边缘朝右）；背/肩仍贴窗边
 - **删除**侧边路径上的 `await wait(climbHoldMs)` 与向顶边的 `animatePosition`
 - 贴边轮询、拖离恢复 `normal` 与 perch/hang 同类
 

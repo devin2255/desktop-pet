@@ -280,10 +280,10 @@ function createInteractionController(dependencies) {
     // Side-profile climb art reaches a vertical wall on the facing side.
     if (role === 'climb' && edge === 'left') return { x: 0.84, y: base.y };
     if (role === 'climb' && edge === 'right') return { x: 0.16, y: base.y };
-    // Right-facing lean art keeps the back near base.x. Left edge uses it as-is;
-    // right edge CSS-mirrors lean-left, so pin the mirrored back at 1 - base.x.
-    if (role === 'lean' && edge === 'left') return { x: base.x, y: base.y };
-    if (role === 'lean' && edge === 'right') return { x: 1 - base.x, y: base.y };
+    // Face the desktop (outward). lean-left mirrors the back to the right of the box,
+    // so left edge pins 1-base.x; right edge keeps unflipped back at base.x.
+    if (role === 'lean' && edge === 'left') return { x: 1 - base.x, y: base.y };
+    if (role === 'lean' && edge === 'right') return { x: base.x, y: base.y };
     return base;
   }
 
@@ -394,8 +394,8 @@ function createInteractionController(dependencies) {
 
   function leanOnSide(target, pointer, edge) {
     const sideOffset = pointer.y - target.bounds.y;
-    // Face into the window while leaning on the side edge.
-    const clingFacing = edge === 'right' ? 'left' : 'right';
+    // Face the desktop (outward); back/shoulder still pins to the window edge.
+    const clingFacing = edge === 'right' ? 'right' : 'left';
     attach(target, edge, sideOffset, 'lean', 'leaning', { facing: clingFacing });
   }
 
