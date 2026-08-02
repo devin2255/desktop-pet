@@ -44,12 +44,12 @@ tmp/
 # Generated animation sources are reproducible and may contain private likenesses.
 /assets/animations/
 /assets/generated/*
-!/assets/generated/laopo.ico
-!/assets/generated/laopo-tray.png
+!/assets/generated/medusa.ico
+!/assets/generated/medusa-tray.png
 
 # Publish one reviewed demo pet only. Customer packages stay local.
 /pets/packages/*
-!/pets/packages/laopo.petpack
+!/pets/packages/medusa.petpack
 
 # Historical player snapshots are kept locally but not shipped as source.
 /src/index.html
