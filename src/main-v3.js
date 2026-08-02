@@ -16,6 +16,7 @@ const {
 } = require('./interaction-controller');
 const { createTopmostGuard } = require('./topmost-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
+const { nextRoamFacing } = require('./roam-edge');
 const {
   app,
   BrowserWindow,
@@ -285,29 +286,37 @@ function scheduleBehavior(delay = 4500 + Math.random() * 5500) {
   behaviorTimer = setTimeout(runBehavior, delay);
 }
 
-function walkTo(targetX) {
+function walkTo(durationMs) {
   if (!petWindow || petWindow.isDestroyed() || (interaction && interaction.state() !== 'normal')) return;
   stopWalk();
   restorePetWindowSize();
-  const startBounds = petWindow.getBounds();
-  const direction = targetX >= startBounds.x ? 'right' : 'left';
-  const distance = Math.abs(targetX - startBounds.x);
-  const duration = Math.max(1400, Math.min(4200, distance * 9));
+  const duration = Math.max(600, Number(durationMs) || 2000);
   const startedAt = Date.now();
-  sendState(`walk-${direction}`);
+  const stepPx = 2;
+  let facing = Math.random() < 0.5 ? 'left' : 'right';
+  sendState(`walk-${facing}`);
   walkTimer = setInterval(() => {
     if (!petWindow || petWindow.isDestroyed()) return stopWalk();
-    const progress = Math.min(1, (Date.now() - startedAt) / duration);
-    const x = Math.round(startBounds.x + (targetX - startBounds.x) * progress);
+    if (interaction && interaction.state() !== 'normal') return stopWalk();
     const workArea = getWorkAreaForBounds();
     const expected = currentSize();
+    const bounds = petWindow.getBounds();
+    const minX = workArea.x;
+    const maxX = workArea.x + workArea.width - expected.width;
+    let x = bounds.x + (facing === 'right' ? stepPx : -stepPx);
+    x = Math.max(minX, Math.min(maxX, Math.round(x)));
+    const nextFacing = nextRoamFacing(facing, x, expected.width, workArea);
+    if (nextFacing !== facing) {
+      facing = nextFacing;
+      sendState(`walk-${facing}`);
+    }
     petWindow.setBounds({
       x,
       y: workArea.y + workArea.height - expected.height + 6,
       width: expected.width,
       height: expected.height
     }, false);
-    if (progress >= 1) {
+    if (Date.now() - startedAt >= duration) {
       stopWalk();
       sendState('idle');
       scheduleBehavior();
@@ -343,10 +352,7 @@ function runBehavior() {
   const behavior = chooseBehavior();
   const duration = Math.max(600, Number(behavior.minDuration) + Math.random() * Math.max(0, Number(behavior.maxDuration) - Number(behavior.minDuration)));
   if (behavior.state === 'walk') {
-    const bounds = petWindow.getBounds();
-    const workArea = getWorkAreaForBounds(bounds);
-    const delta = Math.round((Math.random() * 2 - 1) * Math.min(300, workArea.width * 0.22));
-    walkTo(Math.max(workArea.x, Math.min(workArea.x + workArea.width - bounds.width, bounds.x + delta)));
+    walkTo(duration);
     return;
   }
   const fallbackMessages = { sit: '我就在这里陪你。', reaction: '别走太远……', sleep: 'z Z' };
