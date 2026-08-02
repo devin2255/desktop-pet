@@ -1,52 +1,37 @@
-# Task 9 Report — build laopo.petpack + regression tests + demo rewire
+# Task 9 Report — 图标与托盘图（Medusa）
 
-**Status:** PASS  
-**Date:** 2026-08-02  
-**Commit:** `66e606b` Switch demo baseline from boss to laopo petpack.
+**Status:** complete  
+**Commit:** (see follow-up `git log -1` after commit)
 
 ## Summary
 
-Built and validated `pets/packages/laopo.petpack`, added `scripts/test-laopo-petpack.js`, rewired demo baseline from boss → laopo in `package.json` / security fixture / `.gitignore`, deleted shipped `boss.petpack` and `test-boss-petpack.js`. `npm test` PASS.
+Refined Task 8 stub icons into proper tray/ICO assets from `pets/work/medusa/source/standard/transparent/master.png`, using the same Pillow workflow as the historical laopo Task 10 icons (64×64 tray + multi-size ICO via `append_images`). Crop focuses on the golden crown + face so the crown silhouette stays readable at 32–64px.
 
-## Steps completed
+## Changes
 
-1. **Build & validate**
-   - `petpack_tool.py build pets/library/laopo pets/packages/laopo.petpack`
-   - `petpack_tool.py validate` → `valid: laopo (老婆)`
+1. **`assets/generated/medusa-tray.png`**
+   - 64×64 RGBA, transparent corners
+   - Upper-body crown/face crop (not full-body stub)
+   - Gold channel lightly boosted for tray clarity
 
-2. **Regression test** `scripts/test-laopo-petpack.js`
-   - Asserts id/name/`speechGender`/`startupGreeting`
-   - Menu: `call-hubby` / `kowtow` / `talent-show` (+ audio paths)
-   - Absent: `call-dad` / `self-slap` / `perch-cross-phone`
-   - Perched: hair-flip / blow-kiss / look
-   - Random: tea + affection lines; no sleep
-   - Required animations include walk, talent-show, sweet trio
+2. **`assets/generated/medusa.ico`**
+   - Multi-size ICO entries: 16 / 24 / 32 / 48 / 64 / 128 / 256
 
-3. **package.json**
-   - `validate:demo` → `laopo.petpack`
-   - `build:boss` → `build:laopo`
-   - `test:js` → `test-laopo-petpack.js`
-   - `build.files` petpack → `laopo.petpack`
-   - Icon/tray paths still `assets/generated/boss.*` (Task 10)
+3. **`package.json`**
+   - Already points to `assets/generated/medusa.ico` (`build.win.icon`) and `assets/generated/medusa-tray.png` (`build.files`) from Task 8 — no change required
 
-4. **Security fixture** → `laopo.petpack`
+## Verification
 
-5. **Removed** `pets/packages/boss.petpack`, `scripts/test-boss-petpack.js`
-
-6. **`.gitignore`** exception: `boss.petpack` → `laopo.petpack` (required so package is trackable)
-
-## Tests
-
+```powershell
+Test-Path assets/generated/medusa.ico      → True
+Test-Path assets/generated/medusa-tray.png → True
 ```
-node scripts/test-laopo-petpack.js  → PASS
-npm test                            → PASS
-  test:js (incl. laopo + security)  → PASS
-  test:python (14)                  → OK
-  validate:demo                     → valid: laopo (老婆)
-```
+
+- Tray: 64×64 RGBA, opaque≈1157/4096, gold≈475 pixels in crown band
+- ICO directory count: 7 sizes (16–256)
 
 ## Concerns
 
-- Tray/icon still point at boss assets until Task 10 generates laopo icons.
-- Docs (`AGENTS.md`, `README.md`, `ASSETS_LICENSE.md`) still mention boss demo; out of Task 9 scope / Task 10–11 may update.
-- `scripts/build-customer.js` help example still shows boss path (cosmetic).
+- No dedicated reusable icon script in-repo; generation was a one-off Pillow pass (laopo Task 10 same pattern).
+- Pillow’s `Image.open(...).n_frames` may report 1 for ICO even when the file directory lists 7 sizes; structural ICO header confirms multi-size.
+- Tray uses master transparent art rather than `preview.png` for higher crown detail; visual identity still matches the packaged preview character.
