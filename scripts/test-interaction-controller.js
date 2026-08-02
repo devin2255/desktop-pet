@@ -713,7 +713,8 @@ async function run() {
     for (const file of [
       'src/window-interactions.js',
       'src/window-discovery.js',
-      'src/interaction-controller.js'
+      'src/interaction-controller.js',
+      'src/roam-edge.js'
     ]) {
       assert.ok(packageJson.build.files.includes(file), `default package includes ${file}`);
       assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);

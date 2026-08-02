@@ -174,6 +174,7 @@ function buildCustomer(options) {
         'src/window-discovery.js',
         'src/interaction-controller.js',
         'src/topmost-guard.js',
+        'src/roam-edge.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

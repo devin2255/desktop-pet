@@ -50,6 +50,7 @@
       "src/window-discovery.js",
       "src/interaction-controller.js",
       "src/topmost-guard.js",
+      "src/roam-edge.js",
       "assets/generated/medusa-tray.png",
       "pets/packages/medusa.petpack",
       "package.json"
