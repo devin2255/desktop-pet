@@ -64,12 +64,18 @@ for (const [state, message, speech, speechAudio] of [
 
 for (const action of [
   'idle', 'walk', 'sit', 'sleep', 'reaction',
-  'climb', 'perch', 'hang', 'fall', 'impact', 'pat-butt',
+  'climb', 'lean', 'perch', 'hang', 'fall', 'impact', 'pat-butt',
   'cold-smile', 'heaven-python', 'kneel-before-me',
   'inspect', 'command', 'smirk-line', 'talent-show',
 ]) {
   assert.ok(manifest.animations[action], `missing animation ${action}`);
   assert.ok(manifest.animations[action].frames.length >= 4, `${action} needs enough frames`);
 }
+
+assert.ok(manifest.animations.lean.loop === true, 'lean should loop');
+assert.ok(manifest.interactionActions && manifest.interactionActions.lean, 'interactionActions.lean required');
+assert.strictEqual(manifest.interactionActions.lean.action, 'lean');
+assert.ok(manifest.interactionActions.lean.anchor, 'lean anchor required');
+assert.ok(manifest.packageVersion === '0.1.2' || Number(manifest.packageVersion.split('.')[2]) >= 2, 'packageVersion should include lean/walk refresh');
 
 console.log('medusa petpack regression checks passed');

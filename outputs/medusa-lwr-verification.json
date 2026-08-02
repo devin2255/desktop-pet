@@ -1,0 +1,34 @@
+{
+  "task": "lwr-4",
+  "date": "2026-08-02",
+  "packageVersion": "0.1.2",
+  "petpack": "pets/packages/medusa.petpack",
+  "exe": "dist/customers/medusa/美杜莎桌面宠物-0.1.2.exe",
+  "animations": {
+    "walk": {
+      "frames": 6,
+      "facing": "right",
+      "gait": "alternating",
+      "phases": ["contact-right", "down", "passing", "up-left", "contact-left", "opposite-passing"],
+      "alphaBandCutoff24": [36743, 36860]
+    },
+    "lean": {
+      "frames": 4,
+      "loop": true,
+      "facing": "right",
+      "anchor": { "x": 0.15, "y": 0.55 },
+      "alphaBandCutoff24": [36880, 37001]
+    }
+  },
+  "gates": {
+    "process_animation_strips": "PASS",
+    "petpack_validate": "PASS",
+    "test-medusa-petpack": "PASS",
+    "npm_test": "PASS",
+    "build_medusa": "PASS"
+  },
+  "concerns": [
+    "Lean reads as side-profile rest beside left edge more than dramatic shoulder-press; player attach still drives window lean.",
+    "Walk frame 3 passing is compact; visual alternation confirmed on contact sheet but amplitude is moderate."
+  ]
+}
