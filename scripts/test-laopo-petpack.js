@@ -28,6 +28,10 @@ assert.ok(menu['talent-show'], 'talent-show context action required');
 assert.strictEqual(menu['talent-show'].message, '上才艺!');
 assert.strictEqual(menu['talent-show'].speech, '上才艺');
 assert.strictEqual(menu['talent-show'].speechAudio, 'audio/talent-show.mp3');
+assert.ok(menu['talent-show'].duration >= 5000, 'talent-show menu duration should be longer');
+const talent = manifest.animations['talent-show'];
+assert.ok(talent.frames.length >= 12, 'talent-show needs a longer 12-frame dance');
+assert.ok(talent.durations.reduce((sum, ms) => sum + ms, 0) >= 4000, 'talent-show animation should play longer');
 
 assert.ok(!menu['call-dad'], 'call-dad must not exist on laopo');
 assert.ok(!menu['self-slap'], 'self-slap must not exist on laopo');
