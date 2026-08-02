@@ -13,7 +13,7 @@ const DRAG_THRESHOLD_PX = 6;
 const HIT_ALPHA_CUTOFF = 32;
 const BUBBLE_GAP_PX = 2;
 const FALLBACKS = {
-  drag: 'walk', climb: 'walk', perch: 'sit', hang: 'sit',
+  drag: 'walk', climb: 'walk', lean: 'idle', perch: 'sit', hang: 'sit',
   fall: 'reaction', impact: 'reaction', recover: 'reaction'
 };
 const hitCanvas = document.createElement('canvas');
@@ -51,7 +51,8 @@ function resolveAction(state, logicalRole) {
 function isFacingLeft() {
   return pet.classList.contains('state-walk-left')
     || pet.classList.contains('state-drag-left')
-    || pet.classList.contains('state-climb-left');
+    || pet.classList.contains('state-climb-left')
+    || pet.classList.contains('state-lean-left');
 }
 
 function preloadFrames() {

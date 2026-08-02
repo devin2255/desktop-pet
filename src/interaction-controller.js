@@ -10,13 +10,14 @@ const {
 } = require('./window-interactions');
 
 const INTERACTIVE_STATES = new Set([
-  'dragging', 'climbing', 'perched', 'hanging',
+  'dragging', 'climbing', 'leaning', 'perched', 'hanging',
   'falling', 'impact', 'recovering'
 ]);
-const ATTACHED_STATES = new Set(['perched', 'hanging']);
+const ATTACHED_STATES = new Set(['perched', 'hanging', 'leaning']);
 const FALLBACK_ACTIONS = {
   drag: 'walk',
   climb: 'walk',
+  lean: 'climb',
   perch: 'sit',
   hang: 'sit',
   fall: 'reaction',
@@ -25,6 +26,7 @@ const FALLBACK_ACTIONS = {
 };
 const DEFAULT_ANCHORS = {
   climb: { x: 0.5, y: 0.5 },
+  lean: { x: 0.15, y: 0.55 },
   perch: { x: 0.5, y: 0.7 },
   hang: { x: 0.5, y: 0.1 }
 };
@@ -123,7 +125,8 @@ function createInteractionController(dependencies) {
   }
 
   function facingState(role, facing) {
-    if ((role === 'drag' || role === 'climb') && (facing === 'left' || facing === 'right')) {
+    if ((role === 'drag' || role === 'climb' || role === 'lean')
+      && (facing === 'left' || facing === 'right')) {
       return `${role}-${facing}`;
     }
     return role;
@@ -251,7 +254,14 @@ function createInteractionController(dependencies) {
 
   function actionFor(role) {
     const manifest = getManifest() || {};
-    return manifest.interactionActions?.[role]?.action || FALLBACK_ACTIONS[role] || role;
+    const configured = manifest.interactionActions?.[role]?.action;
+    if (configured) return configured;
+    if (role === 'lean') {
+      if (manifest.animations?.lean) return 'lean';
+      if (manifest.animations?.climb) return 'climb';
+      return 'idle';
+    }
+    return FALLBACK_ACTIONS[role] || role;
   }
 
   function animationDuration(role) {
@@ -270,6 +280,9 @@ function createInteractionController(dependencies) {
     // Side-profile climb art reaches a vertical wall on the facing side.
     if (role === 'climb' && edge === 'left') return { x: 0.84, y: base.y };
     if (role === 'climb' && edge === 'right') return { x: 0.16, y: base.y };
+    // Lean shoulder/back against the vertical edge; flip X for the opposite side.
+    if (role === 'lean' && edge === 'left') return { x: 1 - base.x, y: base.y };
+    if (role === 'lean' && edge === 'right') return { x: base.x, y: base.y };
     return base;
   }
 
@@ -378,34 +391,11 @@ function createInteractionController(dependencies) {
 
   const animatePosition = dependencies.animatePosition || defaultAnimatePosition;
 
-  async function climbToTop(target, pointer, edge, token) {
+  function leanOnSide(target, pointer, edge) {
     const sideOffset = pointer.y - target.bounds.y;
-    const topOffset = pointer.x - target.bounds.x;
-    // Face into the window while clinging to the side edge.
+    // Face into the window while leaning on the side edge.
     const clingFacing = edge === 'right' ? 'left' : 'right';
-    attach(target, edge, sideOffset, 'climb', 'climbing', { facing: clingFacing });
-    const stillClimbing = () => !disposed && generation === token && currentState === 'climbing';
-    await wait(climbHoldMs, stillClimbing);
-    if (!stillClimbing()) return;
-
-    const liveTarget = attachment?.id === String(target.id)
-      ? { id: target.id, bounds: { ...attachment.bounds } }
-      : target;
-    const fromBounds = petWindow.getBounds();
-    const from = { x: fromBounds.x, y: fromBounds.y };
-    const to = attachmentPosition(liveTarget, 'top', topOffset, 'perch');
-    clearAttachmentPolling();
-    attachment = undefined;
-    emitRole('climb', { facing: clingFacing });
-    await animatePosition({
-      from,
-      to,
-      duration: climbDurationMs(from, to),
-      setPosition,
-      isCurrent: stillClimbing
-    });
-    if (!stillClimbing()) return;
-    attach(liveTarget, 'top', topOffset, 'perch', 'perched');
+    attach(target, edge, sideOffset, 'lean', 'leaning', { facing: clingFacing });
   }
 
   function finishFall(display, token) {
@@ -535,7 +525,7 @@ function createInteractionController(dependencies) {
     if (target) {
       const edge = classifyWindowEdge(pointer, target.bounds, edgeThreshold);
       if (edge === 'left' || edge === 'right') {
-        await climbToTop(target, pointer, edge, token);
+        leanOnSide(target, pointer, edge);
         return true;
       }
       if (edge === 'top') {
