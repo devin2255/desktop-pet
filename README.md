@@ -85,7 +85,7 @@ animations/
 验证示例资源包：
 
 ```powershell
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/laopo.petpack
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/medusa.petpack
 ```
 
 播放器将外部资源包视为不受信任输入。导入前会检查路径穿越、反斜杠路径、重复及大小写冲突、文件数量、解压体积、未引用文件、清单字段和 PNG 格式。格式细节见 [petpack-schema.md](skills/desktop-pet-maker/references/petpack-schema.md)。
@@ -99,27 +99,27 @@ python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/l
 
 在编辑器中打开本项目并附上同一只宠物的清晰照片后，可以要求它生成动作帧、处理透明背景、统一体量与基线、验证资源包并构建客户专属 EXE。
 
-### 用本项目制作老婆桌宠（laopo）
+### 用本项目制作美杜莎桌宠（medusa）
 
-当前演示基线就是老婆桌宠。若要在新会话中重做或继续迭代，按下面流程即可：
+当前演示基线是美杜莎女王桌宠。若要在新会话中重做或继续迭代，按下面流程即可：
 
 1. 准备 1～8 张同一角色的清晰参考图（正脸、全身、侧脸更好）。
 2. 打开本仓库，把照片和提示词一起发给 Agent。
-3. 提示词文件：[docs/prompts/make-laopo-pet.txt](docs/prompts/make-laopo-pet.txt)（可整份复制）。
+3. 提示词文件：[docs/prompts/make-medusa-pet.txt](docs/prompts/make-medusa-pet.txt)（可整份复制）。
 4. Agent 完成后应交付：
-   - `pets/packages/laopo.petpack`
-   - `dist/customers/laopo/老婆桌面宠物-<version>.exe`
-   - `dist/customers/laopo/build-report.json`
+   - `pets/packages/medusa.petpack`
+   - `dist/customers/medusa/美杜莎桌面宠物-<version>.exe`
+   - `dist/customers/medusa/build-report.json`
 5. 本地也可单独验证和封装：
 
 ```powershell
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/laopo.petpack
-npm run build:laopo
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/medusa.petpack
+npm run build:medusa
 # 或：
-npm run build:customer -- --pet pets/packages/laopo.petpack --name "老婆桌面宠物" --delivery-id laopo
+npm run build:customer -- --pet pets/packages/medusa.petpack --name "美杜莎桌面宠物" --delivery-id medusa
 ```
 
-老婆桌宠能力摘要：站立待机、散步陪伴、叫老公 / 磕头 / 上才艺、端茶送水、窗口顶边坐下与侧爬吊挂、坐边撩头发 / 飞吻 / 左看右看，以及女声音频台词。
+美杜莎桌宠能力摘要：直立待机与踱步、冷笑 / 七彩吞天蟒 / 跪安、漫游台词（看你表现 / 侍奉本座 / 有趣）、窗口顶边坐下与侧爬吊挂、坐边托腮 / 撩发 / 左看右看，以及女声音频台词。
 
 输出位于 `dist/customers/<delivery-id>/`，包含便携版 EXE 和 `build-report.json`。客户版默认只包含指定宠物，并隐藏导入、切换宠物和打开宠物库入口；添加 `--allow-management` 可保留管理功能。
 
@@ -148,7 +148,7 @@ scripts/build-customer.js         客户专属便携版构建器
 Desktop Pet 基于 [redniu123/pet-player](https://github.com/redniu123/pet-player) 修改和扩展。感谢原作者及所有贡献者。
 
 - 源代码采用 [MIT License](LICENSE)，并保留上游项目的原始版权声明
-- 当前演示资源为 `laopo.petpack`（老婆 / 老婆桌面宠物）及对应图标，见 [ASSETS_LICENSE.md](ASSETS_LICENSE.md)
+- 当前演示资源为 `medusa.petpack`（美杜莎 / 美杜莎桌面宠物）及对应图标，见 [ASSETS_LICENSE.md](ASSETS_LICENSE.md)
 - 当前项目维护者：devin2255
 
 重新建立 Git 仓库不会改变上游许可证或素材署名义务。
