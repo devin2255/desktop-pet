@@ -52,6 +52,10 @@ Cause: controller still uses `climbToTop` on side release (`climb-right` / perch
 
 ### Step 5: Commit
 
+| SHA | Subject |
+|-----|---------|
+| `cc16ca3` | `test: lean role validator and edge-turn; side lean assertions RED for Task 2` |
+
 Committed all Task 1 files together (validator, roam-edge + green test, interaction RED assertions, package.json, this report). Interaction RED is intentional for Task 2.
 
 ## Next Task
