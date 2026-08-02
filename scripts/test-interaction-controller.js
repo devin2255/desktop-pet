@@ -9,6 +9,7 @@ const {
   createInteractionController,
   shouldRestoreWindowBounds
 } = require('../src/interaction-controller');
+const { positionForAttachment } = require('../src/window-interactions');
 
 function createClock() {
   let nextId = 1;
@@ -242,13 +243,51 @@ async function run() {
     assert.deepStrictEqual(harness.states, ['drag-right']);
     assert.strictEqual(harness.topmostEnsures(), 1, 'drag state reasserts topmost ordering');
     await harness.controller.endDrag({ x: 100, y: 250 });
-    assert.ok(
-      harness.states.some((state) => state === 'lean-right' || state.startsWith('lean-')),
-      'side release enters lean facing into the window'
+    assert.strictEqual(
+      harness.states.at(-1),
+      'lean-right',
+      'left edge faces right into the window with unflipped lean art'
     );
     assert.strictEqual(harness.controller.state(), 'leaning');
     assert.strictEqual(harness.climbs.length, 0, 'side lean never starts climb travel');
     assert.deepStrictEqual(harness.clock.intervalDelays(), [100]);
+    // Right-facing lean art keeps the back near x=0.15; left edge must pin that side,
+    // not the mirrored chest side (1-0.15), or the torso presses into the window.
+    assert.strictEqual(
+      harness.bounds().x,
+      positionForAttachment(
+        target.bounds,
+        'left',
+        { x: 0.15, y: 0.55 },
+        { width: 100, height: 120 },
+        { left: 0, top: 0, right: 0, bottom: 0 },
+        150
+      ).x,
+      'left edge leans with the back/shoulder anchor, not the chest'
+    );
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.controller.startDrag({ x: 200, y: 150 });
+    await harness.controller.endDrag({ x: 600, y: 250 });
+    assert.strictEqual(
+      harness.states.at(-1),
+      'lean-left',
+      'right edge faces left into the window (CSS-mirrored lean art)'
+    );
+    assert.strictEqual(
+      harness.bounds().x,
+      positionForAttachment(
+        target.bounds,
+        'right',
+        { x: 0.85, y: 0.55 },
+        { width: 100, height: 120 },
+        { left: 0, top: 0, right: 0, bottom: 0 },
+        150
+      ).x,
+      'right edge pins the mirrored back/shoulder (1 - lean.anchor.x)'
+    );
   }
 
   {
@@ -652,6 +691,7 @@ async function run() {
     const projectRoot = path.resolve(__dirname, '..');
     const main = fs.readFileSync(path.join(projectRoot, 'src', 'main-v3.js'), 'utf8');
     const preload = fs.readFileSync(path.join(projectRoot, 'src', 'preload-v3.js'), 'utf8');
+    const styles = fs.readFileSync(path.join(projectRoot, 'src', 'styles-v3.css'), 'utf8');
     const builder = fs.readFileSync(path.join(projectRoot, 'scripts', 'build-customer.js'), 'utf8');
     const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
     const manifestTemplate = JSON.parse(fs.readFileSync(
@@ -719,6 +759,11 @@ async function run() {
       assert.ok(packageJson.build.files.includes(file), `default package includes ${file}`);
       assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
     }
+    assert.match(
+      styles,
+      /\.state-lean-left\s*\.pet-image/,
+      'lean-left must CSS-mirror right-facing lean art'
+    );
     assert.ok(packageJson.dependencies['get-windows'], 'window discovery remains a production dependency');
   }
 

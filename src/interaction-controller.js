@@ -280,9 +280,10 @@ function createInteractionController(dependencies) {
     // Side-profile climb art reaches a vertical wall on the facing side.
     if (role === 'climb' && edge === 'left') return { x: 0.84, y: base.y };
     if (role === 'climb' && edge === 'right') return { x: 0.16, y: base.y };
-    // Lean shoulder/back against the vertical edge; flip X for the opposite side.
-    if (role === 'lean' && edge === 'left') return { x: 1 - base.x, y: base.y };
-    if (role === 'lean' && edge === 'right') return { x: base.x, y: base.y };
+    // Right-facing lean art keeps the back near base.x. Left edge uses it as-is;
+    // right edge CSS-mirrors lean-left, so pin the mirrored back at 1 - base.x.
+    if (role === 'lean' && edge === 'left') return { x: base.x, y: base.y };
+    if (role === 'lean' && edge === 'right') return { x: 1 - base.x, y: base.y };
     return base;
   }
 
