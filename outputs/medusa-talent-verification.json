@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "medusa",
+  "appName": "美杜莎桌面宠物",
+  "packageVersion": "0.1.1",
+  "playerVersion": "0.4.0",
+  "feature": "talent-show",
+  "generatedAt": "2026-08-02T10:32:06.000Z",
+  "artifacts": {
+    "exe": "dist/customers/medusa/美杜莎桌面宠物-0.1.1.exe",
+    "exeSha256": "43dd9448c2e276a7fd0ee4db0d43a0299bee432994e351c163f4c95d6de968d6",
+    "petpack": "pets/packages/medusa.petpack",
+    "petpackSha256": "2ee8bea4a56aa9461770f115081481cf93167abdd1e939c87c21232b0966f5cb",
+    "buildReport": "dist/customers/medusa/build-report.json",
+    "cdpProbe": "outputs/medusa-talent-cdp-probe.json"
+  },
+  "gates": {
+    "petpackValidateLibrary": "PASS",
+    "petpackBuild": "PASS",
+    "petpackValidateArchive": "PASS",
+    "testMedusaPetpack": "PASS",
+    "validateDemo": "PASS",
+    "testRendererInteraction": "PASS",
+    "npmTest": "PASS",
+    "buildMedusa": "PASS"
+  },
+  "verified": [
+    "library + petpack validate (alpha-area band after talent-show renormalize)",
+    "node scripts/test-medusa-petpack.js PASS (Task 1 RED -> GREEN)",
+    "npm run validate:demo PASS",
+    "node scripts/test-renderer-interaction.js PASS",
+    "npm test PASS (js + python + validate:demo)",
+    "npm run build:medusa -> 美杜莎桌面宠物-0.1.1.exe",
+    "EXE launches with --remote-debugging-port=9335",
+    "independent userData %APPDATA%/Desktop Pet Deliveries/medusa packageVersion=0.1.1",
+    "CDP: contextMenuActions includes talent-show label=上才艺 message=给本座看好了。 speech=看好了 speechAudio=pet-asset://medusa/audio/talent-show.mp3 duration=5200",
+    "CDP: animations.talent-show frames=12 durationsSum=4000",
+    "CDP: talent-show frames load 480x480; sampled 4 distinct frame sources",
+    "installed pet.json: talent-show NOT in behavior.random; audio/talent-show.mp3 present (10656 bytes)",
+    "no call-hubby in runtime menu",
+    "body background rgba(0,0,0,0)"
+  ],
+  "configVerified": {
+    "packageVersion": "0.1.1",
+    "talentShow": {
+      "label": "上才艺",
+      "message": "给本座看好了。",
+      "speech": "看好了",
+      "speechAudio": "audio/talent-show.mp3",
+      "duration": 5200,
+      "frames": 12,
+      "durationsSum": 4000,
+      "inRandom": false
+    },
+    "contextMenuActions": [
+      "cold-smile",
+      "heaven-python",
+      "kneel-before-me",
+      "talent-show"
+    ]
+  },
+  "unverifiedManual": [
+    "右键菜单实机点选「上才艺」后完整播放边跳边换装动画",
+    "气泡「给本座看好了。」在真实菜单触发路径下的弹出时机",
+    "女声「看好了」可听播放（CDP Audio() on pet-asset:// returned load-error; file exists on disk）",
+    "透明像素鼠标穿透、托盘退出、静止连点 50 次",
+    "EXE 数字签名"
+  ],
+  "knownReleaseGaps": [
+    "EXE 未做数字签名 (signExecutable=false)",
+    "dist/ 与 *.exe 被 .gitignore 忽略",
+    "Task4 曾对 talent-show 帧做 alpha 重归一化以通过全库 1.08 体量门禁（原 processed 最大约 39193）",
+    "末帧 duration 由 brief 的 700 调整为 800 以满足 durations 合计 >=4000"
+  ],
+  "buildReport": {
+    "schemaVersion": 1,
+    "builtAt": "2026-08-02T10:29:50.147Z",
+    "appName": "美杜莎桌面宠物",
+    "deliveryId": "medusa",
+    "petId": "medusa",
+    "petName": "美杜莎",
+    "petpack": "medusa.petpack",
+    "petpackSha256": "2ee8bea4a56aa9461770f115081481cf93167abdd1e939c87c21232b0966f5cb",
+    "executable": "美杜莎桌面宠物-0.1.1.exe",
+    "executableSha256": "43dd9448c2e276a7fd0ee4db0d43a0299bee432994e351c163f4c95d6de968d6",
+    "version": "0.1.1"
+  }
+}
