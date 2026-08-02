@@ -46,7 +46,8 @@ protocol.registerSchemesAsPrivileged([
 const PET_SIZES = {
   small: { label: '小（推荐）', width: 170, height: 190 },
   medium: { label: '中', width: 220, height: 240 },
-  large: { label: '大', width: 280, height: 300 }
+  large: { label: '大', width: 280, height: 300 },
+  xlarge: { label: '超大', width: 360, height: 380 }
 };
 const EDGE_GAP = 14;
 
