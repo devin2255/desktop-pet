@@ -27,7 +27,7 @@ function printUsage() {
     '  --help                    显示帮助',
     '',
     '示例：',
-    '  npm run build:customer -- --pet pets/packages/laopo.petpack --name "老婆桌面宠物" --delivery-id laopo'
+    '  npm run build:customer -- --pet pets/packages/medusa.petpack --name "美杜莎桌面宠物" --delivery-id medusa'
   ].join('\n'));
 }
 

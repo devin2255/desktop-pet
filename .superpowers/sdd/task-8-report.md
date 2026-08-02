@@ -1,49 +1,55 @@
-# Task 8 Report — assemble pets/library/laopo + pet.json
+# Task 8 Report: 打包 petpack、回归测试与基线切换
 
-**Status:** PASS  
+**Branch:** `feat/medusa-pet`  
 **Date:** 2026-08-02  
-**Commit:** no commit (`/pets/library/` is gitignored; boss library also untracked — only `pets/packages/boss.petpack` is published)
+**Status:** DONE  
+**BASE SHA (start):** `df243a95bcf6efcd6b9f2617f6e9a0234324a03f`
 
 ## Summary
 
-Assembled **老婆 (laopo)** library package at `pets/library/laopo/` with all 22 animations, 6 audio clips, `preview.png`, and brief-exact `pet.json`. `petpack_tool.py validate` **PASS**.
+Built and validated `pets/packages/medusa.petpack`, added `scripts/test-medusa-petpack.js`, switched npm/docs/gitignore demo baseline from laopo → medusa, and created temporary `medusa.ico` / `medusa-tray.png` from preview. All required regressions PASS.
 
 ## Steps completed
 
-1. **Copied frames** from `pets/work/laopo/processed/frames/<action>/` → `pets/library/laopo/animations/<action>/01.png…`  
-   Frame counts matched brief (no BLOCKED): idle4, walk6, sit4, sleep4, reaction4, drag6, climb6, perch4, perch-*6, hang4, fall4, impact4, pat-butt6, call-hubby6, kowtow6, talent-show8, serve-tea6, love-you/praise/encourage4.
-2. **Audio** already staged: `audio/{call-hubby,encourage,love-you,praise,serve-tea,talent-show}.mp3`.
-3. **Wrote** `pet.json` UTF-8 no BOM from task-8 brief (ids/messages/weights/speechAudio unchanged).
-4. **preview.png** from `idle/01.png`.
-5. **Validate** initially **FAILED** on alpha-area drift `23707..38781` (ratio ~1.64 > 1.08).  
-   Cause: upstream `process_animation_strips` fit_scale capped tall poses (esp. `hang/04`) below `TARGET_ALPHA_AREA=38000` while other actions sat near ~38k.  
-   Fix: re-normalized all library frames to a common achievable target (~23233 alpha px, limited by hang/04), then synced back to `pets/work/laopo/processed/frames/`. Preview refreshed.
-6. Re-validate: **PASS** — `valid: laopo (老婆)`; post-renorm area ratio ~1.013.
+1. **Build + validate petpack**
+   ```powershell
+   python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/medusa pets/packages/medusa.petpack
+   python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/medusa.petpack
+   # valid: medusa (美杜莎)
+   ```
 
-## Validate
+2. **Created** `scripts/test-medusa-petpack.js` from brief (UTF-8 Chinese from library `pet.json`; frame check `>= 4` tolerates cold-smile 5 frames).
 
-```powershell
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/library/laopo
-# valid: laopo (老婆)
-```
+3. **Updated `package.json`**
+   - `validate:demo` → `medusa.petpack`
+   - `test:js` → `test-medusa-petpack.js` (replaced `test-laopo-petpack.js`)
+   - Added `build:medusa`; removed `build:laopo`
+   - `build.win.icon` / `build.files` → `medusa.ico`, `medusa-tray.png`, `medusa.petpack`
 
-## Package layout
+4. **Updated `.gitignore`** packages + generated exceptions to medusa only.
 
-```
-pets/library/laopo/
-  pet.json
-  preview.png
-  audio/*.mp3  (6)
-  animations/<22 actions>/*.png
-```
+5. **Updated** `scripts/test-petpack-security.js` fixture → `medusa.petpack`.
 
-## Commit
+6. **Updated docs** README / AGENTS.md / ASSETS_LICENSE.md demo baseline → 美杜莎.
 
-- **No commit.** `.gitignore` line 37: `/pets/library/` ignores the tree (`git check-ignore` confirms).
-- `pets/packages/laopo.petpack` **not yet built** (Task 9+).
+7. **Icons:** temporary stubs generated from `pets/library/medusa/preview.png` (Task 9 may refine).
+
+## Test results
+
+| Command | Result |
+|---|---|
+| `node scripts/test-medusa-petpack.js` | PASS — `medusa petpack regression checks passed` |
+| `node scripts/test-petpack-security.js` | PASS — `petpack archive security checks passed` |
+| `npm run validate:demo` | PASS — `valid: medusa (美杜莎)` |
+
+## Commits
+
+1. `de06e38` — Add Medusa demo petpack and tracked icons.
+2. `2f2ee23` — Switch npm demo baseline and tests to Medusa.
+3. `1cb6e92` — Docs: point demo baseline to Medusa pet.
 
 ## Concerns
 
-1. Global downscale to ~23k alpha px (hang-limited) makes the pet visually smaller than the 38k pipeline target / boss (~25k). Better fix: regenerate compact `hang` (and other tall outliers) so reprocess can hit ~38k without dragging every action down.
-2. Foot-baseline compositing for `hang`/`perch` remains a pose/placement compromise from the shared strip processor.
-3. Library + work assets stay local/gitignored; only a future `.petpack` under `pets/packages/` would be the publishable tracked artifact (per boss convention).
+1. Tray/ICO are preview-derived stubs; Task 9 may replace with polished branding assets.
+2. Local `laopo.petpack` / laopo icons may still exist on disk but are no longer gitignored-exceptions or referenced by this branch’s build/test baseline.
+3. Full `npm test` / customer EXE build not run in this task (only the three required regressions).
