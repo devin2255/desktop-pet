@@ -7,7 +7,7 @@ const path = require('path');
 const AdmZip = require('adm-zip');
 const { referencedFiles, safeRelative, validateManifest, validatePetpack } = require('../src/petpack-validator');
 
-const fixture = path.join(__dirname, '..', 'pets', 'packages', 'laopo.petpack');
+const fixture = path.join(__dirname, '..', 'pets', 'packages', 'medusa.petpack');
 assert.doesNotThrow(() => validatePetpack(fixture), 'reviewed demo package must validate');
 
 function assertRejected(name, mutate, expected) {
