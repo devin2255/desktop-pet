@@ -1,0 +1,24 @@
+请使用 desktop-pet-maker 在本仓库按美杜莎同款流水线制作「旺财与咪咪」双宠 Windows 桌面宠物（方案 B：同一画幅双宠）。
+
+宠物名字：旺财与咪咪
+性格：安静陪伴、亲近、默契
+程序名称：桌面宠物
+delivery-id：dog-and-cat
+风格：写实 3D CGI（细毛发、柔和棚拍光、解剖可信）
+重点特征：
+- 左狗右猫同框：柴犬旺财（金红被毛+奶油胸腹、红项圈金铃、卷尾）+ 橘猫咪咪（虎斑、翠绿眼睛、粉鼻、长条纹尾）
+- 身份锁见 pets/work/dog-and-cat/IDENTITY.md，所有帧必须锁定
+特殊要求：
+1. 流程必须：定妆 master → 标准五动作绿幕条 → 窗口互动条 → 去背 → process_animation_strips（双宠用 --max-significant-components 2）→ pet.json → validate → petpack → build:customer。
+2. 默认 idle 为双宠并排站立微呼吸；walk 为双宠一起向右走，播放器镜像实现向左。
+3. sleep 可有休息帧；behavior.random 可低权重调度 sleep。
+4. 右键菜单保持克制：过来一下 / 趴一会儿 / 去睡觉（不要幼稚口癖）。
+5. 支持窗口互动：drag/climb/perch/hang/fall/impact/recover。
+6. 切帧失败必须整条重生成，禁止只擦串帧碎片。
+7. 客户 EXE 双击即出宠，隐藏导入/切换宠物库。
+
+生成并验证 pets/packages/dog-and-cat.petpack 后执行：
+
+node scripts/build-customer.js --pet pets/packages/dog-and-cat.petpack --name "桌面宠物" --delivery-id dog-and-cat
+
+最终交付 EXE、build-report.json 与验证结果，不要只交付 .petpack。

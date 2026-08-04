@@ -18,7 +18,7 @@ import petpack_tool
 class PetpackArchiveSecurityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.fixture = SCRIPT_DIR.parents[2] / "pets" / "packages" / "xiaogou.petpack"
+        cls.fixture = SCRIPT_DIR.parents[2] / "pets" / "packages" / "boss.petpack"
 
     def copy_with_extra(self, destination: Path, name: str, content: bytes = b"extra") -> None:
         with zipfile.ZipFile(self.fixture) as source, zipfile.ZipFile(destination, "w") as target:
@@ -28,7 +28,7 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
 
     def test_reviewed_demo_package_is_valid(self) -> None:
         manifest = petpack_tool.validate_archive(self.fixture)
-        self.assertEqual(manifest["id"], "xiaogou")
+        self.assertEqual(manifest["id"], "boss")
 
     def test_extra_file_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
