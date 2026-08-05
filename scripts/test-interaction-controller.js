@@ -186,11 +186,7 @@ function createHarness({
     clearTimeout: clock.clearTimeout,
     setInterval: clock.setInterval,
     clearInterval: clock.clearInterval,
-    now: clock.now,
-    // Keep unit tests snappy; production defaults remain 3s hold + slow climb.
-    climbHoldMs: 0,
-    minClimbDurationMs: 300,
-    climbPxPerSecond: 1000
+    now: clock.now
   };
   const climbs = [];
   if (autoAnimate) {
@@ -239,7 +235,6 @@ async function run() {
   {
     const movingTarget = { id: 'w1', bounds: { ...target.bounds } };
     const harness = createHarness({ windows: [movingTarget] });
-    harness.dependencies.climbHoldMs = 3000;
     harness.controller = createInteractionController(harness.dependencies);
     harness.controller.startDrag({ x: 200, y: 150 });
     assert.strictEqual(harness.topmostEnsures(), 1, 'drag state reasserts topmost ordering');
