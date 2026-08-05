@@ -237,34 +237,35 @@ async function run() {
   }
 
   {
-    const harness = createHarness({ windows: [target] });
+    const movingTarget = { id: 'w1', bounds: { ...target.bounds } };
+    const harness = createHarness({ windows: [movingTarget] });
+    harness.dependencies.climbHoldMs = 3000;
+    harness.controller = createInteractionController(harness.dependencies);
     harness.controller.startDrag({ x: 200, y: 150 });
-    assert.deepStrictEqual(harness.states, ['drag-right']);
     assert.strictEqual(harness.topmostEnsures(), 1, 'drag state reasserts topmost ordering');
-    await harness.controller.endDrag({ x: 100, y: 250 });
-    assert.deepStrictEqual(harness.states.slice(-2), ['climb-right', 'perch']);
-    assert.strictEqual(harness.controller.state(), 'perched');
-    assert.ok(harness.climbs[0].duration >= 300, 'side climb uses timed travel duration');
+    const endPromise = harness.controller.endDrag({ x: 100, y: 250 });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(!harness.clock.scheduledTimeoutDelays.includes(3000), 'side rest has no climb delay');
+    const result = await endPromise;
+    assert.strictEqual(result, true);
+    assert.strictEqual(harness.controller.state(), 'climbing');
+    assert.strictEqual(harness.states.at(-1), 'climb-right');
+    assert.strictEqual(harness.climbs.length, 0, 'side rest never starts position animation');
     assert.deepStrictEqual(harness.clock.intervalDelays(), [100]);
+    const attached = harness.bounds();
+    movingTarget.bounds = { x: 170, y: 145, width: 500, height: 400 };
+    await harness.clock.tickIntervals();
+    assert.notDeepStrictEqual(harness.bounds(), attached, 'side-rest attachment follows target movement');
   }
 
   {
     const harness = createHarness({ windows: [target] });
-    harness.dependencies.climbHoldMs = 3000;
-    harness.dependencies.minClimbDurationMs = 2800;
-    harness.dependencies.climbPxPerSecond = 55;
-    harness.controller = createInteractionController(harness.dependencies);
     harness.controller.startDrag({ x: 200, y: 150 });
-    const climbPromise = harness.controller.endDrag({ x: 100, y: 250 });
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.ok(harness.states.includes('climb-right'), 'side release clings before climbing');
-    assert.strictEqual(harness.climbs.length, 0, 'climb travel waits for the hold delay');
-    assert.ok(harness.clock.scheduledTimeoutDelays.includes(3000), 'side cling waits 3 seconds');
-    const done = climbPromise.then(() => 'done');
-    harness.clock.flushTimeouts();
-    assert.strictEqual(await done, 'done');
-    assert.ok(harness.climbs[0].duration >= 2800, 'climb to the top edge is intentionally slow');
-    assert.strictEqual(harness.controller.state(), 'perched');
+    const result = await harness.controller.endDrag({ x: 599, y: 250 });
+    assert.strictEqual(result, true);
+    assert.strictEqual(harness.controller.state(), 'climbing');
+    assert.strictEqual(harness.states.at(-1), 'climb-left');
+    assert.strictEqual(harness.climbs.length, 0, 'right side rest never starts position animation');
   }
 
   {
@@ -617,18 +618,13 @@ async function run() {
       windows: [target],
       autoAnimate: false
     });
-    const endPromise = (async () => {
-      harness.controller.startDrag({ x: 200, y: 150 });
-      return harness.controller.endDrag({ x: 100, y: 250 });
-    })();
-    await Promise.resolve();
-    await Promise.resolve();
-    assert.ok(harness.clock.pending().frames > 0, 'climb owns an animation frame');
+    harness.controller.startDrag({ x: 200, y: 150 });
+    await harness.controller.endDrag({ x: 100, y: 250 });
+    assert.deepStrictEqual(harness.clock.pending(), { frames: 0, timeouts: 0, intervals: 1 });
     harness.behavior.walkTimer = harness.clock.setInterval(() => {}, 16);
     harness.behavior.behaviorTimer = harness.clock.setTimeout(() => {}, 5000);
     harness.controller.dispose();
     assert.deepStrictEqual(harness.clock.pending(), { frames: 0, timeouts: 0, intervals: 0 });
-    void endPromise;
   }
 
   {

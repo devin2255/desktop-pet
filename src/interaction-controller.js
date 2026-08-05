@@ -13,7 +13,7 @@ const INTERACTIVE_STATES = new Set([
   'dragging', 'climbing', 'perched', 'hanging',
   'falling', 'impact', 'recovering'
 ]);
-const ATTACHED_STATES = new Set(['perched', 'hanging']);
+const ATTACHED_STATES = new Set(['climbing', 'perched', 'hanging']);
 const FALLBACK_ACTIONS = {
   drag: 'walk',
   climb: 'walk',
@@ -77,11 +77,6 @@ function createInteractionController(dependencies) {
     : 100;
   const edgeGap = Number.isFinite(dependencies.edgeGap) ? dependencies.edgeGap : 14;
   const bottomOffset = Number.isFinite(dependencies.bottomOffset) ? dependencies.bottomOffset : 6;
-  const climbHoldMs = Number.isFinite(dependencies.climbHoldMs) ? dependencies.climbHoldMs : 3000;
-  const climbPxPerSecond = Number.isFinite(dependencies.climbPxPerSecond) ? dependencies.climbPxPerSecond : 55;
-  const minClimbDurationMs = Number.isFinite(dependencies.minClimbDurationMs)
-    ? dependencies.minClimbDurationMs
-    : 2800;
   const dragFacingThresholdPx = Number.isFinite(dependencies.dragFacingThresholdPx)
     ? dependencies.dragFacingThresholdPx
     : 4;
@@ -102,7 +97,6 @@ function createInteractionController(dependencies) {
   let frameTimer;
   let animationTimer;
   let perchedIdleTimer;
-  let cancelAnimation;
   let generation = 0;
   let disposed = false;
 
@@ -148,23 +142,6 @@ function createInteractionController(dependencies) {
     if (next === 'normal') resumeBehavior();
   }
 
-  function wait(ms, isCurrent) {
-    if (ms <= 0) return Promise.resolve();
-    return new Promise((resolve) => {
-      animationTimer = setTimeoutFn(() => {
-        animationTimer = undefined;
-        if (!isCurrent()) return resolve();
-        resolve();
-      }, ms);
-    });
-  }
-
-  function climbDurationMs(from, to) {
-    const distance = Math.hypot(to.x - from.x, to.y - from.y);
-    const travelMs = climbPxPerSecond > 0 ? (distance / climbPxPerSecond) * 1000 : minClimbDurationMs;
-    return Math.max(minClimbDurationMs, Math.round(travelMs));
-  }
-
   function clearAttachmentPolling() {
     if (attachmentTimer !== undefined) clearIntervalFn(attachmentTimer);
     attachmentTimer = undefined;
@@ -182,11 +159,6 @@ function createInteractionController(dependencies) {
     if (animationTimer !== undefined) clearTimeoutFn(animationTimer);
     animationTimer = undefined;
     clearPerchedIdle();
-    if (cancelAnimation) {
-      const cancel = cancelAnimation;
-      cancelAnimation = undefined;
-      cancel();
-    }
   }
 
   function pickWeighted(choices) {
@@ -345,67 +317,10 @@ function createInteractionController(dependencies) {
     if (nextState === 'perched') schedulePerchedIdle(900);
   }
 
-  function defaultAnimatePosition({ from, to, duration, setPosition: update, isCurrent }) {
-    if (duration <= 0) {
-      update(to);
-      return Promise.resolve();
-    }
-    const startedAt = now();
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        if (cancelAnimation === finish) cancelAnimation = undefined;
-        resolve();
-      };
-      cancelAnimation = finish;
-      const tick = (timestamp) => {
-        frameTimer = undefined;
-        if (!isCurrent()) return finish();
-        const elapsed = Math.max(0, (Number.isFinite(timestamp) ? timestamp : now()) - startedAt);
-        const progress = Math.min(1, elapsed / duration);
-        update({
-          x: from.x + (to.x - from.x) * progress,
-          y: from.y + (to.y - from.y) * progress
-        });
-        if (progress >= 1) return finish();
-        frameTimer = scheduleFrame(tick);
-      };
-      frameTimer = scheduleFrame(tick);
-    });
-  }
-
-  const animatePosition = dependencies.animatePosition || defaultAnimatePosition;
-
-  async function climbToTop(target, pointer, edge, token) {
+  function restOnSide(target, pointer, edge) {
     const sideOffset = pointer.y - target.bounds.y;
-    const topOffset = pointer.x - target.bounds.x;
-    // Face into the window while clinging to the side edge.
     const clingFacing = edge === 'right' ? 'left' : 'right';
     attach(target, edge, sideOffset, 'climb', 'climbing', { facing: clingFacing });
-    const stillClimbing = () => !disposed && generation === token && currentState === 'climbing';
-    await wait(climbHoldMs, stillClimbing);
-    if (!stillClimbing()) return;
-
-    const liveTarget = attachment?.id === String(target.id)
-      ? { id: target.id, bounds: { ...attachment.bounds } }
-      : target;
-    const fromBounds = petWindow.getBounds();
-    const from = { x: fromBounds.x, y: fromBounds.y };
-    const to = attachmentPosition(liveTarget, 'top', topOffset, 'perch');
-    clearAttachmentPolling();
-    attachment = undefined;
-    emitRole('climb', { facing: clingFacing });
-    await animatePosition({
-      from,
-      to,
-      duration: climbDurationMs(from, to),
-      setPosition,
-      isCurrent: stillClimbing
-    });
-    if (!stillClimbing()) return;
-    attach(liveTarget, 'top', topOffset, 'perch', 'perched');
   }
 
   function finishFall(display, token) {
@@ -535,7 +450,7 @@ function createInteractionController(dependencies) {
     if (target) {
       const edge = classifyWindowEdge(pointer, target.bounds, edgeThreshold);
       if (edge === 'left' || edge === 'right') {
-        await climbToTop(target, pointer, edge, token);
+        restOnSide(target, pointer, edge);
         return true;
       }
       if (edge === 'top') {
