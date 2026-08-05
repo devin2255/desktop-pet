@@ -86,6 +86,11 @@ assert.ok(
 );
 assert.strictEqual(manifest.animations['perch-milk-tea'].frames.length, 6);
 assert.strictEqual(manifest.animations['perch-milk-tea'].loop, true);
+assert.deepStrictEqual(
+  manifest.animations['perch-milk-tea'].durations,
+  [600, 650, 850, 650, 650, 600]
+);
+assert.strictEqual(manifest.animations['perch-milk-tea'].holdLastFrame, false);
 
 assert.ok(manifest.animations['climb-peek'], 'climb-peek animation required');
 assert.strictEqual(manifest.interactionActions?.climb?.action, 'climb-peek');
