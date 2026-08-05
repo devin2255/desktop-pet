@@ -72,6 +72,19 @@ assert.throws(
   }), '', false)
 );
 
+for (const [field, value] of [
+  ['speech', '不支持'],
+  ['speechAudio', 'audio/not-supported.mp3']
+]) {
+  assert.throws(
+    () => validateManifest(baseManifest({
+      contextMenuActions: [{ id: 'relax', label: '去放松', sequence: 'relax', [field]: value }]
+    }), '', false),
+    undefined,
+    `sequence context menu entries must reject ${field}`
+  );
+}
+
 assert.throws(
   () => validateManifest(baseManifest({
     sequences: {
@@ -95,7 +108,14 @@ assert.throws(
 );
 
 assert.doesNotThrow(() => validateManifest(baseManifest({
-  contextMenuActions: [{ id: 'react', label: '互动', action: 'reaction', message: '你好' }]
+  contextMenuActions: [{
+    id: 'react',
+    label: '互动',
+    action: 'reaction',
+    message: '你好',
+    speech: '你好',
+    speechAudio: 'audio/hello.mp3'
+  }]
 }), '', false));
 
 console.log('test-sequences-schema: ok');

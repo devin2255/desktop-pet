@@ -227,6 +227,9 @@ function validateManifest(manifest, root = '', requireFiles = false) {
         }
         if (item.message !== undefined) throw new Error('引用 sequence 的右键动作不能包含 message');
         if (item.duration !== undefined) throw new Error('引用 sequence 的右键动作不能包含 duration');
+        if (item.speech !== undefined || item.speechAudio !== undefined) {
+          throw new Error('引用 sequence 的右键动作不能包含 speech 或 speechAudio');
+        }
       } else {
         if (typeof item.action !== 'string' || !manifest.animations[item.action]) throw new Error('右键动作引用了不存在的动画：' + item.action);
         if (!validatedAnimations.has(item.action)) {

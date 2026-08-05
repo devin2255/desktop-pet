@@ -223,6 +223,8 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                     raise ValueError("contextMenuActions sequence entry must not include message")
                 if "duration" in item:
                     raise ValueError("contextMenuActions sequence entry must not include duration")
+                if "speech" in item or "speechAudio" in item:
+                    raise ValueError("contextMenuActions sequence entry must not include speech or speechAudio")
             else:
                 action = item.get("action")
                 if not isinstance(action, str) or action not in animations:

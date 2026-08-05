@@ -105,6 +105,6 @@ Example:
 - **Single action:** `{ "id": "react", "label": "互动", "action": "reaction", "message": "你好", "duration": 2000 }`
 - **Sequence:** `{ "id": "relax", "label": "去放松", "sequence": "relax" }`
 
-When using `sequence`, do not include `action`, `message`, or `duration`; dialogue and timing live in the sequence stages. `speech` and `speechAudio` remain optional on either entry type.
+When using `sequence`, do not include `action`, `message`, `duration`, `speech`, or `speechAudio`; all dialogue and timing live in the sequence stages. `speech` and `speechAudio` remain optional only on direct `action` entries.
 
 All exported frames must use the same transparent canvas size and baseline. Normalize visual scale across all actions, not merely within each action strip, so switching poses does not make the pet jump in size.

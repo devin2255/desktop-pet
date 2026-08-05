@@ -133,6 +133,26 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
         manifest["contextMenuActions"] = [{"id": "relax", "label": "去放松", "sequence": "missing"}]
         with self.assertRaisesRegex(ValueError, "unknown sequence"):
             petpack_tool.validate_manifest_shape(manifest)
+        for field, value in (
+            ("speech", "not supported"),
+            ("speechAudio", "audio/not-supported.mp3"),
+        ):
+            with self.subTest(field=field):
+                manifest["contextMenuActions"] = [
+                    {"id": "relax", "label": "去放松", "sequence": "relax", field: value}
+                ]
+                with self.assertRaisesRegex(ValueError, "sequence.*speech"):
+                    petpack_tool.validate_manifest_shape(manifest)
+        manifest["contextMenuActions"] = [
+            {
+                "id": "react",
+                "label": "互动",
+                "action": "reaction",
+                "speech": "hello",
+                "speechAudio": "audio/hello.mp3",
+            }
+        ]
+        petpack_tool.validate_manifest_shape(manifest)
 
 
 if __name__ == "__main__":
