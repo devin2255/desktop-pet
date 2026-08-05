@@ -26,6 +26,8 @@ Manifest fields:
 - `animations`: required object keyed by action.
 - `behavior.random`: weighted state definitions used by the player.
 - `interactionActions`: optional object that maps window-interaction roles to animation actions.
+- `sequences`: optional object keyed by sequence id; each value defines a multi-stage scripted interaction.
+- `contextMenuActions`: optional array of menu entries. Each entry must contain exactly one of `action` (single animation) or `sequence` (reference to `sequences`).
 
 Each animation contains:
 
@@ -63,5 +65,46 @@ Standard action counts are idle 4, walk 6, sit 4, sleep 4, and reaction 4. The p
 `anchor` is the attachment point inside the pet's visible bounds: `x: 0` is the left edge and `x: 1` the right edge; `y: 0` is the top edge and `y: 1` the bottom edge. Both coordinates are finite numbers in the inclusive range `0..1`. Omit `anchor` to use the player's default attachment point.
 
 The archive must contain only the manifest, preview, and referenced assets. Every PNG must have an alpha channel, non-empty visible pixels, transparent corners, and no material green-screen residue.
+
+## Sequences
+
+`sequences` is optional. When present it must be an object with at most 8 entries. Keys must match `^[a-z0-9][a-z0-9-]{1,31}$`.
+
+Each sequence contains a required `stages` array with 2 to 16 stage objects. Every stage requires an `action` that names an animation in `animations`. Optional fields:
+
+| Field | Type | Constraints |
+| --- | --- | --- |
+| `message` | string | up to 80 characters |
+| `messages` | string array | 1 to 4 entries, each up to 80 characters |
+| `messageGapMs` | integer | 0 to 5000 |
+| `duration` | integer | 0 to 10000 milliseconds; may be omitted when `waitForClick` is true |
+| `waitForClick` | boolean | pause until the user clicks before advancing |
+
+Stages may omit both `message` and `messages`. Referenced stage actions receive the same structural animation validation as other manifest actions.
+
+Example:
+
+```json
+{
+  "sequences": {
+    "relax": {
+      "stages": [
+        { "action": "relax-a", "message": "先弄好看一点～", "duration": 2800 },
+        { "action": "relax-b", "messages": ["我要这个", "我要这个"], "messageGapMs": 700, "waitForClick": true },
+        { "action": "idle", "duration": 0 }
+      ]
+    }
+  }
+}
+```
+
+## Context menu actions
+
+`contextMenuActions` may contain at most 8 entries. Each entry requires `id`, `label`, and exactly one trigger:
+
+- **Single action:** `{ "id": "react", "label": "互动", "action": "reaction", "message": "你好", "duration": 2000 }`
+- **Sequence:** `{ "id": "relax", "label": "去放松", "sequence": "relax" }`
+
+When using `sequence`, do not include `action`, `message`, or `duration`; dialogue and timing live in the sequence stages. `speech` and `speechAudio` remain optional on either entry type.
 
 All exported frames must use the same transparent canvas size and baseline. Normalize visual scale across all actions, not merely within each action strip, so switching poses does not make the pet jump in size.

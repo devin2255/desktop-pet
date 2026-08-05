@@ -21,6 +21,8 @@ MAX_SINGLE_FILE_BYTES = 50 * 1024 * 1024
 MAX_MANIFEST_BYTES = 1024 * 1024
 MAX_IMAGE_DIMENSION = 4096
 MAX_IMAGE_PIXELS = 16 * 1024 * 1024
+SEQUENCE_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{1,31}")
+MAX_SEQUENCES = 8
 
 
 def safe_relative(value: str) -> Path:
@@ -150,6 +152,50 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 ):
                     raise ValueError("interactionActions anchor must be within 0..1")
 
+    sequences = manifest.get("sequences")
+    if sequences is not None:
+        if not isinstance(sequences, dict):
+            raise ValueError("sequences must be an object")
+        if len(sequences) > MAX_SEQUENCES:
+            raise ValueError(f"sequences must contain at most {MAX_SEQUENCES} entries")
+        seen_sequence_ids: set[str] = set()
+        for sequence_id, sequence in sequences.items():
+            if not isinstance(sequence_id, str) or not SEQUENCE_ID_PATTERN.fullmatch(sequence_id) or sequence_id in seen_sequence_ids:
+                raise ValueError("sequences key is invalid or duplicated")
+            seen_sequence_ids.add(sequence_id)
+            if not isinstance(sequence, dict):
+                raise ValueError(f"sequences.{sequence_id} must be an object")
+            stages = sequence.get("stages")
+            if not isinstance(stages, list) or not 2 <= len(stages) <= 16:
+                raise ValueError(f"sequences.{sequence_id}.stages must contain 2 to 16 entries")
+            for index, stage in enumerate(stages):
+                if not isinstance(stage, dict):
+                    raise ValueError(f"sequences.{sequence_id}.stages[{index}] must be an object")
+                action = stage.get("action")
+                if not isinstance(action, str) or action not in animations:
+                    raise ValueError(f"sequences.{sequence_id}.stages[{index}] references an unknown animation")
+                if action not in validated_animations:
+                    validate_animation(action)
+                    validated_animations.add(action)
+                if "message" in stage and (not isinstance(stage["message"], str) or len(stage["message"]) > 80):
+                    raise ValueError(f"sequences.{sequence_id}.stages[{index}].message must be a string up to 80 characters")
+                if "messages" in stage:
+                    messages = stage["messages"]
+                    if not isinstance(messages, list) or not 1 <= len(messages) <= 4:
+                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].messages must contain 1 to 4 strings")
+                    if any(not isinstance(value, str) or len(value) > 80 for value in messages):
+                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].messages entries must be strings up to 80 characters")
+                if "messageGapMs" in stage:
+                    gap = stage["messageGapMs"]
+                    if not isinstance(gap, int) or isinstance(gap, bool) or not 0 <= gap <= 5000:
+                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].messageGapMs must be an integer from 0 to 5000")
+                if "duration" in stage:
+                    duration = stage["duration"]
+                    if not isinstance(duration, int) or isinstance(duration, bool) or not 0 <= duration <= 10000:
+                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].duration must be an integer from 0 to 10000")
+                if "waitForClick" in stage and not isinstance(stage["waitForClick"], bool):
+                    raise ValueError(f"sequences.{sequence_id}.stages[{index}].waitForClick must be a boolean")
+
     context_menu_actions = manifest.get("contextMenuActions")
     if context_menu_actions is not None:
         if not isinstance(context_menu_actions, list) or len(context_menu_actions) > 8:
@@ -159,20 +205,37 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
             if not isinstance(item, dict):
                 raise ValueError("contextMenuActions entries must be objects")
             item_id = item.get("id")
-            if not isinstance(item_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,31}", item_id) or item_id in action_ids:
+            if not isinstance(item_id, str) or not SEQUENCE_ID_PATTERN.fullmatch(item_id) or item_id in action_ids:
                 raise ValueError("contextMenuActions id is invalid or duplicated")
             action_ids.add(item_id)
             label = item.get("label")
             if not isinstance(label, str) or not label.strip() or len(label) > 24:
                 raise ValueError("contextMenuActions label must be 1 to 24 characters")
-            action = item.get("action")
-            if not isinstance(action, str) or action not in animations:
-                raise ValueError("contextMenuActions references an unknown animation")
-            if action not in validated_animations:
-                validate_animation(action)
-                validated_animations.add(action)
-            if "message" in item and (not isinstance(item["message"], str) or len(item["message"]) > 80):
-                raise ValueError("contextMenuActions message must be a string up to 80 characters")
+            has_action = "action" in item
+            has_sequence = "sequence" in item
+            if has_action == has_sequence:
+                raise ValueError("contextMenuActions entry must contain exactly one of action or sequence")
+            if has_sequence:
+                sequence_id = item.get("sequence")
+                if not isinstance(sequence_id, str) or not isinstance(sequences, dict) or sequence_id not in sequences:
+                    raise ValueError("contextMenuActions references an unknown sequence")
+                if "message" in item:
+                    raise ValueError("contextMenuActions sequence entry must not include message")
+                if "duration" in item:
+                    raise ValueError("contextMenuActions sequence entry must not include duration")
+            else:
+                action = item.get("action")
+                if not isinstance(action, str) or action not in animations:
+                    raise ValueError("contextMenuActions references an unknown animation")
+                if action not in validated_animations:
+                    validate_animation(action)
+                    validated_animations.add(action)
+                if "message" in item and (not isinstance(item["message"], str) or len(item["message"]) > 80):
+                    raise ValueError("contextMenuActions message must be a string up to 80 characters")
+                if "duration" in item:
+                    duration = item["duration"]
+                    if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000:
+                        raise ValueError("contextMenuActions duration must be an integer from 600 to 10000")
             if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
                 raise ValueError("contextMenuActions speech must be a string up to 20 characters")
             if "speechAudio" in item:
@@ -182,10 +245,6 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 audio_path = safe_relative(audio)
                 if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
                     raise ValueError("contextMenuActions speechAudio must be mp3/wav/ogg")
-            if "duration" in item:
-                duration = item["duration"]
-                if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000:
-                    raise ValueError("contextMenuActions duration must be an integer from 600 to 10000")
 
     def validate_behavior_list(behavior: object, label: str) -> None:
         if not isinstance(behavior, list) or not 1 <= len(behavior) <= 20:

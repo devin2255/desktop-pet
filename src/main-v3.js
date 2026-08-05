@@ -16,6 +16,7 @@ const {
 } = require('./interaction-controller');
 const { createTopmostGuard } = require('./topmost-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
+const { createSequenceController } = require('./sequence-controller');
 const {
   app,
   BrowserWindow,
@@ -62,6 +63,7 @@ let topmostGuard;
 let quitting = false;
 let mouseThrough = false;
 let deliveryConfig;
+let sequence;
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');
@@ -116,17 +118,22 @@ function publicManifest(manifest) {
     animations,
     interactionActions: manifest.interactionActions || {},
     contextMenuActions: Array.isArray(manifest.contextMenuActions)
-      ? manifest.contextMenuActions.map((item) => ({
-        id: item.id,
-        label: item.label.trim(),
-        action: item.action,
-        message: typeof item.message === 'string' ? item.message : '',
-        speech: typeof item.speech === 'string' ? item.speech : '',
-        speechAudio: typeof item.speechAudio === 'string' && item.speechAudio
-          ? petAssetUrl(manifest.id, item.speechAudio)
-          : '',
-        duration: Number.isInteger(item.duration) ? item.duration : 3000
-      }))
+      ? manifest.contextMenuActions.map((item) => {
+        const base = { id: item.id, label: item.label.trim() };
+        if (item.sequence) {
+          return { ...base, sequence: item.sequence };
+        }
+        return {
+          ...base,
+          action: item.action,
+          message: typeof item.message === 'string' ? item.message : '',
+          speech: typeof item.speech === 'string' ? item.speech : '',
+          speechAudio: typeof item.speechAudio === 'string' && item.speechAudio
+            ? petAssetUrl(manifest.id, item.speechAudio)
+            : '',
+          duration: Number.isInteger(item.duration) ? item.duration : 3000
+        };
+      })
       : []
   };
 }
@@ -259,7 +266,17 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
   if (speechAudio && !speechAudio.startsWith('pet-asset:') && activeManifest) {
     speechAudio = petAssetUrl(activeManifest.id, speechAudio);
   }
-  petWindow.webContents.send('pet:state', { state, logicalRole, message, speech, speechAudio });
+  const messages = Array.isArray(options?.messages) ? options.messages : undefined;
+  const messageGapMs = Number.isFinite(options?.messageGapMs) ? options.messageGapMs : undefined;
+  petWindow.webContents.send('pet:state', {
+    state,
+    logicalRole,
+    message,
+    speech,
+    speechAudio,
+    messages,
+    messageGapMs
+  });
 }
 
 function setMouseThrough(ignore) {
@@ -395,6 +412,7 @@ function updateTrayIcon() {
 function switchPet(id) {
   const next = listPets().find((pet) => pet.id === id);
   if (!next) return false;
+  sequence?.cancel();
   activeManifest = next;
   settings.petId = next.id;
   saveSettings();
@@ -414,9 +432,24 @@ function showPet() {
   scheduleBehavior(3000);
 }
 
+function hidePet() {
+  sequence?.cancel();
+  petWindow?.hide();
+}
+
 function runContextMenuAction(item) {
-  if (!activeManifest || !item || !activeManifest.animations[item.action]
-    || (interaction && interaction.state() !== 'normal')) return;
+  if (!activeManifest || !item || (interaction && interaction.state() !== 'normal')) return;
+  if (sequence?.isActive()) {
+    sequence.cancel({ schedule: false });
+  }
+  if (item.sequence) {
+    pauseBehavior();
+    if (!sequence.start(item.sequence)) {
+      scheduleBehavior(900);
+    }
+    return;
+  }
+  if (!activeManifest.animations[item.action]) return;
   pauseBehavior();
   sendState(item.action, item.message || '', item.speech || '');
   const duration = Number.isInteger(item.duration) ? item.duration : 3000;
@@ -465,7 +498,10 @@ function buildTrayMenu() {
       click: (item) => topmostGuard?.setEnabled(item.checked)
     },
     { label: '开机自动启动', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }) },
-    { type: 'separator' }, { label: '暂时藏起来', click: () => petWindow?.hide() },
+    { type: 'separator' }, {
+      label: '暂时藏起来',
+      click: hidePet
+    },
     {
       label: `退出${deliveryConfig?.appName || '桌宠播放器'}`,
       click: () => {
@@ -482,7 +518,7 @@ function createTray() {
   const preview = resolveInside(activeManifest.__root, activeManifest.preview);
   tray = new Tray(nativeImage.createFromPath(preview).resize({ width: 32, height: 32 }));
   updateTrayIcon(); tray.setContextMenu(buildTrayMenu());
-  tray.on('click', () => petWindow?.isVisible() ? petWindow.hide() : showPet());
+  tray.on('click', () => petWindow?.isVisible() ? hidePet() : showPet());
 }
 
 function createWindow() {
@@ -549,7 +585,7 @@ function createWindow() {
     scheduleBehavior(3600);
   });
   petWindow.on('close', (event) => {
-    if (!quitting) { event.preventDefault(); petWindow.hide(); }
+    if (!quitting) { event.preventDefault(); hidePet(); }
   });
 }
 
@@ -587,6 +623,7 @@ handleTrusted('pet:import', () => {
 });
 onTrusted('pet:drag-start', (pointer) => {
   if (!interaction || !validPointer(pointer)) return;
+  if (sequence?.isActive()) sequence.cancel({ schedule: false });
   setMouseThrough(false);
   interaction.startDrag(pointer);
 });
@@ -608,6 +645,11 @@ onTrusted('pet:set-mouse-through', (ignore) => {
 });
 onTrusted('pet:interact', () => {
   if (interaction && interaction.state() !== 'normal') return;
+  if (sequence?.isWaitingForClick()) {
+    sequence.continueFromClick();
+    return;
+  }
+  if (sequence?.isActive()) return;
   pauseBehavior();
   sendState('reaction', '不要丢下我呀 ♥');
   scheduleBehavior(3400);
@@ -673,6 +715,14 @@ if (!gotLock) {
     settings.petId = activeManifest.id;
     saveSettings();
     createWindow();
+    sequence = createSequenceController({
+      getManifest: () => activeManifest,
+      sendState: (action, message, speech, extras) => {
+        sendState(action, message, speech, action, extras || {});
+      },
+      pauseBehavior,
+      scheduleBehavior
+    });
     createTray();
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);
@@ -683,5 +733,6 @@ if (!gotLock) {
 app.on('before-quit', () => {
   quitting = true;
   interaction?.dispose();
+  sequence?.dispose();
   pauseBehavior();
 });

@@ -174,6 +174,7 @@ function buildCustomer(options) {
         'src/window-discovery.js',
         'src/interaction-controller.js',
         'src/topmost-guard.js',
+        'src/sequence-controller.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

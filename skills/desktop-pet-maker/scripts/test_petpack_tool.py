@@ -92,6 +92,48 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
         }
         petpack_tool.validate_manifest_shape(manifest)
 
+    def test_sequences_and_context_menu_sequence_validation(self) -> None:
+        def make_animation(action: str, frame_count: int, loop: bool = False) -> dict:
+            frames = [f"animations/{action}/{index:02d}.png" for index in range(1, frame_count + 1)]
+            return {"frames": frames, "durations": [100] * frame_count, "loop": loop, "scale": 1}
+
+        manifest = {
+            "schemaVersion": 1,
+            "id": "demo-seq",
+            "name": "Demo",
+            "personality": ["x"],
+            "preview": "preview.png",
+            "animations": {
+                "idle": make_animation("idle", 4, True),
+                "walk": make_animation("walk", 6, True),
+                "sit": make_animation("sit", 4),
+                "sleep": make_animation("sleep", 4, True),
+                "reaction": make_animation("reaction", 4),
+                "relax-a": make_animation("relax-a", 1),
+                "relax-b": make_animation("relax-b", 1),
+            },
+            "behavior": {"random": [{"state": "walk", "weight": 1, "minDuration": 1000, "maxDuration": 2000}]},
+            "sequences": {
+                "relax": {
+                    "stages": [
+                        {"action": "relax-a", "message": "hi", "duration": 1000},
+                        {"action": "relax-b", "messages": ["我要这个", "我要这个"], "waitForClick": True},
+                        {"action": "idle", "duration": 0},
+                    ]
+                }
+            },
+            "contextMenuActions": [{"id": "relax", "label": "去放松", "sequence": "relax"}],
+        }
+        petpack_tool.validate_manifest_shape(manifest)
+        manifest["contextMenuActions"] = [
+            {"id": "relax", "label": "去放松", "action": "reaction", "sequence": "relax"}
+        ]
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            petpack_tool.validate_manifest_shape(manifest)
+        manifest["contextMenuActions"] = [{"id": "relax", "label": "去放松", "sequence": "missing"}]
+        with self.assertRaisesRegex(ValueError, "unknown sequence"):
+            petpack_tool.validate_manifest_shape(manifest)
+
 
 if __name__ == "__main__":
     unittest.main()

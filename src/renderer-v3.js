@@ -6,6 +6,7 @@ const hearts = document.getElementById('hearts');
 let manifest;
 let pointerDown;
 let bubbleTimer;
+let bubbleStaggerTimers = [];
 let animationTimer;
 let animationToken = 0;
 let pendingState = { state: 'idle', message: '' };
@@ -87,8 +88,15 @@ function playAnimation(state, logicalRole) {
   showNext();
 }
 
-function showBubble(message, duration = 2200) {
+function clearBubbleTimers() {
   clearTimeout(bubbleTimer);
+  bubbleTimer = undefined;
+  for (const timerId of bubbleStaggerTimers) clearTimeout(timerId);
+  bubbleStaggerTimers = [];
+}
+
+function showBubble(message, duration = 2200) {
+  clearBubbleTimers();
   bubble.textContent = message;
   bubble.classList.add('visible');
   // Re-measure after text/layout so the bubble sits just above the visible head.
@@ -97,6 +105,29 @@ function showBubble(message, duration = 2200) {
     if (lastVisibleInsets) positionBubble(lastVisibleInsets);
   });
   bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), duration);
+}
+
+function showStaggeredMessages(messages, gapMs = 700, bubbleMs = 2400) {
+  clearBubbleTimers();
+  if (!messages.length) return;
+  bubble.classList.add('visible');
+  bubble.textContent = messages[0];
+  if (lastVisibleInsets) positionBubble(lastVisibleInsets);
+  requestAnimationFrame(() => {
+    if (lastVisibleInsets) positionBubble(lastVisibleInsets);
+  });
+  for (let index = 1; index < messages.length; index += 1) {
+    const timerId = setTimeout(() => {
+      bubble.textContent = messages[index];
+      if (lastVisibleInsets) positionBubble(lastVisibleInsets);
+      requestAnimationFrame(() => {
+        if (lastVisibleInsets) positionBubble(lastVisibleInsets);
+      });
+    }, index * gapMs);
+    bubbleStaggerTimers.push(timerId);
+  }
+  const totalMs = (messages.length - 1) * gapMs + bubbleMs;
+  bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), totalMs);
 }
 
 const MALE_VOICE_RE = /kang|yunyang|yunxi|yunjian|yunfeng|dongni|male|男|kangkang/i;
@@ -186,18 +217,23 @@ function speak(text, audioUrl = '') {
   setTimeout(retry, 250);
 }
 
-function setState(state, message = '', speech = '', logicalRole, speechAudio = '') {
-  pendingState = { state, message, speech, logicalRole, speechAudio };
+function setState(state, message = '', speech = '', logicalRole, speechAudio = '', messages, messageGapMs) {
+  pendingState = { state, message, speech, logicalRole, speechAudio, messages, messageGapMs };
   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
   if (!manifest) return;
   playAnimation(state, logicalRole);
-  if (message) {
-    const bubbleMs = state === 'sleep'
-      ? 4200
-      : baseActionName(state).startsWith('perch-')
-        ? 4800
-        : 2400;
+  const bubbleMs = state === 'sleep'
+    ? 4200
+    : baseActionName(state).startsWith('perch-')
+      ? 4800
+      : 2400;
+  if (Array.isArray(messages) && messages.length) {
+    showStaggeredMessages(messages, Number.isFinite(messageGapMs) ? messageGapMs : 700, bubbleMs);
+  } else if (message) {
     showBubble(message, bubbleMs);
+  } else {
+    clearBubbleTimers();
+    bubble.classList.remove('visible');
   }
   const audio = speechAudio || resolveSpeechAudio(state);
   if (speech || audio) speak(speech, audio);
@@ -214,7 +250,9 @@ function loadPet(nextManifest) {
     pendingState.message || '',
     pendingState.speech || '',
     pendingState.logicalRole,
-    pendingState.speechAudio || ''
+    pendingState.speechAudio || '',
+    pendingState.messages,
+    pendingState.messageGapMs
   );
 }
 
@@ -381,6 +419,6 @@ pet.addEventListener('contextmenu', (event) => {
 });
 
 window.petApi.onLoad(loadPet);
-window.petApi.onState(({ state, message, speech, logicalRole, speechAudio }) =>
-  setState(state, message, speech, logicalRole, speechAudio || ''));
+window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, messages, messageGapMs }) =>
+  setState(state, message, speech, logicalRole, speechAudio || '', messages, messageGapMs));
 window.petApi.getCurrentPet().then(loadPet);

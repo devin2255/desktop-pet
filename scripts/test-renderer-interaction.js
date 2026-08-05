@@ -77,6 +77,8 @@ const canvasContext = {
 const canvas = { width: 0, height: 0, getContext: () => canvasContext };
 
 const rafCallbacks = [];
+const timeoutQueue = [];
+let timeoutId = 0;
 const context = {
   console,
   Uint8ClampedArray,
@@ -89,8 +91,15 @@ const context = {
     this.pause = () => {};
     this.play = () => Promise.resolve();
   },
-  setTimeout: () => 1,
-  clearTimeout: () => {},
+  setTimeout: (callback, delay = 0) => {
+    const id = ++timeoutId;
+    timeoutQueue.push({ id, callback, delay, remaining: delay });
+    return id;
+  },
+  clearTimeout: (id) => {
+    const index = timeoutQueue.findIndex((entry) => entry.id === id);
+    if (index >= 0) timeoutQueue.splice(index, 1);
+  },
   requestAnimationFrame: (callback) => {
     rafCallbacks.push(callback);
     return rafCallbacks.length;
@@ -148,6 +157,19 @@ const manifest = {
   ]
 };
 loadCallback(manifest);
+
+function runTimers(ms) {
+  let elapsed = 0;
+  while (elapsed < ms && timeoutQueue.length) {
+    const nextDelay = Math.min(...timeoutQueue.map((entry) => entry.remaining));
+    const step = Math.min(nextDelay, ms - elapsed);
+    elapsed += step;
+    for (const entry of timeoutQueue) entry.remaining -= step;
+    const due = timeoutQueue.filter((entry) => entry.remaining <= 0);
+    timeoutQueue.splice(0, timeoutQueue.length, ...timeoutQueue.filter((entry) => entry.remaining > 0));
+    for (const entry of due) entry.callback();
+  }
+}
 
 function pointer(name, x, y, pointerId = 1) {
   pet.listeners.get(name)({ button: 0, screenX: x, screenY: y, pointerId });
@@ -254,5 +276,20 @@ alphaBounds = { left: 30, top: 60, right: 419, bottom: 479 };
 windowListeners.get('mousemove')({ clientX: 1, clientY: 1 });
 windowListeners.get('mousemove')({ clientX: 80, clientY: 80 });
 assert.deepStrictEqual(calls.through.slice(-2), [true, false], 'transparent pixels should pass clicks through, visible pixels should not');
+
+stateCallback({
+  state: 'reaction',
+  message: '',
+  messages: ['第一句', '第二句'],
+  messageGapMs: 50
+});
+assert.strictEqual(bubble.textContent, '第一句', 'staggered messages should show the first line immediately');
+runTimers(49);
+assert.strictEqual(bubble.textContent, '第一句', 'staggered messages should wait for the gap before switching');
+runTimers(1);
+assert.strictEqual(bubble.textContent, '第二句', 'staggered messages should advance to the next line after messageGapMs');
+
+stateCallback({ state: 'idle', message: '' });
+assert.strictEqual(bubble.classList.contains('visible'), false, 'empty state should hide the bubble and clear stagger timers');
 
 console.log('renderer interaction regression checks passed');

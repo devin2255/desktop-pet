@@ -263,6 +263,33 @@ async function run() {
     assert.strictEqual(harness.climbs.length, 0, 'right side rest never starts position animation');
   }
 
+  for (const lossMode of ['disappeared', 'minimized']) {
+    const sideTarget = { id: `side-target-${lossMode}`, bounds: { ...target.bounds } };
+    const harness = createHarness({ windows: [sideTarget] });
+    await dragAndEnd(harness, { x: 100, y: 250 });
+    assert.strictEqual(harness.controller.state(), 'climbing', 'pet starts attached to the window side');
+    assert.strictEqual(harness.clock.pending().intervals, 1, 'side attachment starts target polling');
+    if (lossMode === 'minimized') sideTarget.minimized = true;
+    else harness.discovery.windows = [];
+    await harness.clock.tickIntervals();
+    assert.strictEqual(harness.controller.state(), 'falling', `${lossMode} side target uses the attachment fall path`);
+    assert.deepStrictEqual(harness.states.slice(-1), ['fall']);
+    assert.strictEqual(harness.clock.pending().intervals, 0, 'side target loss clears attachment polling');
+  }
+
+  {
+    const sideTarget = { id: 'side-target-redrag', bounds: { ...target.bounds } };
+    const harness = createHarness({ windows: [sideTarget] });
+    await dragAndEnd(harness, { x: 599, y: 250 });
+    assert.strictEqual(harness.controller.state(), 'climbing', 'pet starts attached to the opposite window side');
+    assert.strictEqual(harness.clock.pending().intervals, 1, 'side attachment starts target polling');
+    harness.controller.startDrag({ x: 599, y: 250 });
+    assert.strictEqual(harness.controller.state(), 'dragging', 'a new drag detaches from the side cleanly');
+    assert.deepStrictEqual(harness.states.slice(-1), ['drag-right']);
+    assert.strictEqual(harness.clock.pending().intervals, 0, 'new drag stops the old side attachment polling');
+    assert.ok(!harness.states.includes('fall'), 'manual side detachment does not trigger a fall');
+  }
+
   {
     const harness = createHarness({ windows: [target] });
     harness.controller.startDrag({ x: 200, y: 150 });
