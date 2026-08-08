@@ -21,7 +21,7 @@
     "build:boss": "node scripts/build-customer.js --pet pets/packages/boss.petpack --name \"老板桌面宠物\" --delivery-id boss"
   },
   "devDependencies": {
-    "electron": "43.2.0",
+    "electron": "43.3.0",
     "electron-builder": "26.15.3"
   },
   "build": {
