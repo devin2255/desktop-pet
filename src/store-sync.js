@@ -6,8 +6,32 @@ const AdmZip = require('adm-zip');
 const { createStoreApi } = require('./store-api');
 const { composedPetId } = require('./store-ids');
 const { composePetTo } = require('./store-compose');
+const { PET_ID_PATTERN, safeRelative, resolveInside } = require('./petpack-validator');
+
+function assertSafePackId(packId) {
+  if (!PET_ID_PATTERN.test(String(packId || ''))) {
+    throw new Error('INVALID_PACK_ID');
+  }
+}
+
+function extractPetpackSafe(packPath, unpacked) {
+  const zip = new AdmZip(packPath);
+  const entries = zip.getEntries();
+  if (entries.length > 300) throw new Error('资源包条目过多');
+  for (const entry of entries) {
+    const name = String(entry.entryName || '').replace(/\\/g, '/').replace(/\/+$/, '');
+    if (!name || entry.isDirectory) continue;
+    const parts = safeRelative(name);
+    const dest = resolveInside(unpacked, parts.join('/'));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    const data = entry.getData();
+    if (data.length > 50 * 1024 * 1024) throw new Error(`资源过大：${name}`);
+    fs.writeFileSync(dest, data);
+  }
+}
 
 async function ensurePackCached({ api, cacheRoot, packId, contentVersion }) {
+  assertSafePackId(packId);
   const dir = path.join(cacheRoot, packId);
   const metaPath = path.join(dir, 'meta.json');
   const packPath = path.join(dir, 'pack.petpack');
@@ -21,7 +45,7 @@ async function ensurePackCached({ api, cacheRoot, packId, contentVersion }) {
   fs.writeFileSync(packPath, buf);
   if (fs.existsSync(unpacked)) fs.rmSync(unpacked, { recursive: true, force: true });
   fs.mkdirSync(unpacked, { recursive: true });
-  new AdmZip(packPath).extractAllTo(unpacked, true);
+  extractPetpackSafe(packPath, unpacked);
   const commercePath = path.join(unpacked, 'petpack.json');
   if (!fs.existsSync(commercePath)) throw new Error('MISSING_PETPACK_JSON');
   const commerce = JSON.parse(fs.readFileSync(commercePath, 'utf8'));
@@ -40,43 +64,47 @@ async function syncStoreLibrary({ baseUrl, token, cacheRoot, libraryRoot, fetchI
 
   for (const pet of library.pets || []) {
     if (!pet.base?.packId) continue;
-    const baseDir = await ensurePackCached({
-      api,
-      cacheRoot,
-      packId: pet.base.packId,
-      contentVersion: pet.base.contentVersion ?? 1
-    });
-    const actionDirs = [];
-    for (const action of pet.actions || []) {
-      try {
-        actionDirs.push(
-          await ensurePackCached({
-            api,
-            cacheRoot,
-            packId: action.packId,
-            contentVersion: action.contentVersion ?? 1
-          })
-        );
-      } catch (error) {
-        console.warn('skip action', action.packId, error.message);
+    try {
+      const baseDir = await ensurePackCached({
+        api,
+        cacheRoot,
+        packId: pet.base.packId,
+        contentVersion: pet.base.contentVersion ?? 1
+      });
+      const actionDirs = [];
+      for (const action of pet.actions || []) {
+        try {
+          actionDirs.push(
+            await ensurePackCached({
+              api,
+              cacheRoot,
+              packId: action.packId,
+              contentVersion: action.contentVersion ?? 1
+            })
+          );
+        } catch (error) {
+          console.warn('skip action', action.packId, error.message);
+        }
       }
+      const id = composedPetId(pet.petInstanceId);
+      const outDir = path.join(libraryRoot, id);
+      composePetTo({
+        baseDir,
+        actionDirs,
+        composedId: id,
+        displayName: pet.displayName || id,
+        outDir
+      });
+      composed.push({
+        petInstanceId: pet.petInstanceId,
+        composedId: id,
+        displayName: pet.displayName
+      });
+    } catch (error) {
+      console.warn('skip pet', pet.petInstanceId, error.message);
     }
-    const id = composedPetId(pet.petInstanceId);
-    const outDir = path.join(libraryRoot, id);
-    composePetTo({
-      baseDir,
-      actionDirs,
-      composedId: id,
-      displayName: pet.displayName || id,
-      outDir
-    });
-    composed.push({
-      petInstanceId: pet.petInstanceId,
-      composedId: id,
-      displayName: pet.displayName
-    });
   }
   return { pets: composed };
 }
 
-module.exports = { syncStoreLibrary, ensurePackCached };
+module.exports = { syncStoreLibrary, ensurePackCached, extractPetpackSafe, assertSafePackId };
