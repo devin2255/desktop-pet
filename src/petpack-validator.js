@@ -268,6 +268,8 @@ function validatePetpack(filePath) {
   validateManifest(manifest);
   const allowed = referencedFiles(manifest);
   for (const name of files.keys()) {
+    // Dual-manifest store packs may ship commerce meta beside player pet.json.
+    if (name === 'petpack.json') continue;
     if (!allowed.has(name)) throw new Error(`资源包包含未引用文件：${name}`);
   }
   for (const relative of allowed) {
