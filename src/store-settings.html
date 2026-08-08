@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" />
+  <title>连接商城</title>
+  <style>
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      margin: 16px 18px;
+      font-size: 13px;
+      color: #222;
+    }
+    label {
+      display: block;
+      margin: 10px 0 4px;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+    }
+    .actions {
+      margin-top: 18px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    button {
+      min-width: 72px;
+      padding: 6px 12px;
+    }
+  </style>
+</head>
+<body>
+  <label for="baseUrl">商城地址</label>
+  <input id="baseUrl" type="url" autocomplete="off" />
+
+  <label for="token">设备 Token</label>
+  <input id="token" type="password" autocomplete="off" />
+
+  <div class="actions">
+    <button type="button" id="cancel">取消</button>
+    <button type="button" id="save">保存</button>
+  </div>
+
+  <script>
+    const baseUrl = document.getElementById('baseUrl');
+    const token = document.getElementById('token');
+
+    window.storeSettings.get().then((settings) => {
+      baseUrl.value = settings.storeBaseUrl || '';
+      token.value = settings.clientToken || '';
+    });
+
+    document.getElementById('save').addEventListener('click', async () => {
+      await window.storeSettings.save({
+        storeBaseUrl: baseUrl.value,
+        clientToken: token.value
+      });
+    });
+
+    document.getElementById('cancel').addEventListener('click', () => {
+      window.close();
+    });
+  </script>
+</body>
+</html>
