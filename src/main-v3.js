@@ -498,15 +498,13 @@ function buildTrayMenu() {
             }
             const cacheRoot = path.join(app.getPath('userData'), 'store-cache');
             const result = await syncStoreLibrary({
-              baseUrl: settings.storeBaseUrl,
+              baseUrl: settings.storeBaseUrl || 'http://localhost:3000',
               token: settings.clientToken,
               cacheRoot,
               libraryRoot
             });
             tray?.setContextMenu(buildTrayMenu());
-            if (result.pets[0]) {
-              try { switchPet(result.pets[0].composedId); } catch (e) { console.warn(e); }
-            }
+            if (result.pets[0]) await switchPet(result.pets[0].composedId);
             dialog.showMessageBox({
               type: 'info',
               message: `已同步 ${result.pets.length} 只宠物`
