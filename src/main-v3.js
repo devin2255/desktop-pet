@@ -17,6 +17,9 @@ const {
 const { createTopmostGuard } = require('./topmost-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
 const { createSequenceController } = require('./sequence-controller');
+const { createMessageWatcher, parseEventLine } = require('./message-watcher');
+const { loadWatchConfig } = require('./watch-config');
+const { createVoiceSynthesizer } = require('./edge-voice');
 const {
   app,
   BrowserWindow,
@@ -40,6 +43,10 @@ protocol.registerSchemesAsPrivileged([
       corsEnabled: true,
       stream: true
     }
+  },
+  {
+    scheme: 'voice-cache',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
   }
 ]);
 
@@ -64,6 +71,7 @@ let quitting = false;
 let mouseThrough = false;
 let deliveryConfig;
 let sequence;
+let messageWatcher;
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');
@@ -282,7 +290,8 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
   if (!petWindow || petWindow.isDestroyed()) return;
   if (shouldRestoreWindowBounds(options)) restorePetWindowSize();
   let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
-  if (speechAudio && !speechAudio.startsWith('pet-asset:') && activeManifest) {
+  // 带协议前缀（pet-asset:/voice-cache:/data:/file: 等）视为完整 URL，否则按资源包相对路径改写
+  if (speechAudio && !/^[a-z][a-z0-9+.-]*:/i.test(speechAudio) && activeManifest) {
     speechAudio = petAssetUrl(activeManifest.id, speechAudio);
   }
   const messages = Array.isArray(options?.messages) ? options.messages : undefined;
@@ -750,6 +759,19 @@ if (!gotLock) {
         }
       });
     });
+    const voiceCacheRoot = path.join(app.getPath('userData'), 'voice-cache');
+    fs.mkdirSync(voiceCacheRoot, { recursive: true });
+    protocol.handle('voice-cache', async (request) => {
+      const parsed = new URL(request.url);
+      // 标准 scheme 下 hash 可能落在 hostname 或 pathname，拼接兜底提取文件名
+      const name = decodeURIComponent(`${parsed.hostname}${parsed.pathname.replace(/^\//, '')}`);
+      if (!/^[a-f0-9]{32}\.mp3$/.test(name)) throw new Error('拒绝访问非语音缓存文件');
+      const filePath = resolveInside(voiceCacheRoot, name);
+      const data = await fs.promises.readFile(filePath);
+      return new Response(data, {
+        headers: { 'content-type': 'audio/mpeg', 'access-control-allow-origin': '*' }
+      });
+    });
     ensureBundledPets();
     const pets = listPets();
     activeManifest = deliveryConfig
@@ -768,6 +790,27 @@ if (!gotLock) {
       scheduleBehavior
     });
     createTray();
+    const watchConfig = loadWatchConfig({
+      configPath: path.join(app.getPath('userData'), 'boss-watch.json'),
+      manifestWatch: activeManifest?.watch,
+      larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
+    });
+    if (watchConfig.enabled) {
+      const voice = createVoiceSynthesizer({
+        cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
+        voice: watchConfig.voice.voice,
+        rate: watchConfig.voice.rate
+      });
+      messageWatcher = createMessageWatcher({
+        rules: watchConfig,
+        voice,
+        sendState: (state, message, speech, opts) => {
+          sendState(state, message, speech, state, opts || {});
+        },
+        larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
+      });
+      messageWatcher.start();
+    }
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);
     app.quit();
@@ -778,5 +821,6 @@ app.on('before-quit', () => {
   quitting = true;
   interaction?.dispose();
   sequence?.dispose();
+  messageWatcher?.stop();
   pauseBehavior();
 });
