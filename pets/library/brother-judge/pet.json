@@ -103,6 +103,172 @@
       "loop": false,
       "holdLastFrame": true,
       "scale": 1
+    },
+    "drag": {
+      "frames": [
+        "animations/drag/01.png",
+        "animations/drag/02.png",
+        "animations/drag/03.png",
+        "animations/drag/04.png",
+        "animations/drag/05.png",
+        "animations/drag/06.png"
+      ],
+      "durations": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "climb": {
+      "frames": [
+        "animations/climb/01.png",
+        "animations/climb/02.png",
+        "animations/climb/03.png",
+        "animations/climb/04.png",
+        "animations/climb/05.png",
+        "animations/climb/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "perch": {
+      "frames": [
+        "animations/perch/01.png",
+        "animations/perch/02.png",
+        "animations/perch/03.png",
+        "animations/perch/04.png"
+      ],
+      "durations": [
+        280,
+        280,
+        280,
+        1600
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "hang": {
+      "frames": [
+        "animations/hang/01.png",
+        "animations/hang/02.png",
+        "animations/hang/03.png",
+        "animations/hang/04.png"
+      ],
+      "durations": [
+        220,
+        220,
+        220,
+        1600
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "fall": {
+      "frames": [
+        "animations/fall/01.png",
+        "animations/fall/02.png",
+        "animations/fall/03.png",
+        "animations/fall/04.png"
+      ],
+      "durations": [
+        120,
+        120,
+        120,
+        120
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "impact": {
+      "frames": [
+        "animations/impact/01.png",
+        "animations/impact/02.png",
+        "animations/impact/03.png",
+        "animations/impact/04.png"
+      ],
+      "durations": [
+        140,
+        180,
+        220,
+        900
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "recover": {
+      "frames": [
+        "animations/recover/01.png",
+        "animations/recover/02.png",
+        "animations/recover/03.png",
+        "animations/recover/04.png",
+        "animations/recover/05.png",
+        "animations/recover/06.png"
+      ],
+      "durations": [
+        160,
+        160,
+        180,
+        200,
+        260,
+        700
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    }
+  },
+  "interactionActions": {
+    "drag": {
+      "action": "drag"
+    },
+    "climb": {
+      "action": "climb",
+      "anchor": {
+        "x": 0.52,
+        "y": 0.48
+      }
+    },
+    "perch": {
+      "action": "perch",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.55
+      }
+    },
+    "hang": {
+      "action": "hang",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.08
+      }
+    },
+    "fall": {
+      "action": "fall"
+    },
+    "impact": {
+      "action": "impact"
+    },
+    "recover": {
+      "action": "recover"
     }
   },
   "behavior": {
