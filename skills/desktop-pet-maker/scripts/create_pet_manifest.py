@@ -26,6 +26,8 @@ def main() -> None:
     parser.add_argument("--preview", type=Path, required=True)
     parser.add_argument("--frames-dir", type=Path, required=True)
     parser.add_argument("--pet-dir", type=Path, required=True)
+    parser.add_argument("--watch", type=Path, default=None,
+                        help="可选 JSON 文件，内容为 watch 配置对象，写入 manifest 的 watch 字段")
     args = parser.parse_args()
 
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,47}", args.id):
@@ -43,6 +45,12 @@ def main() -> None:
         "packageVersion": args.package_version,
         "normalizationMetric": "alpha-area-v1",
     })
+
+    if args.watch is not None:
+        watch_data = json.loads(args.watch.read_text(encoding="utf-8"))
+        if not isinstance(watch_data, dict):
+            raise SystemExit(f"--watch must contain a JSON object, got {type(watch_data).__name__}")
+        manifest["watch"] = watch_data
 
     args.pet_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(args.preview, args.pet_dir / "preview.png")

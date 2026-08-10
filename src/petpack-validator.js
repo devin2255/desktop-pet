@@ -92,6 +92,32 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       throw new Error('startupGreeting 必须是不超过 80 个字符的字符串');
     }
   }
+  if (manifest.watch !== undefined) {
+    const watch = manifest.watch;
+    if (!watch || typeof watch !== 'object' || Array.isArray(watch)) {
+      throw new Error('watch 必须是对象');
+    }
+    if (watch.keywords !== undefined) {
+      if (!watch.keywords || typeof watch.keywords !== 'object' || Array.isArray(watch.keywords)) {
+        throw new Error('watch.keywords 必须是对象');
+      }
+      for (const [key, lines] of Object.entries(watch.keywords)) {
+        if (typeof key !== 'string' || !key) {
+          throw new Error('watch.keywords 的键必须是非空字符串');
+        }
+        if (!Array.isArray(lines) || lines.length === 0
+          || lines.some((line) => typeof line !== 'string' || !line)) {
+          throw new Error(`watch.keywords.${key} 必须是非空字符串数组`);
+        }
+      }
+    }
+    if (watch.fallback !== undefined && typeof watch.fallback !== 'string') {
+      throw new Error('watch.fallback 必须是字符串');
+    }
+    if (watch.state !== undefined && typeof watch.state !== 'string') {
+      throw new Error('watch.state 必须是字符串');
+    }
+  }
   safeRelative(manifest.preview);
   if (path.posix.extname(manifest.preview).toLowerCase() !== '.png') throw new Error('preview 必须是 PNG');
   if (!manifest.animations || typeof manifest.animations !== 'object' || Array.isArray(manifest.animations)) {

@@ -95,4 +95,39 @@ manifest.behavior.perched = [{
 assert.ok(referencedFiles(manifest).has('audio/perched.mp3'), 'behavior.perched speechAudio must be referenced');
 assert.doesNotThrow(() => validateManifest(manifest));
 
+// --- watch field ---
+// watch is optional and carries no asset paths: referencedFiles must not include it.
+manifest.watch = {
+  keywords: { '画饼': ['年底给你画饼了', '明年升职加薪'], '吹牛': ['老板又开始吹牛了'] },
+  fallback: '先把手头活干完再说',
+  state: 'reaction'
+};
+assert.doesNotThrow(() => validateManifest(manifest), 'a valid watch field must validate');
+assert.ok(!referencedFiles(manifest).has('watch'), 'watch must not be treated as a referenced file');
+assert.ok(!referencedFiles(manifest).has('manifest.watch'), 'watch contents must not leak into referencedFiles');
+
+// invalid: watch.keywords value not an array
+manifest.watch = { keywords: { '画饼': 'not-array' } };
+assert.throws(() => validateManifest(manifest), /watch\.keywords\..*必须是非空字符串数组/, 'watch.keywords value must be a non-empty string array');
+
+// invalid: watch.keywords empty array
+manifest.watch = { keywords: { '画饼': [] } };
+assert.throws(() => validateManifest(manifest), /watch\.keywords\..*必须是非空字符串数组/, 'watch.keywords value must be non-empty');
+
+// invalid: watch not an object
+manifest.watch = 'not-an-object';
+assert.throws(() => validateManifest(manifest), /watch 必须是对象/, 'watch must be an object');
+
+// invalid: watch.fallback not a string
+manifest.watch = { fallback: 42 };
+assert.throws(() => validateManifest(manifest), /watch\.fallback 必须是字符串/, 'watch.fallback must be a string');
+
+// invalid: watch.state not a string
+manifest.watch = { state: 99 };
+assert.throws(() => validateManifest(manifest), /watch\.state 必须是字符串/, 'watch.state must be a string');
+
+// backward compat: removing watch still validates
+delete manifest.watch;
+assert.doesNotThrow(() => validateManifest(manifest), 'manifest without watch must still validate');
+
 console.log('petpack archive security checks passed');
