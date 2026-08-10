@@ -118,4 +118,66 @@ assert.doesNotThrow(() => validateManifest(baseManifest({
   }]
 }), '', false));
 
+assert.doesNotThrow(() => validateManifest(baseManifest({
+  animations: {
+    ...baseManifest().animations,
+    'feed-a': makeAnimation('feed-a', 4, false),
+    'feed-b': makeAnimation('feed-b', 4, false)
+  },
+  contextMenuActions: [{
+    id: 'feed',
+    label: '投喂',
+    randomActions: [
+      { action: 'feed-a', message: '礼物A', duration: 4000 },
+      { action: 'feed-b', message: '礼物B', duration: 4500 }
+    ]
+  }]
+}), '', false));
+
+assert.throws(
+  () => validateManifest(baseManifest({
+    contextMenuActions: [{
+      id: 'feed',
+      label: '投喂',
+      action: 'reaction',
+      randomActions: [{ action: 'reaction' }, { action: 'idle' }]
+    }]
+  }), '', false)
+);
+
+assert.throws(
+  () => validateManifest(baseManifest({
+    contextMenuActions: [{
+      id: 'feed',
+      label: '投喂',
+      randomActions: [{ action: 'reaction' }]
+    }]
+  }), '', false),
+  /2 到 6/
+);
+
+assert.doesNotThrow(() => validateManifest(baseManifest({
+  contextMenuActions: [{
+    id: 'feed',
+    label: '投喂',
+    randomActions: [
+      { sequence: 'relax' },
+      { action: 'reaction', message: '礼物', duration: 3000 }
+    ]
+  }]
+}), '', false));
+
+assert.throws(
+  () => validateManifest(baseManifest({
+    contextMenuActions: [{
+      id: 'feed',
+      label: '投喂',
+      randomActions: [
+        { sequence: 'relax', message: 'nope' },
+        { action: 'reaction' }
+      ]
+    }]
+  }), '', false)
+);
+
 console.log('test-sequences-schema: ok');

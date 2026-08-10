@@ -1,115 +1,74 @@
-# Task 6 Report — laopo perched / menu / roaming custom actions
+# Task 6 Report — 生成闺蜜彩蛋动画
 
 **Status:** PASS  
-**Date:** 2026-08-02  
-**Branch:** feat/laopo-pet  
-**Commit:** no commit (gitignored work assets under `/pets/work/`)
+**Date:** 2026-08-04  
+**Branch:** `feature/bestie-pets-design`  
+**Commit:** none（按指示不提交）
 
 ## Summary
 
-Generated ten custom-action chroma strips for **老婆 (laopo)** (56 frames), keyed them, and passed `process_animation_strips.py` into the same `processed/frames` tree as Tasks 4–5. Outfit locked to PRIMARY: cream maxi dress + black lace sleeves + platform sandals + sunglasses on head. Soft realistic 2D. Banned actions `perch-cross-phone`, `call-dad`, `self-slap` are absent from processed frames.
+为「小美&小甜」生成闺蜜彩蛋透明帧：cuddle4 / selfie4 / whisper4 / cheer4（共 16 帧）。经绿幕条合成、`remove_chroma_key` 去背、`process_animation_strips.py` 安全门禁，并安装到 `pets/library/xiaomei-xiaotian/animations/`。未覆盖 Task 5 的 idle/drag/walk/sit/sleep/reaction library 帧。
 
 ## Frame counts
 
-| Action | Frames | Notes |
-|---|---:|---|
-| perch-hair-flip | 6 | Perch seat + hair flip/stroke |
-| perch-blow-kiss | 6 | Perch seat + air-kiss send (some prompts softened for safety) |
-| perch-look | 6 | Perch seat, look left → center → right |
-| call-hubby | 6 | Standing wave / call-out |
-| kowtow | 6 | Female kneel → deep bow → rise |
-| talent-show | 8 | Upright butt-shake dance loop feel |
-| serve-tea | 6 | Offer teacup forward politely |
-| love-you | 4 | Heart-hands |
-| praise | 4 | Thumbs-up / clap |
-| encourage | 4 | Gentle cheer / supportive fists |
+| Action | Frames | Outfit | Notes |
+|---|---:|---|---|
+| cuddle | 4 | 日常 | 靠肩贴贴；小美更黏 |
+| selfie | 4 | 蕾丝高光 | 合影；小甜比耶（frame 2–4） |
+| whisper | 4 | 日常 | 耳语→一起偷笑 |
+| cheer | 4 | 日常 | 并排比心/打气 |
 
-## Generated paths
+## Produced assets
 
-### Chroma strips
+### Work
 ```
-pets/work/laopo/source/interactions/{perch-hair-flip,perch-blow-kiss,perch-look,call-hubby,kowtow,talent-show,serve-tea,love-you,praise,encourage}-chroma.png
-```
-
-### Transparent (keyed)
-```
-pets/work/laopo/source/interactions/transparent/{same}.png
+pets/work/xiaomei-xiaotian/source/standard/frames/{cuddle,selfie,whisper,cheer}-0N.png
+pets/work/xiaomei-xiaotian/source/standard/{cuddle,selfie,whisper,cheer}-chroma.png
+pets/work/xiaomei-xiaotian/source/transparent/{cuddle,selfie,whisper,cheer}.png
+pets/work/xiaomei-xiaotian/source/standard/transparent/{cuddle,selfie,whisper,cheer}.png
+pets/work/xiaomei-xiaotian/processed/frames/{cuddle,selfie,whisper,cheer}/01–04.png
+pets/work/xiaomei-xiaotian/_compose_easter.py
 ```
 
-### Per-frame sources
+### Library
 ```
-pets/work/laopo/source/interactions/frames/{action}-0N.png
+pets/library/xiaomei-xiaotian/animations/cuddle/01–04.png
+pets/library/xiaomei-xiaotian/animations/selfie/01–04.png
+pets/library/xiaomei-xiaotian/animations/whisper/01–04.png
+pets/library/xiaomei-xiaotian/animations/cheer/01–04.png
 ```
-(also under Cursor `assets/`)
+全部 480×480 RGBA；与既有标准动作同画布。
 
-### Processed frames (gate output, shared with Tasks 4–5)
-```
-pets/work/laopo/processed/frames/perch-hair-flip/01.png … 06.png
-pets/work/laopo/processed/frames/perch-blow-kiss/01.png … 06.png
-pets/work/laopo/processed/frames/perch-look/01.png … 06.png
-pets/work/laopo/processed/frames/call-hubby/01.png … 06.png
-pets/work/laopo/processed/frames/kowtow/01.png … 06.png
-pets/work/laopo/processed/frames/talent-show/01.png … 08.png
-pets/work/laopo/processed/frames/serve-tea/01.png … 06.png
-pets/work/laopo/processed/frames/love-you/01.png … 04.png
-pets/work/laopo/processed/frames/praise/01.png … 04.png
-pets/work/laopo/processed/frames/encourage/01.png … 04.png
-```
+## Process
 
-Contact sheet (all 22 actions): `pets/work/laopo/processed/contact-sheet.jpg`
+1. **GenerateImage** 逐帧全绿幕 `#00ff00`，参考 `master-chroma.png`（日常）/ `bestie-reference.png`（蕾丝）；身份锁：左小美（额头痣 + 月牙链）/ 右小甜。
+2. `_compose_easter.py`：等宽单元格条（640×960/格，主体约 62% 宽）→ `remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`。
+3. `process_animation_strips.py` 仅处理四条新动作写入既有 `processed/frames/`（不重写 idle/drag）：
+   ```
+   --max-significant-components 2 --flat-side-ratio 0.18
+   --action cuddle:4 --action selfie:4 --action whisper:4 --action cheer:4
+   ```
+4. 目检 contact sheet：左右站位、痣/项链、selfie 蕾丝+比耶、基线稳定。
+5. 复制四动作 processed 帧到 library。
 
-## Method
+**process exit:** 0（首轮默认 flat-side 0.10 于 cuddle frame2 失败 → 按 Task 5 双人侧影惯例改用 0.18 后通过；未擦碎片）
 
-1. **GenerateImage** per-frame full-body on `#00ff00` with `ref-fullbody.png` + `ref-portrait.png` + Task 5 `perch-01` / `idle-01` refs.
-2. Compose wide strips with ≥14% green gutters via updated `pets/work/laopo/_compose_interactions.py` (512×768 cells; perch-* use upper-third placement).
-3. Chroma key via `chroma_key.py` → `source/interactions/transparent/` (no `remove_platforms`).
-4. Process into shared `processed/frames` with `process_animation_strips.py`.
-5. **Did not erase spill fragments** to pass gates; regenerated weak frames instead.
-6. Combined re-run of standards + interactions + Task 6 into `_combined_transparent` also exit `0`.
+## Regenerations
 
-## Regenerations / blocks
-
-| Item | Attempts | Outcome |
+| Strip / Frame | Attempts | Outcome |
 |---|---|---|
-| perch-blow-kiss 02/05/06 | safety block on “kiss” wording → softer “air-kiss” prompts | Pass |
-| perch-hair-flip 04/06 | 2–3 pose regens for dangling-leg perch | Pass gate; pose still soft (knees sometimes tucked) |
-| praise-02 | regen to restore sunglasses-on-head | Pass |
-
-Boss-era asset strips (`kowtow-chroma.png` etc. under Cursor assets) were **not** used — wrong identity.
-
-## process_animation_strips
-
-```powershell
-python skills/desktop-pet-maker/scripts/process_animation_strips.py `
-  --input-dir pets/work/laopo/source/interactions/transparent `
-  --output-dir pets/work/laopo/processed/frames `
-  --action "perch-hair-flip:6" `
-  --action "perch-blow-kiss:6" `
-  --action "perch-look:6" `
-  --action "call-hubby:6" `
-  --action kowtow:6 `
-  --action "talent-show:8" `
-  --action "serve-tea:6" `
-  --action "love-you:4" `
-  --action praise:4 `
-  --action encourage:4
-```
-
-**Final Task-6-only run:** exit code `0`  
-**Combined all-actions run:** exit code `0`  
-Logs: `pets/work/laopo/processed/process_task6_log.txt`, `process_task6_combined_log.txt`
-
-## Gate result
-
-**PASS** — all ten custom actions (56 frames) processed into shared output dir; prior Task 4/5 frames retained; banned actions absent; combined contact sheet written.
+| selfie-02 | v1 content-safety block → 弱化措辞重生成 | PASS |
+| selfie-03 | v1 小甜黑裙漂移 → 锚定白蕾丝重生成（03b→03） | PASS |
+| cuddle strip | process flat-side 0.10 fail → ratio 0.18 复跑 | PASS（未整条重绘） |
 
 ## Concerns
 
-1. Several **perch-*** frames still read closer to knees-tucked sit than ideal “butt on invisible top edge + legs fully dangling” (same soft issue as Task 5 perch). Usable for packaging.
-2. Blow-kiss wording hit content safety; gestures remain readable as affectionate air-kiss sequence.
-3. Inter-frame dance/wave continuity is illustration-approximate.
-4. Work assets under `pets/work/` remain **gitignored**.
+1. **日常装微漂移**：部分 cuddle/whisper/cheer 帧小甜由鼠尾草绿泡袖+短裤变为奶油短裙或近同色套装；跨帧不完全锁定 master 服装。
+2. **selfie 蕾丝款式微差**：长短裙/袖型在帧间略有变化，但均为白/奶油蕾丝高光系，比耶手势保留。
+3. **flat-side-ratio 0.18**：与 Task 5 相同；双人外侧轮廓对默认 0.10 过严；未削弱连通块/安全边距门禁。
+4. **contact-sheet**：本次 process 仅含四彩蛋动作；标准动作 sheet 未被合并回写。
+5. Work 资源通常在 `pets/work/` gitignore 下；library 帧是否入库由后续任务决定。
 
 ## Next
 
-Task 7+ can wire `pet.json` behaviors/menus/audio (`call-hubby`, `talent-show`, `serve-tea`, perched weights) and package `.petpack` / customer EXE.
+Task 7+：relax 分镜 / manifest + petpack 验证 / 客户 EXE。

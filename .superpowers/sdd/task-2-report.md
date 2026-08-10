@@ -1,57 +1,67 @@
-# Task 2 Report: behavior 项 `speechAudio` 支持
+# Task 2 Report: petpack 校验与 schema（sequences）
 
-**Branch:** `feat/laopo-pet`  
-**Commit:** `95d2f59` — feat: support optional speechAudio on behavior items
+## Status: Complete
 
 ## Summary
 
-Implemented optional `speechAudio` on `behavior.random` and `behavior.perched` items so roaming/perched dialogue can play pre-recorded audio via `pet:state`. No laopo-specific assets; generic player/validator only.
+Implemented manifest validation for `sequences` and context-menu `sequence` references in both the JavaScript validator and Python petpack tool, with schema documentation and focused tests.
 
-## TDD Flow
+## Changes
 
-1. Added failing tests in `test-petpack-security.js`, `test-renderer-interaction.js`, `test-interaction-controller.js`
-2. Confirmed failures (referencedFiles missing behavior audio; renderer ignored state speechAudio; perched idle did not forward speechAudio)
-3. Implemented validator, main, renderer, interaction-controller, Python tool
-4. Re-ran focused tests — all PASS
+### `src/petpack-validator.js`
 
-## Files Changed
+- Added `SEQUENCE_ID_PATTERN` and `MAX_SEQUENCES` (8).
+- New `sequences` validation block (after required/interaction animations, before `contextMenuActions`):
+  - Optional object; keys `^[a-z0-9][a-z0-9-]{1,31}$`; max 8 entries.
+  - Each sequence requires `stages` array length 2..16.
+  - Stage rules: required `action` in `animations` (full `validateAnimation` on first use); optional `message`≤80, `messages` 1..4×≤80, `messageGapMs` 0..5000, `duration` 0..10000, `waitForClick` boolean.
+- Refactored `contextMenuActions`: exactly one of `action` or `sequence`; `sequence` must exist in `manifest.sequences`; forbids `message`/`duration` on sequence items; legacy `action` path unchanged.
 
-| File | Change |
-|------|--------|
-| `src/petpack-validator.js` | Collect `behavior.random`/`perched` `speechAudio` in `referencedFiles`; validate extension in `validateBehaviorList` |
-| `skills/desktop-pet-maker/scripts/petpack_tool.py` | Mirror referenced_files + validate_behavior_list speechAudio rules |
-| `src/main-v3.js` | `sendState` emits `speechAudio`; resolves relative paths to `pet-asset:` URLs; `runBehavior` passes resolved audio |
-| `src/renderer-v3.js` | `setState`/`onState` prefer state-level `speechAudio` over context-menu fallback |
-| `src/interaction-controller.js` | Perched idle `emitRole` forwards `speechAudio` (relative path; main resolves) |
-| `scripts/test-petpack-security.js` | referencedFiles + invalid extension assertions |
-| `scripts/test-renderer-interaction.js` | behavior speechAudio playback via `pet:state` |
-| `scripts/test-interaction-controller.js` | perched idle speechAudio passthrough |
+### `skills/desktop-pet-maker/scripts/petpack_tool.py`
 
-## Interfaces
+- Mirrored all JS rules with equivalent Python checks and error messages.
 
-- **Consumes:** `behavior.random[].speechAudio?`, `behavior.perched[].speechAudio?` — package-relative path (`mp3`/`wav`/`ogg`)
-- **Produces:** `pet:state` payload includes optional `speechAudio` (resolved `pet-asset:` URL or empty string)
+### `skills/desktop-pet-maker/references/petpack-schema.md`
+
+- Documented `sequences`, stage fields, and context-menu `action` vs `sequence` semantics.
+
+### `scripts/test-sequences-schema.js` (new)
+
+- Fixtures satisfy `REQUIRED_ACTIONS` frame counts (idle 4, walk 6, sit 4, sleep 4, reaction 4).
+- Uses positional `validateManifest(manifest, '', false)`.
+- Covers valid sequence menu, dual action+sequence rejection, missing sequence, forbidden message/duration on sequence menu, short stages, unknown stage action, and legacy action menu.
+
+### `skills/desktop-pet-maker/scripts/test_petpack_tool.py`
+
+- Added `test_sequences_and_context_menu_sequence_validation`.
+
+### `package.json`
+
+- Wired `scripts/test-sequences-schema.js` into `test:js`.
 
 ## Test Results
 
-```
-node scripts/test-renderer-interaction.js     PASS
-node scripts/test-petpack-security.js         PASS
-node scripts/test-interaction-controller.js   PASS
-node scripts/test-startup-greeting.js         PASS (regression)
-node --check src/{main-v3,renderer-v3,petpack-validator,interaction-controller}.js  PASS
-```
+| Command | Result |
+|---------|--------|
+| `node scripts/test-sequences-schema.js` | PASS |
+| `npm run test:js` | PASS (all 12 JS test scripts) |
+| `npm run test:python` | New sequence test PASS; 6 pre-existing errors due to missing `pets/packages/xiaogou.petpack` fixture (unrelated to this task) |
 
-## Self-Review
+## Commits
 
-**Correctness:** Matches brief verbatim. Main resolves URLs once (skips already-resolved `pet-asset:`). Renderer prefers explicit state audio over context-menu lookup. Perched controller passes relative paths; main wrapper resolves.
+None (per instructions).
 
-**Scope:** No laopo petpack, no schema doc update (brief did not require). Context menu path unchanged (still via `publicManifest` + `resolveSpeechAudio` fallback).
+## Concerns / Notes
 
-**Concerns:**
-- `runContextMenuAction` still does not pass `speechAudio` on `pet:state`; renderer relies on manifest lookup — pre-existing, unchanged.
-- Python unit tests for behavior speechAudio validation not added (brief only required JS security test); parity is in `petpack_tool.py` shape validator.
+1. Python archive tests still reference `xiaogou.petpack`, which is absent in this workspace; consider switching fixture to `laopo.petpack` in a follow-up.
+2. Sequence menu items still allow `speech` / `speechAudio` (brief only forbids `message`/`duration`); runtime integration is Task 3+.
+3. Stage `duration` is optional even without `waitForClick`; runtime defaults to 3000 ms — matches Task 1 behavior.
 
-## Ready For
+## Files Touched
 
-Task 3+ can attach laopo `behavior.random` entries with `speechAudio: "audio/serve-tea.mp3"` etc.; player will validate, reference, resolve, and play.
+- `src/petpack-validator.js`
+- `skills/desktop-pet-maker/scripts/petpack_tool.py`
+- `skills/desktop-pet-maker/references/petpack-schema.md`
+- `scripts/test-sequences-schema.js` (created)
+- `skills/desktop-pet-maker/scripts/test_petpack_tool.py`
+- `package.json`

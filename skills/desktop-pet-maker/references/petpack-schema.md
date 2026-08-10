@@ -27,7 +27,7 @@ Manifest fields:
 - `behavior.random`: weighted state definitions used by the player.
 - `interactionActions`: optional object that maps window-interaction roles to animation actions.
 - `sequences`: optional object keyed by sequence id; each value defines a multi-stage scripted interaction.
-- `contextMenuActions`: optional array of menu entries. Each entry must contain exactly one of `action` (single animation) or `sequence` (reference to `sequences`).
+- `contextMenuActions`: optional array of menu entries. Each entry must contain exactly one of `action` (single animation), `sequence` (reference to `sequences`), or `randomActions` (random pick among several actions).
 
 Each animation contains:
 
@@ -104,7 +104,8 @@ Example:
 
 - **Single action:** `{ "id": "react", "label": "互动", "action": "reaction", "message": "你好", "duration": 2000 }`
 - **Sequence:** `{ "id": "relax", "label": "去放松", "sequence": "relax" }`
+- **Random actions:** `{ "id": "feed", "label": "投喂", "randomActions": [{ "sequence": "feed-bag" }, { "sequence": "feed-lipstick" }] }`
 
-When using `sequence`, do not include `action`, `message`, `duration`, `speech`, or `speechAudio`; all dialogue and timing live in the sequence stages. `speech` and `speechAudio` remain optional only on direct `action` entries.
+When using `sequence`, do not include `action`, `message`, `duration`, `speech`, or `speechAudio`; all dialogue and timing live in the sequence stages. When using `randomActions`, each choice must contain exactly one of `action` or `sequence` (2–6 choices). Direct `action` choices may include per-choice `message`/`duration`/`speech`/`speechAudio`; `sequence` choices must not. Do not put those fields on the menu entry itself.
 
 All exported frames must use the same transparent canvas size and baseline. Normalize visual scale across all actions, not merely within each action strip, so switching poses does not make the pet jump in size.

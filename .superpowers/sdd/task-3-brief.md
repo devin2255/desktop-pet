@@ -1,29 +1,45 @@
-### Task 3: 素材目录与制作 Prompt
+### Task 3: Rebuild, Validate, and Runtime-Check the Delivery
 
 **Files:**
-- Create/Update: `pets/work/laopo/source/refs/ref-fullbody.png`、`ref-portrait.png`（从用户附图复制）
-- Create: `docs/prompts/make-laopo-pet.txt`
-- Create: `pets/work/laopo/IDENTITY.md`（稳定外观描述，供所有出图 prompt 复用）
+- Regenerate: `pets/packages/xiaomei-xiaotian.petpack`
+- Verify: `pets/library/xiaomei-xiaotian/pet.json`
+- Verify: `scripts/test-bestie-petpack.js`
 
-- [ ] **Step 1: 复制参考图**
+**Interfaces:**
+- Consumes: accepted six frames and slow timing contract from Tasks 1–2.
+- Produces: validated local `.petpack` with the new synchronized milk-tea loop.
 
-用户附图位于 Cursor assets；复制到：
+- [ ] **Step 1: Rebuild the package**
 
-```powershell
-New-Item -ItemType Directory -Force -Path pets/work/laopo/source/refs | Out-Null
-Copy-Item "<fullbody-asset>" pets/work/laopo/source/refs/ref-fullbody.png -Force
-Copy-Item "<portrait-asset>" pets/work/laopo/source/refs/ref-portrait.png -Force
+Run:
+
+```text
+python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/xiaomei-xiaotian pets/packages/xiaomei-xiaotian.petpack
 ```
 
-- [ ] **Step 2: 写 IDENTITY.md**
+Expected: exits 0 and writes the package without changing unrelated assets.
 
-内容必须包含：年轻东亚女性；长直黑发；头上黑框墨镜；米白无袖长裙；黑色蕾丝短袖内搭；厚底凉鞋；俏皮甜蜜表情；柔和写实 2D；全身完整可见。
+- [ ] **Step 2: Validate package and automated regressions**
 
-- [ ] **Step 3: 写 `docs/prompts/make-laopo-pet.txt`**
+Run:
 
-把已批准 spec 中的特殊要求写成可复现 prompt（对应老板的 `make-boss-pet.txt`）。
+```text
+npm run test:bestie
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/xiaomei-xiaotian.petpack
+node scripts/test-renderer-interaction.js
+python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v
+```
 
-- [ ] **Step 4: 目视确认两张 refs 可读且为同一人**
+Expected: all commands exit 0; package validates as `xiaomei-xiaotian`; all strip safety tests pass.
 
----
+- [ ] **Step 3: Verify packed parity and unchanged unrelated assets**
 
+Parse library and packed root `pet.json` and assert deep equality. SHA-256 compare every packaged animation asset against the library, and confirm only the six `perch-milk-tea` images differ from the pre-task package snapshot.
+
+- [ ] **Step 4: Run a bounded player smoke test**
+
+Launch `npm start` and verify no startup exception. If GUI control is available, attach the pet to a window top and observe at least 10 complete loops, confirming two persistent cups, synchronized sipping, slow synchronized leg swing, stable scale/baseline, transparent background, target-window following, drag release, and unchanged side-rest behavior. If GUI control is unavailable, explicitly report these visual checks as unverified.
+
+- [ ] **Step 5: Review scope and delivery state**
+
+Run `git status --short` and scoped diffs. Do not force-add ignored customer/reference/generated assets. Commit only the tracked regression test if changed; leave the rebuilt `.petpack`, manifest, and frames as local delivery artifacts according to repository policy.

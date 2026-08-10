@@ -1,36 +1,305 @@
-﻿# Review Package Task 3
-Base: 95d2f5991432e044aaaa9e03272b4fa88ea7d5c0
-Head: c13cb94a41712e1b029b502ce5cec0e100715de6
-
-## Commits
-c13cb94 docs: add laopo pet creation prompt
-
-## Stat
- docs/prompts/make-laopo-pet.txt | 36 ++++++++++++++++++++++++++++++++++++
- 1 file changed, 36 insertions(+)
-
-## Diff
+# Review Package — Task 3 (after fix)
+## Diff stat
+ package.json                         |  3 +-
+ scripts/test-renderer-interaction.js | 41 +++++++++++++++++-
+ src/main-v3.js                       | 83 ++++++++++++++++++++++++++++--------
+ src/renderer-v3.js                   | 62 +++++++++++++++++++++------
+ 4 files changed, 157 insertions(+), 32 deletions(-)
+## main-v3.js diff (focus hidePet)
 ```diff
-diff --git a/docs/prompts/make-laopo-pet.txt b/docs/prompts/make-laopo-pet.txt
-new file mode 100644
-index 0000000..0deab0e
---- /dev/null
-+++ b/docs/prompts/make-laopo-pet.txt
-@@ -0,0 +1,36 @@
-+璇锋牴鎹垜闄勪笂鐨勫勾杞讳笢浜氬コ鎬у弬鑰冪収鐗囷紙鍏ㄨ韩鐓?+ 杩戞櫙鐓э級锛屼娇鐢?desktop-pet-maker 鍦ㄦ湰浠撳簱鍒朵綔瀹屾暣鐨?Windows 鑰佸﹩妗岄潰瀹犵墿锛屽苟鏇存柊褰撳墠婕旂ず鍩虹嚎涓鸿瀹犵墿銆?+
-+瀹犵墿鍚嶅瓧锛氳€佸﹩
-+鎬ф牸锛氫繌鐨€佺矘浜恒€佺敎铚?+绋嬪簭鍚嶇О锛氳€佸﹩妗岄潰瀹犵墿
-+delivery-id锛歭aopo
-+椋庢牸锛氭煍鍜屽啓瀹?2D 鎻掔敾椋?+閲嶇偣鐗瑰緛锛氶暱鐩撮粦鍙戙€佸ご涓婃灦榛戣壊澧ㄩ暅/鐪奸暅銆佺背鐧芥棤琚栧強韪濋暱瑁欍€侀粦鑹茶暰涓濈煭琚栧唴鎼€佸帤搴曢粦鑹插噳闉嬨€佷繌鐨敎铚滆〃鎯呫€佸叏韬畬鏁村彲瑙?+鐗规畩瑕佹眰锛?+1. 榛樿寰呮満涓虹洿绔嬬珯绔嬪井鍔紙鍛煎惛/鍙戜笣锛夛紱walk 浣跨敤鐩寸珛鏁ｆ锛屼笉瑕佺埇琛屻€?+2. sleep 鍙崟鐙粯鍒朵紤鎭抚锛屼絾 behavior.random 绂佹璋冨害 sleep銆?+3. 鍙抽敭鑿滃崟鑷冲皯鍖呭惈锛?+   - 鍙€佸叕锛氭皵娉°€岃€佸叕!銆嶏紝濂冲０銆岃€佸叕銆?+   - 纾曞ご锛氬コ鎬х増纾曞ご锛屾皵娉°€岀粰鑰佸叕纾曞ご浜嗐€?+   - 涓婃墠鑹猴細鎵眮鑲¤垶韫堬紝姘旀场銆屼笂鎵嶈壓!銆嶏紝speech銆屼笂鎵嶈壓銆?+4. 妗岄潰婕父鏃讹紝鏁ｆ闂撮殭瑕侀殢鏈烘彃鍏ョ鑼堕€佹按锛堟皵娉°€岃€佸叕鍠濊尪銆嶏級浠ュ強銆岀埍浣犺€佸叕銆嶃€屽疂璐濈湡妫掋€嶃€岃€佸叕杈涜嫤浜嗐€嶏紝棰戠巼涓嶈澶綆锛屾棤鍥哄畾椤哄簭銆?+5. 鏀寔绐楀彛浜掑姩锛氭嫋鍒颁笂杈规鍧愪笅銆佷晶杈规攢鐖€佷笅杈规鍚婃寕銆佹棤绐楁椂浠庡睆椤跺潬钀藉苟鎷嶅眮鑲℃仮澶嶃€?+6. 鍧愬湪涓婅竟妗嗘椂锛屽眮鑲¤璐寸揣杈规锛涘潗杈归殢鏈哄姩浣滀繚鐣欙細
-+   - 鍧愯竟淇忕毊鎾╁ご鍙戯紙perch-hair-flip锛?+   - 鍧愯竟椋炲惢锛坧erch-blow-kiss锛?+   - 宸︾湅鍙崇湅锛坧erch-look锛?+   涓嶈鍐嶅仛璺蜂簩閮庤吙鑴遍瀷鎵撶數璇濄€併€屽杺, 鍐涘効鍚?銆嶅強鏅冭吙銆佹姞榧诲睅銆?+7. speechGender 璁句负 female锛涖€岃€佸叕銆嶃€屼笂鎵嶈壓銆嶄紭鍏堜娇鐢ㄥ唴缃コ澹伴煶棰戯紝涓嶈榛樿鐢峰０绯荤粺 TTS銆?+8. 鍚姩闂€欐樉绀恒€岃€佸叕锛屾垜鏉ュ暒~銆嶏紙startupGreeting 瀛楁锛夈€?+
-+璇蜂繚鎸佹墍鏈夊姩鐢诲抚鏄悓涓€鍙鑹诧紝瀹屾垚 idle/walk/sit/sleep/reaction 浠ュ強绐楀彛浜掑姩銆佸彸閿€佸潗杈广€佺鑼躲€佹壄灞佽偂绛夊姩浣滐紱澶勭悊閫忔槑鑳屾櫙骞剁粺涓€鐢诲竷銆佹瘮渚嬨€侀噸蹇冨拰鑴氬簳鍩虹嚎銆傚垏甯у墠蹇呴』妫€鏌ュ崟鍏冩牸瀹夊叏杈硅窛銆佺浉閭诲抚涓插抚銆佸畬鏁磋偄浣擄紙灏ゅ叾闀胯瑁欐憜涓庡帤搴曞噳闉嬶級浠ュ強浜掑姩甯х殑灏哄害/閲嶅績婕傜Щ锛涗换浣曚竴椤瑰け璐ラ兘搴旈噸鏂扮敓鎴愶紝涓嶈兘鍙摝闄よ秺鐣岀鐗囥€?+
-+鐢熸垚骞堕獙璇?pets/packages/laopo.petpack 鍚庯紝鎵ц锛?+
-+npm run build:laopo
+diff --git a/src/main-v3.js b/src/main-v3.js
+index 47faad0..7c3b83e 100644
+--- a/src/main-v3.js
++++ b/src/main-v3.js
+@@ -11,16 +11,17 @@ const {
+ } = require('./petpack-validator');
+ const { createWindowDiscovery } = require('./window-discovery');
+ const {
+   createInteractionController,
+   shouldRestoreWindowBounds
+ } = require('./interaction-controller');
+ const { createTopmostGuard } = require('./topmost-guard');
+ const { resolveStartupGreeting } = require('./startup-greeting');
++const { createSequenceController } = require('./sequence-controller');
+ const {
+   app,
+   BrowserWindow,
+   dialog,
+   ipcMain,
+   Menu,
+   nativeImage,
+   protocol,
+@@ -57,16 +58,17 @@ let settings = { petId: '', sizeKey: 'small', roaming: true };
+ let activeManifest;
+ let behaviorTimer;
+ let walkTimer;
+ let interaction;
+ let topmostGuard;
+ let quitting = false;
+ let mouseThrough = false;
+ let deliveryConfig;
++let sequence;
+ 
+ function readDeliveryConfig() {
+   const deliveryRoot = path.join(__dirname, '..', 'delivery');
+   const configPath = path.join(deliveryRoot, 'delivery.json');
+   if (!fs.existsSync(configPath)) return null;
+   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+   if (!config || config.schemaVersion !== 1 || config.mode !== 'customer') throw new Error('瀹㈡埛浜や粯閰嶇疆鏍煎紡涓嶅彈鏀寔');
+   if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(String(config.deliveryId || ''))) throw new Error('瀹㈡埛浜や粯閰嶇疆鐨?deliveryId 涓嶅悎娉?);
+@@ -111,27 +113,32 @@ function publicManifest(manifest) {
+       : '',
+     ...(typeof manifest.startupGreeting === 'string' && manifest.startupGreeting.trim()
+       ? { startupGreeting: manifest.startupGreeting.trim() }
+       : {}),
+     preview: petAssetUrl(manifest.id, manifest.preview),
+     animations,
+     interactionActions: manifest.interactionActions || {},
+     contextMenuActions: Array.isArray(manifest.contextMenuActions)
+-      ? manifest.contextMenuActions.map((item) => ({
+-        id: item.id,
+-        label: item.label.trim(),
+-        action: item.action,
+-        message: typeof item.message === 'string' ? item.message : '',
+-        speech: typeof item.speech === 'string' ? item.speech : '',
+-        speechAudio: typeof item.speechAudio === 'string' && item.speechAudio
+-          ? petAssetUrl(manifest.id, item.speechAudio)
+-          : '',
+-        duration: Number.isInteger(item.duration) ? item.duration : 3000
+-      }))
++      ? manifest.contextMenuActions.map((item) => {
++        const base = { id: item.id, label: item.label.trim() };
++        if (item.sequence) {
++          return { ...base, sequence: item.sequence };
++        }
++        return {
++          ...base,
++          action: item.action,
++          message: typeof item.message === 'string' ? item.message : '',
++          speech: typeof item.speech === 'string' ? item.speech : '',
++          speechAudio: typeof item.speechAudio === 'string' && item.speechAudio
++            ? petAssetUrl(manifest.id, item.speechAudio)
++            : '',
++          duration: Number.isInteger(item.duration) ? item.duration : 3000
++        };
++      })
+       : []
+   };
+ }
+ 
+ function saveSettings() {
+   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+   fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+ }
+@@ -254,17 +261,27 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
+ 
+ function sendState(state, message = '', speech = '', logicalRole = state, options) {
+   if (!petWindow || petWindow.isDestroyed()) return;
+   if (shouldRestoreWindowBounds(options)) restorePetWindowSize();
+   let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
+   if (speechAudio && !speechAudio.startsWith('pet-asset:') && activeManifest) {
+     speechAudio = petAssetUrl(activeManifest.id, speechAudio);
+   }
+-  petWindow.webContents.send('pet:state', { state, logicalRole, message, speech, speechAudio });
++  const messages = Array.isArray(options?.messages) ? options.messages : undefined;
++  const messageGapMs = Number.isFinite(options?.messageGapMs) ? options.messageGapMs : undefined;
++  petWindow.webContents.send('pet:state', {
++    state,
++    logicalRole,
++    message,
++    speech,
++    speechAudio,
++    messages,
++    messageGapMs
++  });
+ }
+ 
+ function setMouseThrough(ignore) {
+   if (!petWindow || petWindow.isDestroyed() || mouseThrough === ignore) return;
+   mouseThrough = ignore;
+   petWindow.setIgnoreMouseEvents(ignore, { forward: true });
+ }
+ 
+@@ -390,16 +407,17 @@ function updateTrayIcon() {
+   const icon = nativeImage.createFromPath(resolveInside(activeManifest.__root, activeManifest.preview));
+   if (!icon.isEmpty()) tray.setImage(icon.resize({ width: 32, height: 32 }));
+   tray.setToolTip(deliveryConfig?.appName || `${activeManifest.name} 路 妗屽疇鎾斁鍣╜);
+ }
+ 
+ function switchPet(id) {
+   const next = listPets().find((pet) => pet.id === id);
+   if (!next) return false;
++  sequence?.cancel();
+   activeManifest = next;
+   settings.petId = next.id;
+   saveSettings();
+   updateTrayIcon();
+   tray?.setContextMenu(buildTrayMenu());
+   petWindow?.webContents.send('pet:load', publicManifest(next));
+   sendState('reaction', resolveStartupGreeting(next, { switching: true }));
+   scheduleBehavior(3200);
+@@ -409,19 +427,32 @@ function switchPet(id) {
+ function showPet() {
+   petWindow?.showInactive();
+   topmostGuard?.ensure();
+   if (interaction && interaction.state() !== 'normal') return;
+   sendState('reaction', '浣犲洖鏉ュ暒锛?);
+   scheduleBehavior(3000);
+ }
+ 
++function hidePet() {
++  sequence?.cancel();
++  petWindow?.hide();
++}
 +
-+鎴栵細
-+
-+npm run build:customer -- --pet pets/packages/laopo.petpack --name "鑰佸﹩妗岄潰瀹犵墿" --delivery-id laopo
-+
-+瀹㈡埛鍙屽嚮 EXE 鍚庡疇鐗╁繀椤荤洿鎺ュ嚭鐜帮紝涓嶉渶瑕佸畨瑁呭紑鍙戠幆澧冿紝涔熶笉闇€瑕佹墜鍔ㄥ鍏ヨ祫婧愬寘銆傝瀹為檯鍚姩鎴愬搧锛岄獙璇佸姩鐢汇€侀€忔槑鑳屾櫙鍙婇€忔槑鍍忕礌榧犳爣绌块€忋€侀潤姝㈣繛缁偣鍑?50 娆℃棤鏀惧ぇ/骞崇Щ銆佹嫋鍔ㄣ€佹极娓搞€佸乏鍙虫湞鍚戙€佸彸閿彍鍗曘€佸潗杈瑰姩浣溿€佸コ澹般€佹墭鐩樸€侀€€鍑哄拰鐙珛鏁版嵁鐩綍銆傛渶缁堟妸涓撳睘 EXE銆乥uild-report.json 鍜岄獙璇佺粨鏋滀氦浠樼粰鎴戯紝涓嶈鍙氦浠?.petpack銆?
-
+ function runContextMenuAction(item) {
+-  if (!activeManifest || !item || !activeManifest.animations[item.action]
+-    || (interaction && interaction.state() !== 'normal')) return;
++  if (!activeManifest || !item || (interaction && interaction.state() !== 'normal')) return;
++  if (sequence?.isActive()) {
++    sequence.cancel({ schedule: false });
++  }
++  if (item.sequence) {
++    pauseBehavior();
++    sequence.start(item.sequence);
++    return;
++  }
++  if (!activeManifest.animations[item.action]) return;
+   pauseBehavior();
+   sendState(item.action, item.message || '', item.speech || '');
+   const duration = Number.isInteger(item.duration) ? item.duration : 3000;
+   // Return to kneel/idle before random roaming so custom actions don't hard-cut mid-pose.
+   if (behaviorTimer) clearTimeout(behaviorTimer);
+   behaviorTimer = setTimeout(() => {
+     behaviorTimer = undefined;
+     if (!activeManifest || (interaction && interaction.state() !== 'normal')) return;
+@@ -460,34 +491,37 @@ function buildTrayMenu() {
+     },
+     {
+       label: '濮嬬粓缃《',
+       type: 'checkbox',
+       checked: topmostGuard?.isEnabled() ?? true,
+       click: (item) => topmostGuard?.setEnabled(item.checked)
+     },
+     { label: '寮€鏈鸿嚜鍔ㄥ惎鍔?, type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }) },
+-    { type: 'separator' }, { label: '鏆傛椂钘忚捣鏉?, click: () => petWindow?.hide() },
++    { type: 'separator' }, {
++      label: '鏆傛椂钘忚捣鏉?,
++      click: hidePet
++    },
+     {
+       label: `閫€鍑?{deliveryConfig?.appName || '妗屽疇鎾斁鍣?}`,
+       click: () => {
+         quitting = true;
+         interaction?.dispose();
+         app.quit();
+       }
+     }
+   );
+   return Menu.buildFromTemplate(template);
+ }
+ 
+ function createTray() {
+   const preview = resolveInside(activeManifest.__root, activeManifest.preview);
+   tray = new Tray(nativeImage.createFromPath(preview).resize({ width: 32, height: 32 }));
+   updateTrayIcon(); tray.setContextMenu(buildTrayMenu());
+-  tray.on('click', () => petWindow?.isVisible() ? petWindow.hide() : showPet());
++  tray.on('click', () => petWindow?.isVisible() ? hidePet() : showPet());
+ }
+ 
+ function createWindow() {
+   const size = currentSize();
+   const workArea = screen.getPrimaryDisplay().workArea;
+   petWindow = new BrowserWindow({
+     width: size.width,
+     height: size.height,
+@@ -544,17 +578,17 @@ function createWindow() {
+   petWindow.loadFile(indexPath);
+   petWindow.once('ready-to-show', () => {
+     petWindow.showInactive();
+     topmostGuard?.ensure();
+     sendState('reaction', resolveStartupGreeting(activeManifest));
+     scheduleBehavior(3600);
+   });
+   petWindow.on('close', (event) => {
+-    if (!quitting) { event.preventDefault(); petWindow.hide(); }
++    if (!quitting) { event.preventDefault(); hidePet(); }
+   });
+ }
+ 
+ function trustedIpc(event) {
+   return Boolean(petWindow && !petWindow.isDestroyed() && event.sender === petWindow.webContents && event.senderFrame === petWindow.webContents.mainFrame);
+ }
+ 
+ function handleTrusted(channel, listener) {
+@@ -582,16 +616,17 @@ function validVisibleInsets(insets) {
+ 
+ handleTrusted('pet:get-current', () => publicManifest(activeManifest));
+ handleTrusted('pet:import', () => {
+   if (deliveryConfig && !deliveryConfig.allowPetManagement) return null;
+   return promptImportPetpack();
+ });
+ onTrusted('pet:drag-start', (pointer) => {
+   if (!interaction || !validPointer(pointer)) return;
++  if (sequence?.isActive()) sequence.cancel({ schedule: false });
+   setMouseThrough(false);
+   interaction.startDrag(pointer);
+ });
+ onTrusted('pet:drag-move', (pointer) => {
+   if (!interaction || !validPointer(pointer)) return;
+   interaction.moveDrag(pointer);
+ });
+ onTrusted('pet:drag-end', (pointer) => {
+@@ -603,16 +638,21 @@ onTrusted('pet:drag-end', (pointer) => {
+ onTrusted('pet:visible-insets', (insets) => {
+   if (interaction && validVisibleInsets(insets)) interaction.updateVisibleInsets(insets);
+ });
+ onTrusted('pet:set-mouse-through', (ignore) => {
+   if (!interaction || interaction.state() !== 'dragging') setMouseThrough(Boolean(ignore));
+ });
+ onTrusted('pet:interact', () => {
+   if (interaction && interaction.state() !== 'normal') return;
++  if (sequence?.isWaitingForClick()) {
++    sequence.continueFromClick();
++    return;
++  }
++  if (sequence?.isActive()) return;
+   pauseBehavior();
+   sendState('reaction', '涓嶈涓笅鎴戝憖 鈾?);
+   scheduleBehavior(3400);
+ });
+ onTrusted('pet:context-menu', () => {
+   if (!petWindow || petWindow.isDestroyed()) return;
+   setMouseThrough(false);
+   buildTrayMenu().popup({
+@@ -668,20 +708,29 @@ if (!gotLock) {
+     const pets = listPets();
+     activeManifest = deliveryConfig
+       ? pets.find((pet) => pet.id === deliveryConfig.petId)
+       : pets.find((pet) => pet.id === settings.petId) || pets[0];
+     if (!activeManifest) throw new Error('娌℃湁鍙敤瀹犵墿锛岃瀵煎叆 .petpack');
+     settings.petId = activeManifest.id;
+     saveSettings();
+     createWindow();
++    sequence = createSequenceController({
++      getManifest: () => activeManifest,
++      sendState: (action, message, speech, extras) => {
++        sendState(action, message, speech, action, extras || {});
++      },
++      pauseBehavior,
++      scheduleBehavior
++    });
+     createTray();
+   }).catch((error) => {
+     dialog.showErrorBox('妗屽疇鎾斁鍣ㄥ惎鍔ㄥけ璐?, error.stack || error.message);
+     app.quit();
+   });
+ }
+ 
+ app.on('before-quit', () => {
+   quitting = true;
+   interaction?.dispose();
++  sequence?.dispose();
+   pauseBehavior();
+ });
 ```

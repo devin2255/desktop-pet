@@ -1,442 +1,122 @@
-﻿# Review Package Task 2
-Base: 0c654f055583f3df38070a87871822ace29f0877
-Head: 95d2f5991432e044aaaa9e03272b4fa88ea7d5c0
+# Review Package — Task 2
+Base: after Task1 working tree (no commits)
+Head: WORKING_TREE
 
-## Commits
-95d2f59 feat: support optional speechAudio on behavior items
+## Status
+ M package.json  M skills/desktop-pet-maker/references/petpack-schema.md  M skills/desktop-pet-maker/scripts/petpack_tool.py  M src/petpack-validator.js ?? scripts/test-sequences-schema.js
 
-## Stat
- scripts/test-interaction-controller.js           | 10 ++++++++-
- scripts/test-petpack-security.js                 | 26 +++++++++++++++++++++++-
- scripts/test-renderer-interaction.js             | 12 +++++++++++
- skills/desktop-pet-maker/scripts/petpack_tool.py | 13 ++++++++++++
- src/interaction-controller.js                    |  3 ++-
- src/main-v3.js                                   | 11 ++++++++--
- src/petpack-validator.js                         | 13 ++++++++++++
- src/renderer-v3.js                               | 13 +++++++-----
- 8 files changed, 91 insertions(+), 10 deletions(-)
+## Diff stat
+ package.json                                       |  2 +-  .../desktop-pet-maker/references/petpack-schema.md | 43 +++++++++++  skills/desktop-pet-maker/scripts/petpack_tool.py   | 85 ++++++++++++++++++----  src/petpack-validator.js                           | 85 +++++++++++++++++++++-  4 files changed, 197 insertions(+), 18 deletions(-)
 
-## Diff
+## Full diff
 ```diff
-diff --git a/scripts/test-interaction-controller.js b/scripts/test-interaction-controller.js
-index a4476bf..231cf20 100644
---- a/scripts/test-interaction-controller.js
-+++ b/scripts/test-interaction-controller.js
-@@ -273,33 +273,41 @@ async function run() {
-     harness.controller.moveDrag({ x: 120, y: 150 });
-     assert.ok(harness.states.includes('drag-right'), 'dragging left faces right (butt-drag trail)');
-     harness.controller.moveDrag({ x: 260, y: 150 });
-     assert.strictEqual(harness.states.at(-1), 'drag-left', 'dragging right faces left (butt-drag trail)');
-   }
- 
-   {
-     const harness = createHarness({ windows: [target] });
-     harness.manifest.behavior = {
-       perched: [
--        { state: 'perch-swing', weight: 1, minDuration: 800, maxDuration: 800, message: '鍠? 鍐涘効鍚?' }
-+        {
-+          state: 'perch-swing',
-+          weight: 1,
-+          minDuration: 800,
-+          maxDuration: 800,
-+          message: '鍠? 鍐涘効鍚?',
-+          speechAudio: 'audio/perch-swing.mp3'
-+        }
-       ]
-     };
-     harness.manifest.animations['perch-swing'] = { durations: [200, 200] };
-     harness.manifest.animations['perch-action'] = { durations: [500] };
-     await dragAndEnd(harness, { x: 350, y: 100 });
-     assert.strictEqual(harness.controller.state(), 'perched');
-     assert.ok(harness.clock.scheduledTimeoutDelays.includes(900), 'perched idle starts after a short settle');
-     // Perched idle reschedules forever; only run settle + one action + return-to-perch.
-     harness.clock.runTimeouts(3);
-     assert.ok(harness.states.includes('perch-swing'), 'perched idle can play configured sitting actions');
-     const perchedSignal = harness.stateSignals.find((item) => item?.logicalRole === 'perch-swing');
-     assert.strictEqual(perchedSignal?.message, '鍠? 鍐涘効鍚?', 'perched idle can show a dialogue bubble');
-+    assert.strictEqual(perchedSignal?.speechAudio, 'audio/perch-swing.mp3', 'perched idle forwards speechAudio');
-     assert.strictEqual(harness.controller.state(), 'perched', 'perched idle must not detach from the window');
-     harness.controller.dispose();
-   }
- 
-   {
-     const harness = createHarness({ windows: [target] });
-     await dragAndEnd(harness, { x: 350, y: 100 });
-     assert.strictEqual(harness.controller.state(), 'perched');
-     assert.deepStrictEqual(harness.states.slice(-1), ['perch']);
-   }
-diff --git a/scripts/test-petpack-security.js b/scripts/test-petpack-security.js
-index d015de2..033fd1f 100644
---- a/scripts/test-petpack-security.js
-+++ b/scripts/test-petpack-security.js
-@@ -1,18 +1,18 @@
- 'use strict';
- 
- const assert = require('assert');
- const fs = require('fs');
- const os = require('os');
- const path = require('path');
- const AdmZip = require('adm-zip');
--const { safeRelative, validateManifest, validatePetpack } = require('../src/petpack-validator');
-+const { referencedFiles, safeRelative, validateManifest, validatePetpack } = require('../src/petpack-validator');
- 
- const fixture = path.join(__dirname, '..', 'pets', 'packages', 'boss.petpack');
- assert.doesNotThrow(() => validatePetpack(fixture), 'reviewed demo package must validate');
- 
- function assertRejected(name, mutate, expected) {
-   const output = path.join(os.tmpdir(), `desktop-pet-${process.pid}-${name}.petpack`);
-   const zip = new AdmZip(fixture);
-   mutate(zip);
-   zip.writeZip(output);
-   try { assert.throws(() => validatePetpack(output), expected); }
-@@ -64,11 +64,35 @@ delete manifest.animations.climb;
- manifest.interactionActions.drag.action = 'walk';
- 
- manifest.behavior = {
-   random: [{ state: 'sleep', weight: 1, minDuration: 600, maxDuration: 1000 }]
- };
- assert.doesNotThrow(
-   () => validateManifest(manifest),
-   'schema-v1 validators must continue accepting legacy random sleep entries'
- );
- 
-+manifest.behavior = {
-+  random: [{
-+    state: 'sit',
-+    weight: 1,
-+    minDuration: 600,
-+    maxDuration: 1000,
-+    speechAudio: 'audio/roam.mp3'
-+  }]
-+};
-+assert.ok(referencedFiles(manifest).has('audio/roam.mp3'), 'behavior.random speechAudio must be referenced');
-+assert.doesNotThrow(() => validateManifest(manifest));
-+manifest.behavior.random[0].speechAudio = 'audio/roam.txt';
-+assert.throws(() => validateManifest(manifest), /speechAudio/);
-+manifest.behavior.random[0].speechAudio = 'audio/roam.mp3';
-+manifest.behavior.perched = [{
-+  state: 'sit',
-+  weight: 1,
-+  minDuration: 600,
-+  maxDuration: 1000,
-+  speechAudio: 'audio/perched.mp3'
-+}];
-+assert.ok(referencedFiles(manifest).has('audio/perched.mp3'), 'behavior.perched speechAudio must be referenced');
-+assert.doesNotThrow(() => validateManifest(manifest));
+diff --git a/package.json b/package.json index 7337ff6..b00c57f 100644 --- a/package.json +++ b/package.json @@ -10,7 +10,7 @@    },    "scripts": {      "test": "npm run test:js && npm run test:python && npm run validate:demo", -    "test:js": "node --check src/main-v3.js && node --check src/preload-v3.js && node --check src/renderer-v3.js && node --check src/petpack-validator.js && node --check src/startup-greeting.js && node --check src/window-discovery.js && node --check src/interaction-controller.js && node --check src/topmost-guard.js && node --check scripts/build-customer.js && node scripts/test-renderer-interaction.js && node scripts/test-petpack-security.js && node scripts/test-window-interactions.js && node scripts/test-window-discovery.js && node scripts/test-interaction-controller.js && node scripts/test-topmost-guard.js && node scripts/test-runtime-cdp-contract.js && node scripts/test-laopo-petpack.js && node scripts/test-startup-greeting.js", +    "test:js": "node --check src/main-v3.js && node --check src/preload-v3.js && node --check src/renderer-v3.js && node --check src/petpack-validator.js && node --check src/startup-greeting.js && node --check src/window-discovery.js && node --check src/interaction-controller.js && node --check src/topmost-guard.js && node --check src/sequence-controller.js && node --check scripts/build-customer.js && node scripts/test-renderer-interaction.js && node scripts/test-petpack-security.js && node scripts/test-sequences-schema.js && node scripts/test-window-interactions.js && node scripts/test-window-discovery.js && node scripts/test-interaction-controller.js && node scripts/test-topmost-guard.js && node scripts/test-runtime-cdp-contract.js && node scripts/test-laopo-petpack.js && node scripts/test-startup-greeting.js && node scripts/test-sequence-controller.js",      "test:python": "python -m unittest discover -s skills/desktop-pet-maker/scripts -p test_*.py -v",      "test:regression": "node scripts/test-renderer-interaction.js && python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v",      "validate:demo": "python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/laopo.petpack", diff --git a/skills/desktop-pet-maker/references/petpack-schema.md b/skills/desktop-pet-maker/references/petpack-schema.md index 88ceeeb..433cc23 100644 --- a/skills/desktop-pet-maker/references/petpack-schema.md +++ b/skills/desktop-pet-maker/references/petpack-schema.md @@ -26,6 +26,8 @@ Manifest fields:  - `animations`: required object keyed by action.  - `behavior.random`: weighted state definitions used by the player.  - `interactionActions`: optional object that maps window-interaction roles to animation actions. +- `sequences`: optional object keyed by sequence id; each value defines a multi-stage scripted interaction. +- `contextMenuActions`: optional array of menu entries. Each entry must contain exactly one of `action` (single animation) or `sequence` (reference to `sequences`).    Each animation contains:   @@ -64,4 +66,45 @@ Standard action counts are idle 4, walk 6, sit 4, sleep 4, and reaction 4. The p    The archive must contain only the manifest, preview, and referenced assets. Every PNG must have an alpha channel, non-empty visible pixels, transparent corners, and no material green-screen residue.   +## Sequences + +`sequences` is optional. When present it must be an object with at most 8 entries. Keys must match `^[a-z0-9][a-z0-9-]{1,31}$`. + +Each sequence contains a required `stages` array with 2 to 16 stage objects. Every stage requires an `action` that names an animation in `animations`. Optional fields: + +| Field | Type | Constraints | +| --- | --- | --- | +| `message` | string | up to 80 characters | +| `messages` | string array | 1 to 4 entries, each up to 80 characters | +| `messageGapMs` | integer | 0 to 5000 | +| `duration` | integer | 0 to 10000 milliseconds; may be omitted when `waitForClick` is true | +| `waitForClick` | boolean | pause until the user clicks before advancing | + +Stages may omit both `message` and `messages`. Referenced stage actions receive the same structural animation validation as other manifest actions. + +Example: + +```json +{ +  "sequences": { +    "relax": { +      "stages": [ +        { "action": "relax-a", "message": "鍏堝紕濂界湅涓€鐐癸綖", "duration": 2800 }, +        { "action": "relax-b", "messages": ["鎴戣杩欎釜", "鎴戣杩欎釜"], "messageGapMs": 700, "waitForClick": true }, +        { "action": "idle", "duration": 0 } +      ] +    } +  } +} +``` + +## Context menu actions + +`contextMenuActions` may contain at most 8 entries. Each entry requires `id`, `label`, and exactly one trigger: + +- **Single action:** `{ "id": "react", "label": "浜掑姩", "action": "reaction", "message": "浣犲ソ", "duration": 2000 }` +- **Sequence:** `{ "id": "relax", "label": "鍘绘斁鏉?, "sequence": "relax" }` + +When using `sequence`, do not include `action`, `message`, or `duration`; dialogue and timing live in the sequence stages. `speech` and `speechAudio` remain optional on either entry type. +  All exported frames must use the same transparent canvas size and baseline. Normalize visual scale across all actions, not merely within each action strip, so switching poses does not make the pet jump in size. diff --git a/skills/desktop-pet-maker/scripts/petpack_tool.py b/skills/desktop-pet-maker/scripts/petpack_tool.py index c0c64e0..26ec3af 100644 --- a/skills/desktop-pet-maker/scripts/petpack_tool.py +++ b/skills/desktop-pet-maker/scripts/petpack_tool.py @@ -21,6 +21,8 @@ MAX_SINGLE_FILE_BYTES = 50 * 1024 * 1024  MAX_MANIFEST_BYTES = 1024 * 1024  MAX_IMAGE_DIMENSION = 4096  MAX_IMAGE_PIXELS = 16 * 1024 * 1024 +SEQUENCE_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{1,31}") +MAX_SEQUENCES = 8      def safe_relative(value: str) -> Path: @@ -150,6 +152,50 @@ def validate_manifest_shape(manifest: dict) -> list[str]:                  ):                      raise ValueError("interactionActions anchor must be within 0..1")   +    sequences = manifest.get("sequences") +    if sequences is not None: +        if not isinstance(sequences, dict): +            raise ValueError("sequences must be an object") +        if len(sequences) > MAX_SEQUENCES: +            raise ValueError(f"sequences must contain at most {MAX_SEQUENCES} entries") +        seen_sequence_ids: set[str] = set() +        for sequence_id, sequence in sequences.items(): +            if not isinstance(sequence_id, str) or not SEQUENCE_ID_PATTERN.fullmatch(sequence_id) or sequence_id in seen_sequence_ids: +                raise ValueError("sequences key is invalid or duplicated") +            seen_sequence_ids.add(sequence_id) +            if not isinstance(sequence, dict): +                raise ValueError(f"sequences.{sequence_id} must be an object") +            stages = sequence.get("stages") +            if not isinstance(stages, list) or not 2 <= len(stages) <= 16: +                raise ValueError(f"sequences.{sequence_id}.stages must contain 2 to 16 entries") +            for index, stage in enumerate(stages): +                if not isinstance(stage, dict): +                    raise ValueError(f"sequences.{sequence_id}.stages[{index}] must be an object") +                action = stage.get("action") +                if not isinstance(action, str) or action not in animations: +                    raise ValueError(f"sequences.{sequence_id}.stages[{index}] references an unknown animation") +                if action not in validated_animations: +                    validate_animation(action) +                    validated_animations.add(action) +                if "message" in stage and (not isinstance(stage["message"], str) or len(stage["message"]) > 80): +                    raise ValueError(f"sequences.{sequence_id}.stages[{index}].message must be a string up to 80 characters") +                if "messages" in stage: +                    messages = stage["messages"] +                    if not isinstance(messages, list) or not 1 <= len(messages) <= 4: +                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].messages must contain 1 to 4 strings") +                    if any(not isinstance(value, str) or len(value) > 80 for value in messages): +                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].messages entries must be strings up to 80 characters") +                if "messageGapMs" in stage: +                    gap = stage["messageGapMs"] +                    if not isinstance(gap, int) or isinstance(gap, bool) or not 0 <= gap <= 5000: +                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].messageGapMs must be an integer from 0 to 5000") +                if "duration" in stage: +                    duration = stage["duration"] +                    if not isinstance(duration, int) or isinstance(duration, bool) or not 0 <= duration <= 10000: +                        raise ValueError(f"sequences.{sequence_id}.stages[{index}].duration must be an integer from 0 to 10000") +                if "waitForClick" in stage and not isinstance(stage["waitForClick"], bool): +                    raise ValueError(f"sequences.{sequence_id}.stages[{index}].waitForClick must be a boolean") +      context_menu_actions = manifest.get("contextMenuActions")      if context_menu_actions is not None:          if not isinstance(context_menu_actions, list) or len(context_menu_actions) > 8: @@ -159,20 +205,37 @@ def validate_manifest_shape(manifest: dict) -> list[str]:              if not isinstance(item, dict):                  raise ValueError("contextMenuActions entries must be objects")              item_id = item.get("id") -            if not isinstance(item_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,31}", item_id) or item_id in action_ids: +            if not isinstance(item_id, str) or not SEQUENCE_ID_PATTERN.fullmatch(item_id) or item_id in action_ids:                  raise ValueError("contextMenuActions id is invalid or duplicated")              action_ids.add(item_id)              label = item.get("label")              if not isinstance(label, str) or not label.strip() or len(label) > 24:                  raise ValueError("contextMenuActions label must be 1 to 24 characters") -            action = item.get("action") -            if not isinstance(action, str) or action not in animations: -                raise ValueError("contextMenuActions references an unknown animation") -            if action not in validated_animations: -                validate_animation(action) -                validated_animations.add(action) -            if "message" in item and (not isinstance(item["message"], str) or len(item["message"]) > 80): -                raise ValueError("contextMenuActions message must be a string up to 80 characters") +            has_action = "action" in item +            has_sequence = "sequence" in item +            if has_action == has_sequence: +                raise ValueError("contextMenuActions entry must contain exactly one of action or sequence") +            if has_sequence: +                sequence_id = item.get("sequence") +                if not isinstance(sequence_id, str) or not isinstance(sequences, dict) or sequence_id not in sequences: +                    raise ValueError("contextMenuActions references an unknown sequence") +                if "message" in item: +                    raise ValueError("contextMenuActions sequence entry must not include message") +                if "duration" in item: +                    raise ValueError("contextMenuActions sequence entry must not include duration") +            else: +                action = item.get("action") +                if not isinstance(action, str) or action not in animations: +                    raise ValueError("contextMenuActions references an unknown animation") +                if action not in validated_animations: +                    validate_animation(action) +                    validated_animations.add(action) +                if "message" in item and (not isinstance(item["message"], str) or len(item["message"]) > 80): +                    raise ValueError("contextMenuActions message must be a string up to 80 characters") +                if "duration" in item: +                    duration = item["duration"] +                    if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000: +                        raise ValueError("contextMenuActions duration must be an integer from 600 to 10000")              if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):                  raise ValueError("contextMenuActions speech must be a string up to 20 characters")              if "speechAudio" in item: @@ -182,10 +245,6 @@ def validate_manifest_shape(manifest: dict) -> list[str]:                  audio_path = safe_relative(audio)                  if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:                      raise ValueError("contextMenuActions speechAudio must be mp3/wav/ogg") -            if "duration" in item: -                duration = item["duration"] -                if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000: -                    raise ValueError("contextMenuActions duration must be an integer from 600 to 10000")        def validate_behavior_list(behavior: object, label: str) -> None:          if not isinstance(behavior, list) or not 1 <= len(behavior) <= 20: diff --git a/src/petpack-validator.js b/src/petpack-validator.js index ebd238b..c3bc781 100644 --- a/src/petpack-validator.js +++ b/src/petpack-validator.js @@ -7,6 +7,8 @@ const AdmZip = require('adm-zip');  const REQUIRED_ACTIONS = Object.freeze({ idle: 4, walk: 6, sit: 4, sleep: 4, reaction: 4 });  const INTERACTION_ROLES = new Set(['drag', 'climb', 'perch', 'hang', 'fall', 'impact', 'recover']);  const PET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,47}$/; +const SEQUENCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,31}$/; +const MAX_SEQUENCES = 8;  const MAX_ARCHIVE_ENTRIES = 300;  const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;  const MAX_ASSET_BYTES = 50 * 1024 * 1024; @@ -144,6 +146,64 @@ function validateManifest(manifest, root = '', requireFiles = false) {      }    }   +  if (manifest.sequences !== undefined) { +    if (!manifest.sequences || typeof manifest.sequences !== 'object' || Array.isArray(manifest.sequences)) { +      throw new Error('sequences 蹇呴』鏄璞?); +    } +    const sequenceIds = Object.keys(manifest.sequences); +    if (sequenceIds.length > MAX_SEQUENCES) { +      throw new Error(`sequences 鏈€澶氬寘鍚?${MAX_SEQUENCES} 鏉); +    } +    const seenSequenceIds = new Set(); +    for (const sequenceId of sequenceIds) { +      if (!SEQUENCE_ID_PATTERN.test(sequenceId) || seenSequenceIds.has(sequenceId)) { +        throw new Error('sequences key 涓嶅悎娉曟垨閲嶅'); +      } +      seenSequenceIds.add(sequenceId); +      const sequence = manifest.sequences[sequenceId]; +      if (!sequence || typeof sequence !== 'object' || Array.isArray(sequence)) { +        throw new Error(`sequences.${sequenceId} 閰嶇疆鏍煎紡涓嶆纭甡); +      } +      const { stages } = sequence; +      if (!Array.isArray(stages) || stages.length < 2 || stages.length > 16) { +        throw new Error(`sequences.${sequenceId}.stages 蹇呴』鍖呭惈 2 鍒?16 涓樁娈礰); +      } +      for (let index = 0; index < stages.length; index += 1) { +        const stage = stages[index]; +        if (!stage || typeof stage !== 'object' || Array.isArray(stage)) { +          throw new Error(`sequences.${sequenceId}.stages[${index}] 閰嶇疆鏍煎紡涓嶆纭甡); +        } +        if (typeof stage.action !== 'string' || !Object.hasOwn(manifest.animations, stage.action)) { +          throw new Error(`sequences.${sequenceId}.stages[${index}] 寮曠敤浜嗕笉瀛樺湪鐨勫姩鐢伙細${stage.action}`); +        } +        if (!validatedAnimations.has(stage.action)) { +          validateAnimation(stage.action); +          validatedAnimations.add(stage.action); +        } +        if (stage.message !== undefined && (typeof stage.message !== 'string' || stage.message.length > 80)) { +          throw new Error(`sequences.${sequenceId}.stages[${index}].message 涓嶈兘瓒呰繃 80 涓瓧绗); +        } +        if (stage.messages !== undefined) { +          if (!Array.isArray(stage.messages) || stage.messages.length < 1 || stage.messages.length > 4) { +            throw new Error(`sequences.${sequenceId}.stages[${index}].messages 蹇呴』鍖呭惈 1 鍒?4 鏉″瓧绗︿覆`); +          } +          if (stage.messages.some((value) => typeof value !== 'string' || value.length > 80)) { +            throw new Error(`sequences.${sequenceId}.stages[${index}].messages 姣忔潯涓嶈兘瓒呰繃 80 涓瓧绗); +          } +        } +        if (stage.messageGapMs !== undefined && (!Number.isInteger(stage.messageGapMs) || stage.messageGapMs < 0 || stage.messageGapMs > 5000)) { +          throw new Error(`sequences.${sequenceId}.stages[${index}].messageGapMs 蹇呴』涓?0 鍒?5000 姣`); +        } +        if (stage.duration !== undefined && (!Number.isInteger(stage.duration) || stage.duration < 0 || stage.duration > 10000)) { +          throw new Error(`sequences.${sequenceId}.stages[${index}].duration 蹇呴』涓?0 鍒?10000 姣`); +        } +        if (stage.waitForClick !== undefined && typeof stage.waitForClick !== 'boolean') { +          throw new Error(`sequences.${sequenceId}.stages[${index}].waitForClick 蹇呴』鏄竷灏斿€糮); +        } +      } +    } +  } +    if (manifest.contextMenuActions !== undefined) {      if (!Array.isArray(manifest.contextMenuActions) || manifest.contextMenuActions.length > 8) {        throw new Error('contextMenuActions 蹇呴』鏄渶澶?8 椤圭殑鏁扮粍'); @@ -151,13 +211,31 @@ function validateManifest(manifest, root = '', requireFiles = false) {      const actionIds = new Set();      for (const item of manifest.contextMenuActions) {        if (!item || typeof item !== 'object') throw new Error('鍙抽敭鍔ㄤ綔閰嶇疆鏍煎紡涓嶆纭?); -      if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(String(item.id || '')) || actionIds.has(item.id)) { +      if (!SEQUENCE_ID_PATTERN.test(String(item.id || '')) || actionIds.has(item.id)) {          throw new Error('鍙抽敭鍔ㄤ綔 id 涓嶅悎娉曟垨閲嶅');        }        actionIds.add(item.id);        if (typeof item.label !== 'string' || !item.label.trim() || item.label.length > 24) throw new Error('鍙抽敭鍔ㄤ綔 label 蹇呴』涓?1 鍒?24 涓瓧绗?); -      if (typeof item.action !== 'string' || !manifest.animations[item.action]) throw new Error('鍙抽敭鍔ㄤ綔寮曠敤浜嗕笉瀛樺湪鐨勫姩鐢伙細' + item.action); -      if (item.message !== undefined && (typeof item.message !== 'string' || item.message.length > 80)) throw new Error('鍙抽敭鍔ㄤ綔 message 涓嶈兘瓒呰繃 80 涓瓧绗?); +      const hasAction = item.action !== undefined; +      const hasSequence = item.sequence !== undefined; +      if (hasAction === hasSequence) { +        throw new Error('鍙抽敭鍔ㄤ綔蹇呴』涓斿彧鑳藉寘鍚?action 鎴?sequence 涔嬩竴'); +      } +      if (hasSequence) { +        if (typeof item.sequence !== 'string' || !manifest.sequences || !Object.hasOwn(manifest.sequences, item.sequence)) { +          throw new Error('鍙抽敭鍔ㄤ綔寮曠敤浜嗕笉瀛樺湪鐨勫簭鍒楋細' + item.sequence); +        } +        if (item.message !== undefined) throw new Error('寮曠敤 sequence 鐨勫彸閿姩浣滀笉鑳藉寘鍚?message'); +        if (item.duration !== undefined) throw new Error('寮曠敤 sequence 鐨勫彸閿姩浣滀笉鑳藉寘鍚?duration'); +      } else { +        if (typeof item.action !== 'string' || !manifest.animations[item.action]) throw new Error('鍙抽敭鍔ㄤ綔寮曠敤浜嗕笉瀛樺湪鐨勫姩鐢伙細' + item.action); +        if (!validatedAnimations.has(item.action)) { +          validateAnimation(item.action); +          validatedAnimations.add(item.action); +        } +        if (item.message !== undefined && (typeof item.message !== 'string' || item.message.length > 80)) throw new Error('鍙抽敭鍔ㄤ綔 message 涓嶈兘瓒呰繃 80 涓瓧绗?); +        if (item.duration !== undefined && (!Number.isInteger(item.duration) || item.duration < 600 || item.duration > 10000)) throw new Error('鍙抽敭鍔ㄤ綔 duration 蹇呴』涓?600 鍒?10000 姣'); +      }        if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) throw new Error('鍙抽敭鍔ㄤ綔 speech 涓嶈兘瓒呰繃 20 涓瓧绗?);        if (item.speechAudio !== undefined) {          if (typeof item.speechAudio !== 'string' || !item.speechAudio) throw new Error('鍙抽敭鍔ㄤ綔 speechAudio 璺緞涓嶅悎娉?); @@ -166,7 +244,6 @@ function validateManifest(manifest, root = '', requireFiles = false) {            throw new Error('鍙抽敭鍔ㄤ綔 speechAudio 鍙敮鎸?mp3/wav/ogg');          }        } -      if (item.duration !== undefined && (!Number.isInteger(item.duration) || item.duration < 600 || item.duration > 10000)) throw new Error('鍙抽敭鍔ㄤ綔 duration 蹇呴』涓?600 鍒?10000 姣');      }    }  
+```
+
+## Untracked
+```diff
+--- /dev/null
++++ b/scripts/test-sequences-schema.js
++'use strict';
 +
- console.log('petpack archive security checks passed');
-diff --git a/scripts/test-renderer-interaction.js b/scripts/test-renderer-interaction.js
-index fe6acba..575cee2 100644
---- a/scripts/test-renderer-interaction.js
-+++ b/scripts/test-renderer-interaction.js
-@@ -182,20 +182,32 @@ assert.strictEqual(pet.className, 'pet state-reaction', 'repeated reactions must
- stateCallback({ state: 'reaction', message: '鐖革紒', speech: '鐖? });
- assert.deepStrictEqual(calls.spoken, [{
-   text: '鐖?,
-   voice: 'Microsoft Kangkang - Chinese (Simplified, PRC)',
-   pitch: 1
- }], 'configured speech should use a male zh-CN voice when speechGender is male');
- 
- stateCallback({ state: 'call-dad', message: '澶х埛!', speech: '澶х埛' });
- assert.deepStrictEqual(calls.audio, ['audio/call-dad.mp3'], 'bundled speechAudio should play instead of system TTS');
- 
-+stateCallback({
-+  state: 'reaction',
-+  message: '鑰佸叕鍠濊尪',
-+  speech: '鑰佸叕鍠濊尪',
-+  speechAudio: 'pet-asset://demo/audio/serve-tea.mp3'
-+});
-+assert.deepStrictEqual(
-+  calls.audio.slice(-1),
-+  ['pet-asset://demo/audio/serve-tea.mp3'],
-+  'behavior speechAudio from pet:state should play instead of system TTS'
++const assert = require('assert');
++const { validateManifest } = require('../src/petpack-validator');
++
++function makeAnimation(action, frameCount, loop = false) {
++  const frames = [];
++  const durations = [];
++  for (let i = 1; i <= frameCount; i += 1) {
++    frames.push(`animations/${action}/${String(i).padStart(2, '0')}.png`);
++    durations.push(100);
++  }
++  return { frames, durations, loop, scale: 1 };
++}
++
++function baseManifest(overrides = {}) {
++  return {
++    schemaVersion: 1,
++    id: 'demo-seq',
++    name: 'Demo',
++    personality: ['x'],
++    preview: 'preview.png',
++    animations: {
++      idle: makeAnimation('idle', 4, true),
++      walk: makeAnimation('walk', 6, true),
++      sit: makeAnimation('sit', 4, false),
++      sleep: makeAnimation('sleep', 4, true),
++      reaction: makeAnimation('reaction', 4, false),
++      'relax-a': makeAnimation('relax-a', 1, false),
++      'relax-b': makeAnimation('relax-b', 1, false)
++    },
++    behavior: { random: [{ state: 'walk', weight: 1, minDuration: 1000, maxDuration: 2000 }] },
++    sequences: {
++      relax: {
++        stages: [
++          { action: 'relax-a', message: 'hi', duration: 1000 },
++          { action: 'relax-b', messages: ['我要这个', '我要这个'], waitForClick: true },
++          { action: 'idle', duration: 0 }
++        ]
++      }
++    },
++    contextMenuActions: [
++      { id: 'relax', label: '去放松', sequence: 'relax' }
++    ],
++    ...overrides
++  };
++}
++
++assert.doesNotThrow(() => validateManifest(baseManifest(), '', false));
++
++assert.throws(
++  () => validateManifest(baseManifest({
++    contextMenuActions: [{ id: 'relax', label: '去放松', action: 'reaction', sequence: 'relax' }]
++  }), '', false)
 +);
 +
- petImage.listeners.get('load')();
- assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
-   left: 20, top: 30, right: 20, bottom: 10
- });
- assert.strictEqual(
-   bubble.style.getPropertyValue('--bubble-top'),
-   '4px',
-   'bubble sits 2px above the visible head when space allows (30 - 24 - 2)'
- );
- 
-diff --git a/skills/desktop-pet-maker/scripts/petpack_tool.py b/skills/desktop-pet-maker/scripts/petpack_tool.py
-index a2f5600..c0c64e0 100644
---- a/skills/desktop-pet-maker/scripts/petpack_tool.py
-+++ b/skills/desktop-pet-maker/scripts/petpack_tool.py
-@@ -40,20 +40,26 @@ AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg"}
- 
- def referenced_files(manifest: dict) -> set[str]:
-     referenced = {"pet.json", safe_relative(str(manifest.get("preview", ""))).as_posix()}
-     for config in manifest.get("animations", {}).values():
-         if isinstance(config, dict):
-             for frame in config.get("frames", []):
-                 referenced.add(safe_relative(str(frame)).as_posix())
-     for item in manifest.get("contextMenuActions") or []:
-         if isinstance(item, dict) and item.get("speechAudio"):
-             referenced.add(safe_relative(str(item["speechAudio"])).as_posix())
-+    behavior_root = manifest.get("behavior")
-+    if isinstance(behavior_root, dict):
-+        for key in ("random", "perched"):
-+            for item in behavior_root.get(key) or []:
-+                if isinstance(item, dict) and item.get("speechAudio"):
-+                    referenced.add(safe_relative(str(item["speechAudio"])).as_posix())
-     return referenced
- 
- 
- def validate_manifest_shape(manifest: dict) -> list[str]:
-     if manifest.get("schemaVersion") != 1:
-         raise ValueError("schemaVersion must be 1")
-     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,47}", str(manifest.get("id", ""))):
-         raise ValueError("invalid pet id")
-     name = manifest.get("name")
-     if not isinstance(name, str) or not name.strip() or len(name) > 80:
-@@ -203,20 +209,27 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
-                 or isinstance(maximum, bool)
-                 or minimum < 600
-                 or maximum > 60000
-                 or maximum < minimum
-             ):
-                 raise ValueError(f"{label} duration is invalid")
-             if "message" in item and (not isinstance(item["message"], str) or len(item["message"]) > 80):
-                 raise ValueError(f"{label} message must be a string up to 80 characters")
-             if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
-                 raise ValueError(f"{label} speech must be a string up to 20 characters")
-+            if "speechAudio" in item:
-+                audio = item["speechAudio"]
-+                if not isinstance(audio, str) or not audio.strip():
-+                    raise ValueError(f"{label} speechAudio must be a non-empty path")
-+                audio_path = safe_relative(audio)
-+                if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
-+                    raise ValueError(f"{label} speechAudio must be mp3/wav/ogg")
- 
-     behavior_root = manifest.get("behavior", {})
-     if isinstance(behavior_root, dict):
-         if behavior_root.get("random") is not None:
-             validate_behavior_list(behavior_root.get("random"), "behavior.random")
-         if behavior_root.get("perched") is not None:
-             validate_behavior_list(behavior_root.get("perched"), "behavior.perched")
-     return frame_paths
- 
- 
-diff --git a/src/interaction-controller.js b/src/interaction-controller.js
-index 3bcab3c..9bff1cd 100644
---- a/src/interaction-controller.js
-+++ b/src/interaction-controller.js
-@@ -218,21 +218,22 @@ function createInteractionController(dependencies) {
-       if (disposed || generation !== token || currentState !== 'perched') return;
-       const choice = pickWeighted(choices);
-       if (!choice) return;
-       const playMs = Math.max(
-         600,
-         Number(choice.minDuration) + Math.random() * Math.max(0, Number(choice.maxDuration) - Number(choice.minDuration))
-       );
-       // Keep controller state as perched for attachment; only swap the visible action.
-       emitRole(choice.state, {
-         message: typeof choice.message === 'string' ? choice.message : '',
--        speech: typeof choice.speech === 'string' ? choice.speech : ''
-+        speech: typeof choice.speech === 'string' ? choice.speech : '',
-+        speechAudio: typeof choice.speechAudio === 'string' ? choice.speechAudio : ''
-       });
-       perchedIdleTimer = setTimeoutFn(() => {
-         perchedIdleTimer = undefined;
-         if (disposed || generation !== token || currentState !== 'perched') return;
-         emitRole('perch');
-         schedulePerchedIdle();
-       }, playMs);
-     }, wait);
-   }
- 
-diff --git a/src/main-v3.js b/src/main-v3.js
-index 33b421b..47faad0 100644
---- a/src/main-v3.js
-+++ b/src/main-v3.js
-@@ -248,21 +248,25 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
-   const workArea = getWorkAreaForBounds();
-   return {
-     x: Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - width)),
-     y: Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - height))
-   };
- }
- 
- function sendState(state, message = '', speech = '', logicalRole = state, options) {
-   if (!petWindow || petWindow.isDestroyed()) return;
-   if (shouldRestoreWindowBounds(options)) restorePetWindowSize();
--  petWindow.webContents.send('pet:state', { state, logicalRole, message, speech });
-+  let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
-+  if (speechAudio && !speechAudio.startsWith('pet-asset:') && activeManifest) {
-+    speechAudio = petAssetUrl(activeManifest.id, speechAudio);
-+  }
-+  petWindow.webContents.send('pet:state', { state, logicalRole, message, speech, speechAudio });
- }
- 
- function setMouseThrough(ignore) {
-   if (!petWindow || petWindow.isDestroyed() || mouseThrough === ignore) return;
-   mouseThrough = ignore;
-   petWindow.setIgnoreMouseEvents(ignore, { forward: true });
- }
- 
- function stopWalk() {
-   if (walkTimer) clearInterval(walkTimer);
-@@ -343,21 +347,24 @@ function runBehavior() {
-     const workArea = getWorkAreaForBounds(bounds);
-     const delta = Math.round((Math.random() * 2 - 1) * Math.min(300, workArea.width * 0.22));
-     walkTo(Math.max(workArea.x, Math.min(workArea.x + workArea.width - bounds.width, bounds.x + delta)));
-     return;
-   }
-   const fallbackMessages = { sit: '鎴戝氨鍦ㄨ繖閲岄櫔浣犮€?, reaction: '鍒蛋澶繙鈥︹€?, sleep: 'z Z' };
-   const message = typeof behavior.message === 'string' && behavior.message
-     ? behavior.message
-     : (fallbackMessages[behavior.state] || '');
-   const speech = typeof behavior.speech === 'string' ? behavior.speech : '';
--  sendState(behavior.state, message, speech);
-+  const speechAudio = typeof behavior.speechAudio === 'string' && behavior.speechAudio
-+    ? petAssetUrl(activeManifest.id, behavior.speechAudio)
-+    : '';
-+  sendState(behavior.state, message, speech, behavior.state, { speechAudio });
-   scheduleBehavior(duration);
- }
- 
- function setPetSize(nextKey) {
-   if (!PET_SIZES[nextKey] || !petWindow || (interaction && interaction.state() !== 'normal')) return;
-   const old = petWindow.getBounds();
-   settings.sizeKey = nextKey;
-   saveSettings();
-   const next = currentSize();
-   const position = clampPosition(old.x + Math.round((old.width - next.width) / 2), old.y + old.height - next.height, next.width, next.height);
-diff --git a/src/petpack-validator.js b/src/petpack-validator.js
-index 782d8df..ebd238b 100644
---- a/src/petpack-validator.js
-+++ b/src/petpack-validator.js
-@@ -42,20 +42,26 @@ function resolveInside(root, relative) {
- const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg']);
- 
- function referencedFiles(manifest) {
-   const referenced = new Set(['pet.json', manifest.preview]);
-   for (const animation of Object.values(manifest.animations || {})) {
-     for (const frame of animation.frames || []) referenced.add(frame);
-   }
-   for (const item of manifest.contextMenuActions || []) {
-     if (item && typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
-   }
-+  for (const list of [manifest.behavior?.random, manifest.behavior?.perched]) {
-+    if (!Array.isArray(list)) continue;
-+    for (const item of list) {
-+      if (item && typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
++assert.throws(
++  () => validateManifest(baseManifest({
++    contextMenuActions: [{ id: 'relax', label: '去放松', sequence: 'missing' }]
++  }), '', false)
++);
++
++assert.throws(
++  () => validateManifest(baseManifest({
++    contextMenuActions: [{ id: 'relax', label: '去放松', sequence: 'relax', message: 'nope' }]
++  }), '', false)
++);
++
++assert.throws(
++  () => validateManifest(baseManifest({
++    contextMenuActions: [{ id: 'relax', label: '去放松', sequence: 'relax', duration: 1000 }]
++  }), '', false)
++);
++
++assert.throws(
++  () => validateManifest(baseManifest({
++    sequences: {
++      relax: { stages: [{ action: 'relax-a', duration: 1000 }] }
 +    }
-+  }
-   return referenced;
- }
- 
- function validateManifest(manifest, root = '', requireFiles = false) {
-   if (!manifest || manifest.schemaVersion !== 1) throw new Error('鍙敮鎸?schemaVersion 1');
-   if (!PET_ID_PATTERN.test(String(manifest.id || ''))) throw new Error('瀹犵墿 id 涓嶅悎娉?);
-   if (typeof manifest.name !== 'string' || !manifest.name.trim() || manifest.name.length > 80) {
-     throw new Error('瀹犵墿鍚嶇О闀垮害蹇呴』涓?1 鍒?80 涓瓧绗?);
-   }
-   if (manifest.description !== undefined && (typeof manifest.description !== 'string' || manifest.description.length > 500)) {
-@@ -177,20 +183,27 @@ function validateManifest(manifest, root = '', requireFiles = false) {
-       if (!Number.isFinite(item.weight) || item.weight <= 0 || item.weight > 10000) throw new Error(`${label} weight 涓嶅悎娉昤);
-       if (!Number.isFinite(item.minDuration) || !Number.isFinite(item.maxDuration) || item.minDuration < 600 || item.maxDuration > 60000 || item.maxDuration < item.minDuration) {
-         throw new Error(`${label} duration 涓嶅悎娉昤);
-       }
-       if (item.message !== undefined && (typeof item.message !== 'string' || item.message.length > 80)) {
-         throw new Error(`${label} message 涓嶈兘瓒呰繃 80 涓瓧绗);
-       }
-       if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) {
-         throw new Error(`${label} speech 涓嶈兘瓒呰繃 20 涓瓧绗);
-       }
-+      if (item.speechAudio !== undefined) {
-+        if (typeof item.speechAudio !== 'string' || !item.speechAudio) throw new Error(`${label} speechAudio 璺緞涓嶅悎娉昤);
-+        safeRelative(item.speechAudio);
-+        if (!AUDIO_EXTENSIONS.has(path.posix.extname(item.speechAudio).toLowerCase())) {
-+          throw new Error(`${label} speechAudio 鍙敮鎸?mp3/wav/ogg`);
-+        }
++  }), '', false),
++  /stages/
++);
++
++assert.throws(
++  () => validateManifest(baseManifest({
++    sequences: {
++      relax: {
++        stages: [
++          { action: 'missing', duration: 1000 },
++          { action: 'idle', duration: 0 }
++        ]
 +      }
-     }
-   }
- 
-   if (manifest.behavior?.random !== undefined) {
-     validateBehaviorList(manifest.behavior.random, 'behavior.random');
-   }
-   if (manifest.behavior?.perched !== undefined) {
-     validateBehaviorList(manifest.behavior.perched, 'behavior.perched');
-   }
- 
-diff --git a/src/renderer-v3.js b/src/renderer-v3.js
-index 64a506d..b2b2aa4 100644
---- a/src/renderer-v3.js
-+++ b/src/renderer-v3.js
-@@ -179,47 +179,49 @@ function speak(text, audioUrl = '') {
-       utterance.voice = lateVoice;
-       utterance.lang = lateVoice.lang || 'zh-CN';
-       if (gender === 'male' && MALE_VOICE_RE.test(lateVoice.name)) utterance.pitch = 1;
-     }
-     start();
-   };
-   window.speechSynthesis.addEventListener('voiceschanged', retry, { once: true });
-   setTimeout(retry, 250);
- }
- 
--function setState(state, message = '', speech = '', logicalRole) {
--  pendingState = { state, message, speech, logicalRole };
-+function setState(state, message = '', speech = '', logicalRole, speechAudio = '') {
-+  pendingState = { state, message, speech, logicalRole, speechAudio };
-   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
-   if (!manifest) return;
-   playAnimation(state, logicalRole);
-   if (message) {
-     const bubbleMs = state === 'sleep'
-       ? 4200
-       : baseActionName(state).startsWith('perch-')
-         ? 4800
-         : 2400;
-     showBubble(message, bubbleMs);
-   }
--  if (speech || resolveSpeechAudio(state)) speak(speech, resolveSpeechAudio(state));
-+  const audio = speechAudio || resolveSpeechAudio(state);
-+  if (speech || audio) speak(speech, audio);
- }
- 
- function loadPet(nextManifest) {
-   manifest = nextManifest;
-   petImage.crossOrigin = 'anonymous';
-   petImage.alt = `${manifest.name}妗岄潰瀹犵墿`;
-   petImage.classList.remove('ready');
-   preloadFrames();
-   setState(
-     pendingState.state || 'idle',
-     pendingState.message || '',
-     pendingState.speech || '',
--    pendingState.logicalRole
-+    pendingState.logicalRole,
-+    pendingState.speechAudio || ''
-   );
- }
- 
- function scanVisibleInsets() {
-   const { width, height } = hitCanvas;
-   const data = hitContext.getImageData(0, 0, width, height).data;
-   let minX = width;
-   let minY = height;
-   let maxX = -1;
-   let maxY = -1;
-@@ -372,12 +374,13 @@ pet.addEventListener('pointercancel', (event) => {
-   pointerDown = undefined;
-   pet.classList.remove('dragging');
-   if (dragged) window.petApi.endDrag({ screenX: event.screenX, screenY: event.screenY });
- });
- pet.addEventListener('contextmenu', (event) => {
-   event.preventDefault();
-   window.petApi.openMenu();
- });
- 
- window.petApi.onLoad(loadPet);
--window.petApi.onState(({ state, message, speech, logicalRole }) => setState(state, message, speech, logicalRole));
-+window.petApi.onState(({ state, message, speech, logicalRole, speechAudio }) =>
-+  setState(state, message, speech, logicalRole, speechAudio || ''));
- window.petApi.getCurrentPet().then(loadPet);
-
++    }
++  }), '', false)
++);
++
++assert.doesNotThrow(() => validateManifest(baseManifest({
++  contextMenuActions: [{ id: 'react', label: '互动', action: 'reaction', message: '你好' }]
++}), '', false));
++
++console.log('test-sequences-schema: ok');
++
 ```

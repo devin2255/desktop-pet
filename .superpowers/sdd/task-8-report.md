@@ -1,49 +1,56 @@
-# Task 8 Report — assemble pets/library/laopo + pet.json
+# Task 8 Report — 编写 pet.json、打包并包级测试
 
 **Status:** PASS  
-**Date:** 2026-08-02  
-**Commit:** no commit (`/pets/library/` is gitignored; boss library also untracked — only `pets/packages/boss.petpack` is published)
+**Date:** 2026-08-04  
+**Package id:** `xiaomei-xiaotian`  
+**Commit:** none（按指示不提交）
 
 ## Summary
 
-Assembled **老婆 (laopo)** library package at `pets/library/laopo/` with all 22 animations, 6 audio clips, `preview.png`, and brief-exact `pet.json`. `petpack_tool.py validate` **PASS**.
+完成「小美&小甜」清单、预览图、`.petpack` 打包与包级回归测试。`petpack_tool validate`（库目录 + 包）与 `node scripts/test-bestie-petpack.js` 全部通过。
 
-## Steps completed
+## Deliverables
 
-1. **Copied frames** from `pets/work/laopo/processed/frames/<action>/` → `pets/library/laopo/animations/<action>/01.png…`  
-   Frame counts matched brief (no BLOCKED): idle4, walk6, sit4, sleep4, reaction4, drag6, climb6, perch4, perch-*6, hang4, fall4, impact4, pat-butt6, call-hubby6, kowtow6, talent-show8, serve-tea6, love-you/praise/encourage4.
-2. **Audio** already staged: `audio/{call-hubby,encourage,love-you,praise,serve-tea,talent-show}.mp3`.
-3. **Wrote** `pet.json` UTF-8 no BOM from task-8 brief (ids/messages/weights/speechAudio unchanged).
-4. **preview.png** from `idle/01.png`.
-5. **Validate** initially **FAILED** on alpha-area drift `23707..38781` (ratio ~1.64 > 1.08).  
-   Cause: upstream `process_animation_strips` fit_scale capped tall poses (esp. `hang/04`) below `TARGET_ALPHA_AREA=38000` while other actions sat near ~38k.  
-   Fix: re-normalized all library frames to a common achievable target (~23233 alpha px, limited by hang/04), then synced back to `pets/work/laopo/processed/frames/`. Preview refreshed.
-6. Re-validate: **PASS** — `valid: laopo (老婆)`; post-renorm area ratio ~1.013.
+| 产物 | 路径 |
+|---|---|
+| 清单 | `pets/library/xiaomei-xiaotian/pet.json` |
+| 预览 | `pets/library/xiaomei-xiaotian/preview.png`（自 `idle/01.png`） |
+| 资源包 | `pets/packages/xiaomei-xiaotian.petpack` |
+| 包级测试 | `scripts/test-bestie-petpack.js` |
+| npm | `package.json`：`test:js` 接入测试；新增 `build:bestie` |
 
-## Validate
+## Manifest 要点
 
-```powershell
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/library/laopo
-# valid: laopo (老婆)
-```
+- id/name/personality/startupGreeting/speechGender 按规格
+- `normalizationMetric`: `alpha-area-v1`（bbox-span 跨动作漂移约 1.79，alpha-area 约 1.017）
+- 动画：标准五动作 + drag + cuddle/selfie/whisper/cheer + relax-* 共 16 套
+- `behavior.random`：walk32 / sit24 / reaction16 / sleep12 / cuddle10 / whisper6（不含 selfie/cheer/relax）
+- `interactionActions.drag.action` = `drag`；窗口 climb/perch/hang/fall/impact/recover 映射到既有动画
+- `sequences.relax` 7 阶段；`relax-models`：`waitForClick` + `messages: ["我要这个","我要这个"]` + `holdLastFrame: true`
+- 菜单「去放松」：`sequence: "relax"`（无 `action`）
 
-## Package layout
+## Validate / Test
 
-```
-pets/library/laopo/
-  pet.json
-  preview.png
-  audio/*.mp3  (6)
-  animations/<22 actions>/*.png
+```text
+python ... validate pets/library/xiaomei-xiaotian
+→ valid: xiaomei-xiaotian (小美&小甜)
+
+python ... build pets/library/xiaomei-xiaotian pets/packages/xiaomei-xiaotian.petpack
+→ pets\packages\xiaomei-xiaotian.petpack
+
+python ... validate pets/packages/xiaomei-xiaotian.petpack
+→ valid: xiaomei-xiaotian (小美&小甜)
+
+node scripts/test-bestie-petpack.js
+→ test-bestie-petpack: ok
 ```
 
 ## Commit
 
-- **No commit.** `.gitignore` line 37: `/pets/library/` ignores the tree (`git check-ignore` confirms).
-- `pets/packages/laopo.petpack` **not yet built** (Task 9+).
+- **No commit.**
 
 ## Concerns
 
-1. Global downscale to ~23k alpha px (hang-limited) makes the pet visually smaller than the 38k pipeline target / boss (~25k). Better fix: regenerate compact `hang` (and other tall outliers) so reprocess can hit ~38k without dragging every action down.
-2. Foot-baseline compositing for `hang`/`perch` remains a pose/placement compromise from the shared strip processor.
-3. Library + work assets stay local/gitignored; only a future `.petpack` under `pets/packages/` would be the publishable tracked artifact (per boss convention).
+1. 窗口攀爬类动作未单独绘制，仅映射 walk/sit/reaction/idle，真人姿态可能略违和。
+2. 客户 EXE（`npm run build:bestie` / Task 9+）与实机启动验证尚未做。
+3. 本报告覆盖原 Task 8（laopo 组装）报告文件名；laopo 历史内容以 git / 其它文档为准。

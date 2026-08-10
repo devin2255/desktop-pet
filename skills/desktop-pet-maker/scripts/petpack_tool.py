@@ -47,8 +47,13 @@ def referenced_files(manifest: dict) -> set[str]:
             for frame in config.get("frames", []):
                 referenced.add(safe_relative(str(frame)).as_posix())
     for item in manifest.get("contextMenuActions") or []:
-        if isinstance(item, dict) and item.get("speechAudio"):
+        if not isinstance(item, dict):
+            continue
+        if item.get("speechAudio"):
             referenced.add(safe_relative(str(item["speechAudio"])).as_posix())
+        for choice in item.get("randomActions") or []:
+            if isinstance(choice, dict) and choice.get("speechAudio"):
+                referenced.add(safe_relative(str(choice["speechAudio"])).as_posix())
     behavior_root = manifest.get("behavior")
     if isinstance(behavior_root, dict):
         for key in ("random", "perched"):
@@ -213,8 +218,10 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 raise ValueError("contextMenuActions label must be 1 to 24 characters")
             has_action = "action" in item
             has_sequence = "sequence" in item
-            if has_action == has_sequence:
-                raise ValueError("contextMenuActions entry must contain exactly one of action or sequence")
+            has_random = "randomActions" in item
+            trigger_count = int(has_action) + int(has_sequence) + int(has_random)
+            if trigger_count != 1:
+                raise ValueError("contextMenuActions entry must contain exactly one of action, sequence, or randomActions")
             if has_sequence:
                 sequence_id = item.get("sequence")
                 if not isinstance(sequence_id, str) or not isinstance(sequences, dict) or sequence_id not in sequences:
@@ -225,6 +232,47 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                     raise ValueError("contextMenuActions sequence entry must not include duration")
                 if "speech" in item or "speechAudio" in item:
                     raise ValueError("contextMenuActions sequence entry must not include speech or speechAudio")
+            elif has_random:
+                choices = item.get("randomActions")
+                if not isinstance(choices, list) or not 2 <= len(choices) <= 6:
+                    raise ValueError("randomActions must contain 2 to 6 choices")
+                if any(key in item for key in ("message", "duration", "speech", "speechAudio")):
+                    raise ValueError("contextMenuActions randomActions entry must not include message, duration, speech, or speechAudio")
+                for choice in choices:
+                    if not isinstance(choice, dict):
+                        raise ValueError("randomActions choices must be objects")
+                    choice_has_action = "action" in choice
+                    choice_has_sequence = "sequence" in choice
+                    if choice_has_action == choice_has_sequence:
+                        raise ValueError("randomActions each choice must contain exactly one of action or sequence")
+                    if choice_has_sequence:
+                        sequence_id = choice.get("sequence")
+                        if not isinstance(sequence_id, str) or not isinstance(sequences, dict) or sequence_id not in sequences:
+                            raise ValueError("randomActions references an unknown sequence")
+                        if any(key in choice for key in ("message", "duration", "speech", "speechAudio")):
+                            raise ValueError("randomActions sequence choice must not include message, duration, speech, or speechAudio")
+                        continue
+                    action = choice.get("action")
+                    if not isinstance(action, str) or action not in animations:
+                        raise ValueError("randomActions references an unknown animation")
+                    if action not in validated_animations:
+                        validate_animation(action)
+                        validated_animations.add(action)
+                    if "message" in choice and (not isinstance(choice["message"], str) or len(choice["message"]) > 80):
+                        raise ValueError("randomActions message must be a string up to 80 characters")
+                    if "duration" in choice:
+                        duration = choice["duration"]
+                        if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000:
+                            raise ValueError("randomActions duration must be an integer from 600 to 10000")
+                    if "speech" in choice and (not isinstance(choice["speech"], str) or len(choice["speech"]) > 20):
+                        raise ValueError("randomActions speech must be a string up to 20 characters")
+                    if "speechAudio" in choice:
+                        audio = choice["speechAudio"]
+                        if not isinstance(audio, str) or not audio.strip():
+                            raise ValueError("randomActions speechAudio must be a non-empty path")
+                        audio_path = safe_relative(audio)
+                        if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
+                            raise ValueError("randomActions speechAudio must be mp3/wav/ogg")
             else:
                 action = item.get("action")
                 if not isinstance(action, str) or action not in animations:
@@ -238,15 +286,16 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                     duration = item["duration"]
                     if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000:
                         raise ValueError("contextMenuActions duration must be an integer from 600 to 10000")
-            if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
-                raise ValueError("contextMenuActions speech must be a string up to 20 characters")
-            if "speechAudio" in item:
-                audio = item["speechAudio"]
-                if not isinstance(audio, str) or not audio.strip():
-                    raise ValueError("contextMenuActions speechAudio must be a non-empty path")
-                audio_path = safe_relative(audio)
-                if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
-                    raise ValueError("contextMenuActions speechAudio must be mp3/wav/ogg")
+            if not has_random:
+                if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
+                    raise ValueError("contextMenuActions speech must be a string up to 20 characters")
+                if "speechAudio" in item:
+                    audio = item["speechAudio"]
+                    if not isinstance(audio, str) or not audio.strip():
+                        raise ValueError("contextMenuActions speechAudio must be a non-empty path")
+                    audio_path = safe_relative(audio)
+                    if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
+                        raise ValueError("contextMenuActions speechAudio must be mp3/wav/ogg")
 
     def validate_behavior_list(behavior: object, label: str) -> None:
         if not isinstance(behavior, list) or not 1 <= len(behavior) <= 20:

@@ -1,49 +1,50 @@
-### Task 9: 打包 petpack 并写回归测试
+### Task 9: 开发版手测 + 客户 EXE
 
 **Files:**
-- Create: `pets/packages/laopo.petpack`
-- Create: `scripts/test-laopo-petpack.js`
-- Delete or stop referencing: `pets/packages/boss.petpack`、`scripts/test-boss-petpack.js`（本分支演示位）
-- Modify: `scripts/test-petpack-security.js` fixture → `laopo.petpack`
-- Modify: `package.json` scripts / `build.files` / icon 路径
+- Modify: 必要时 `package.json` 增加 `build:bestie`
+- Output: `dist/customers/xiaomei-xiaotian/`（或 build-customer 默认目录）
 
-- [ ] **Step 1: 打包**
+- [ ] **Step 1: 开发版启动**
 
 ```powershell
-python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/laopo pets/packages/laopo.petpack
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/laopo.petpack
+npm start
 ```
 
-- [ ] **Step 2: 写 `scripts/test-laopo-petpack.js`**
+手测清单：
 
-断言：
-- `id === 'laopo'`, `name === '老婆'`, `speechGender === 'female'`
-- `startupGreeting === '老公，我来啦~'`
-- 菜单：`call-hubby` / `kowtow` / `talent-show` 文案与音频路径
-- **不存在** `call-dad`、`self-slap`、`perch-cross-phone`
-- perched 含 `perch-hair-flip`、`perch-blow-kiss`、`perch-look`
-- random 含 `serve-tea`/`love-you`/`praise`/`encourage`，message/speech 正确，且无 `sleep`
-- 必备动画列表含 walk（散步）、talent-show、甜蜜三动作
+- [ ] 双人同框 idle/walk/坐/睡/点击 reaction
+- [ ] 拖拽为拖着屁股走；松手恢复
+- [ ] 菜单：贴贴/合影/悄悄话/加油鸭/睡觉
+- [ ] 去放松：化妆→换装→跑→男模+两句「我要这个」暂停→再点→拥抱→娇羞→回日常
+- [ ] 暂停时拖拽会中断回 idle
+- [ ] 透明穿透；静止连点无缩放平移
 
-- [ ] **Step 3: 更新 `package.json`**
-
-```json
-"validate:demo": "python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/laopo.petpack",
-"build:laopo": "node scripts/build-customer.js --pet pets/packages/laopo.petpack --name \"老婆桌面宠物\" --delivery-id laopo"
-```
-
-`test:js`：`test-boss-petpack.js` → `test-laopo-petpack.js`  
-`build.files`：`boss.petpack` → `laopo.petpack`；tray/icon 改为 laopo 资源（Task 10 生成后填入）。  
-删除或保留但不使用 `build:boss`（本分支改为 `build:laopo`）。
-
-- [ ] **Step 4: 跑**
+- [ ] **Step 2: 回归门禁**
 
 ```powershell
-node scripts/test-laopo-petpack.js
-npm test
+npm run test:regression
+node scripts/test-sequence-controller.js
+node scripts/test-sequences-schema.js
+node scripts/test-bestie-petpack.js
 ```
 
-Expected: PASS（若 icon 尚未替换导致 build 配置悬空，先完成 Task 10 再跑完整 build）
+Expected: PASS
+
+- [ ] **Step 3: 客户构建**
+
+```powershell
+npm run build:customer -- --pet pets/packages/xiaomei-xiaotian.petpack --name "小美&小甜桌面宠物" --delivery-id xiaomei-xiaotian
+```
+
+- [ ] **Step 4: 启动 EXE 复核**
+
+独立 userData、无导入/切换入口、动画与去放松再点、托盘退出。
+
+- [ ] **Step 5: 交付说明**
+
+列出已验证 / 未验证（含数字签名未做）。更新规格状态为「已实现待交付」或在 build-report 旁写简短 `DELIVERY.md`（仅当需要时；默认用 build-report.json + 对话交付）。
+
+- [ ] **Step 6: Commit（仅当用户要求时）**
 
 ---
 

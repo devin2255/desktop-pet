@@ -38,7 +38,28 @@ const menu = Object.fromEntries(manifest.contextMenuActions.map((item) => [item.
 assert.ok(menu.relax, 'relax context action required');
 assert.strictEqual(menu.relax.sequence, 'relax');
 assert.ok(menu.relax.action === undefined, 'relax menu must use sequence XOR action');
-assert.ok(menu.cuddle && menu.selfie && menu.whisper && menu.cheer && menu.nap, 'expected bestie menu items');
+assert.ok(menu.cuddle && menu.selfie && menu.whisper && menu.cheer && menu.nap && menu.feed, 'expected bestie menu items');
+assert.ok(Array.isArray(menu.feed.randomActions) && menu.feed.randomActions.length === 3, 'feed menu must randomize 3 gifts');
+assert.deepStrictEqual(
+  menu.feed.randomActions.map((item) => item.sequence).sort(),
+  ['feed-lipstick', 'feed-lv-bag', 'feed-miniskirt']
+);
+assert.ok(menu.feed.action === undefined && menu.feed.sequence === undefined, 'feed must use randomActions only');
+assert.deepStrictEqual(manifest.sequences['feed-lv-bag'].stages, [
+  { action: 'feed-lv-throw', message: '哇！包包', duration: 1800 },
+  { action: 'feed-lv-bag', message: '好看吗？', duration: 3800 },
+  { action: 'idle', duration: 0 }
+]);
+assert.deepStrictEqual(manifest.sequences['feed-lipstick'].stages, [
+  { action: 'feed-lipstick-throw', message: '哇！口红', duration: 1800 },
+  { action: 'feed-lipstick', message: '好看吗？', duration: 3800 },
+  { action: 'idle', duration: 0 }
+]);
+assert.deepStrictEqual(manifest.sequences['feed-miniskirt'].stages, [
+  { action: 'feed-miniskirt-throw', message: '哇！漂亮衣服', duration: 1800 },
+  { action: 'feed-miniskirt', message: '好看吗？', duration: 4000 },
+  { action: 'idle', duration: 0 }
+]);
 
 const selfieMenu = manifest.contextMenuActions.find((item) => item.id === 'selfie');
 assert.strictEqual(selfieMenu.sequence, 'selfie-banter');
@@ -74,15 +95,33 @@ assert.strictEqual(weights.whisper, 6);
 for (const action of [
   'idle', 'walk', 'sit', 'sleep', 'reaction', 'drag', 'perch-milk-tea',
   'cuddle', 'selfie', 'whisper', 'cheer',
+  'feed-lv-throw', 'feed-lv-bag', 'feed-lipstick-throw', 'feed-lipstick',
+  'feed-miniskirt-throw', 'feed-miniskirt',
+  'fall-air', 'fall-butt', 'fall-cry-up',
   'relax-makeup', 'relax-dress', 'relax-run', 'relax-models', 'relax-hug', 'relax-shy'
 ]) {
   assert.ok(manifest.animations[action], `missing animation ${action}`);
+  if (action.startsWith('feed-')) {
+    assert.strictEqual(manifest.animations[action].frames.length, 4);
+    assert.strictEqual(manifest.animations[action].holdLastFrame, true);
+  }
 }
 
 assert.strictEqual(manifest.interactionActions?.perch?.action, 'perch-milk-tea');
+assert.strictEqual(manifest.interactionActions?.fall?.action, 'fall-air');
+assert.strictEqual(manifest.interactionActions?.impact?.action, 'fall-butt');
+assert.strictEqual(manifest.interactionActions?.recover?.action, 'fall-cry-up');
 assert.ok(
   (manifest.behavior?.perched || []).some((item) => item.state === 'perch-milk-tea' && item.weight >= 50),
   'perched behavior should favor perch-milk-tea'
+);
+assert.ok(
+  !(manifest.behavior?.perched || []).some((item) => item.state === 'sit'),
+  'perched behavior must not include ordinary sit'
+);
+assert.deepStrictEqual(
+  (manifest.behavior?.perched || []).map((item) => item.state).sort(),
+  ['perch-milk-tea', 'reaction']
 );
 assert.strictEqual(manifest.animations['perch-milk-tea'].frames.length, 6);
 assert.strictEqual(manifest.animations['perch-milk-tea'].loop, true);

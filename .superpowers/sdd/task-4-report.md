@@ -1,105 +1,68 @@
-# Task 4 Report — laopo master + five standard chroma strips
+# Task 4 Report — 工作区与参考图 / 身份检查表
 
-**Status:** PASS  
-**Date:** 2026-08-01  
-**Branch:** feat/laopo-pet  
-**Commit:** no commit (gitignored work assets under `/pets/work/`)
+**Status:** Complete  
+**Date:** 2026-08-04  
+**Branch:** `feature/bestie-pets-design`  
+**Commit:** none (per instructions)
 
 ## Summary
 
-Generated master + five standard action chroma strips for **老婆 (laopo)**, chroma-keyed them, and passed `process_animation_strips.py` gates for idle/walk/sit/sleep/reaction (22 frames). Outfit locked to PRIMARY: cream maxi dress + black lace sleeves + platform sandals + sunglasses on head. idle = upright standing; walk = upright stroll facing RIGHT.
+Set up the `xiaomei-xiaotian` work directory for dual-character pet generation: copied the user reference selfie into `source/refs/` and authored `IDENTITY.md` as a generation-time checklist locking left/right identity, outfit rules, and male-model scope.
 
-## Generated paths
+## Steps Completed
 
-### Master & chroma strips
-| File | Notes |
-|---|---|
-| `pets/work/laopo/source/standard/master-chroma.png` | Standing master on `#00ff00` |
-| `pets/work/laopo/source/standard/idle-chroma.png` | 4 cells, composed 2048×768 |
-| `pets/work/laopo/source/standard/walk-chroma.png` | 6 cells, composed 3072×768 |
-| `pets/work/laopo/source/standard/sit-chroma.png` | 4 cells, composed 2048×768 |
-| `pets/work/laopo/source/standard/sleep-chroma.png` | 4 cells, native strip 1536×1024 |
-| `pets/work/laopo/source/standard/reaction-chroma.png` | 4 cells, composed 2048×768 |
-
-### Transparent (keyed)
-| File |
-|---|
-| `pets/work/laopo/source/standard/transparent/master.png` |
-| `pets/work/laopo/source/standard/transparent/idle.png` |
-| `pets/work/laopo/source/standard/transparent/walk.png` |
-| `pets/work/laopo/source/standard/transparent/sit.png` |
-| `pets/work/laopo/source/standard/transparent/sleep.png` |
-| `pets/work/laopo/source/standard/transparent/reaction.png` |
-
-### Per-frame sources (used after strip regenerations)
-`pets/work/laopo/source/standard/frames/{idle,walk,sit,reaction}-0N.png`
-
-### Processed frames (gate output)
-```
-pets/work/laopo/processed/frames/idle/01.png … 04.png
-pets/work/laopo/processed/frames/walk/01.png … 06.png
-pets/work/laopo/processed/frames/sit/01.png … 04.png
-pets/work/laopo/processed/frames/sleep/01.png … 04.png
-pets/work/laopo/processed/frames/reaction/01.png … 04.png
-pets/work/laopo/processed/contact-sheet.jpg
-```
-
-## Method
-
-1. **GenerateImage** with `ref-fullbody.png` + `ref-portrait.png` (+ master) for identity.
-2. First-pass native horizontal strips failed cell-safety on idle/walk/sit/reaction (1536×1024 equal split → bleed at boundaries; walk cells only 256px wide).
-3. Regenerated **idle / walk / sit / reaction** as individual full-body chroma frames, then composed into wide strips with ≥14% left/right green gutters per cell (`pets/work/laopo/_compose_strips.py` + `chroma_key.py`). **Did not erase spill fragments.**
-4. **sleep** first-pass strip already passed gutters; kept.
-5. Chroma key via `pets/work/laopo/chroma_key.py` (`imagegen` CLI unavailable). Sit frames used `--remove-platforms` when extracting subjects.
-
-## Regenerations
-
-| Strip | Attempts | Outcome |
-|---|---|---|
-| master | 1 | Kept |
-| idle | strip v1 FAIL → strip v2 FAIL → 4 individual frames + compose | Pass |
-| walk | strip v1 FAIL → 6 individual frames (walk-02 re-gen for RIGHT facing) + compose | Pass |
-| sit | strip v1 FAIL → 4 individual frames + compose | Pass |
-| sleep | 1 | Kept (no regen) |
-| reaction | strip v1 FAIL → 4 individual frames + compose | Pass |
-
-## process_animation_strips
-
-Command:
+### Step 1: 建目录并复制参考图
 
 ```powershell
-python skills/desktop-pet-maker/scripts/process_animation_strips.py `
-  --input-dir pets/work/laopo/source/standard/transparent `
-  --output-dir pets/work/laopo/processed/frames `
-  --action idle:4 `
-  --action walk:6 `
-  --action sit:4 `
-  --action sleep:4 `
-  --action reaction:4
+New-Item -ItemType Directory -Force -Path pets/work/xiaomei-xiaotian/source/refs | Out-Null
+Copy-Item pets/work/bestie-reference.png pets/work/xiaomei-xiaotian/source/refs/bestie-reference.png -Force
 ```
 
-**Final run:** exit code `0`  
-**stdout/stderr:** empty (success; no ValueError)  
-Log copy: `pets/work/laopo/processed/process_strips_log.txt` (empty file, exit 0)
+- Source: `pets/work/bestie-reference.png` — exists
+- Destination: `pets/work/xiaomei-xiaotian/source/refs/bestie-reference.png` — exists
+- Byte size matches source (verified)
 
-Earlier failures (before regen/compose), for the record:
+### Step 2: 写 IDENTITY.md
 
-```
-ValueError: idle frame 4 enters the safety gutter (left/right/top/bottom=(6, 127, 75, 31), required=15/20). ...
-ValueError: idle frame 1 enters the safety gutter (left/right/top/bottom=(256, 0, 267, 229), required=15/20). ...
-```
+Created `pets/work/xiaomei-xiaotian/IDENTITY.md` with:
 
-## Gate result
+| Requirement | Covered |
+|---|---|
+| 左小美：痣 + 月牙链，温柔黏人 | ✓ 辨识锚点 + 气质 |
+| 右小甜：比耶气质，活泼外向 | ✓ 辨识锚点 + 气质 |
+| 禁止左右互换 | ✓ 全局 + 站位章节 |
+| 日常便服 vs 蕾丝/性感高光 | ✓ 分角色表格 + 切换摘要 |
+| 男模仅 relax | ✓ 独立章节 + 服装摘要 |
 
-**PASS** — all five actions processed; 22 normalized frames + contact sheet written.
+Additional sections: 全局每帧检查项、站位与互动、`drag`/`walk` 备注、可复制 Prompt 锚点。
 
-## Concerns
+### Step 3: Commit
 
-1. Work assets under `pets/work/` are **gitignored** — nothing from this task is trackable without force-add; private refs must not be force-added.
-2. Sleep pose is a seated/curled sleep (head on hands), not fully reclined — acceptable for dress silhouette but slightly soft vs “lying asleep” prompt.
-3. Walk cycle is upright facing right, but inter-frame leg phase continuity is illustration-approximate (not a perfect classical contact/down/passing loop).
-4. Style is soft 2D illustration matching IDENTITY; slight face softening vs photo refs is expected for sprite treatment.
+Skipped — user explicitly requested no commits.
+
+## Files Created
+
+| Path | Purpose |
+|---|---|
+| `pets/work/xiaomei-xiaotian/source/refs/bestie-reference.png` | User selfie reference for generation |
+| `pets/work/xiaomei-xiaotian/IDENTITY.md` | Identity checklist for prompts & QA |
+
+## Verification
+
+| Check | Result |
+|---|---|
+| `pets/work/bestie-reference.png` exists | PASS |
+| `pets/work/xiaomei-xiaotian/source/refs/bestie-reference.png` exists | PASS |
+| Copied file size equals source | PASS |
+| `pets/work/xiaomei-xiaotian/IDENTITY.md` exists | PASS |
+| IDENTITY lists all five required rules | PASS |
+
+## Concerns / Notes
+
+1. `pets/work/` assets are typically **gitignored** — these files live in the work tree only unless force-added; do not commit private reference photos without user intent.
+2. Reference is a single dual selfie; Task 5 generation must enforce left/right from IDENTITY, not infer from photo crop alone.
+3. No chroma strips or processed frames yet — this task is setup-only; Task 5 consumes `IDENTITY.md` + refs.
 
 ## Next
 
-Task 5–6 can append more `--action name:count` into the same `--output-dir`.
+Task 5: generate standard five actions + `drag` (daily casual, dual-frame) using desktop-pet-maker flow and this IDENTITY checklist.

@@ -1,28 +1,15 @@
-### Task 7: 女声音频
+### Task 7: 生成 relax 分镜动画
 
 **Files:**
-- Create: `pets/work/laopo/audio/` 与最终 `pets/library/laopo/audio/`
-- `call-hubby.mp3` ← 「老公」
-- `talent-show.mp3` ← 「上才艺」
-- `serve-tea.mp3` ← 「老公喝茶」
-- `love-you.mp3` ← 「爱你老公」
-- `praise.mp3` ← 「宝贝真棒」
-- `encourage.mp3` ← 「老公辛苦了」
+- `animations/relax-makeup/` ≥4
+- `animations/relax-dress/` ≥4（性感风换装结果姿态）
+- `animations/relax-run/` ≥6（并排跑）
+- `animations/relax-models/` ≥4（两男模+两人；暂停持帧友好，`holdLastFrame: true`）
+- `animations/relax-hug/` ≥4
+- `animations/relax-shy/` ≥4（娇羞抚摸/埋胸，成人角色、桌宠可读、非露骨）
 
-- [ ] **Step 1: 用女声 TTS 生成（优先 edge-tts 中文女声，如 `zh-CN-XiaoxiaoNeural`）**
-
-```powershell
-edge-tts --voice zh-CN-XiaoxiaoNeural --text "老公" --write-media pets/work/laopo/audio/call-hubby.mp3
-edge-tts --voice zh-CN-XiaoxiaoNeural --text "上才艺" --write-media pets/work/laopo/audio/talent-show.mp3
-edge-tts --voice zh-CN-XiaoxiaoNeural --text "老公喝茶" --write-media pets/work/laopo/audio/serve-tea.mp3
-edge-tts --voice zh-CN-XiaoxiaoNeural --text "爱你老公" --write-media pets/work/laopo/audio/love-you.mp3
-edge-tts --voice zh-CN-XiaoxiaoNeural --text "宝贝真棒" --write-media pets/work/laopo/audio/praise.mp3
-edge-tts --voice zh-CN-XiaoxiaoNeural --text "老公辛苦了" --write-media pets/work/laopo/audio/encourage.mp3
-```
-
-若未安装：`pip install edge-tts` 后再跑。
-
-- [ ] **Step 2: 试听确认是女声且无多余静音过长**
+- [ ] **Step 1–3:** 同 Task 5 流水线；男模腹肌可读、左右对应「我要这个」
+- [ ] **Step 4: Commit（仅当用户要求时）**
 
 ---
 

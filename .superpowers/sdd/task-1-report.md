@@ -1,75 +1,103 @@
-# Task 1 Report: 通用 `startupGreeting` 支持
+# Task 1 Report: 序列引擎（纯逻辑 + 测试）
 
-**Status:** DONE  
-**Branch:** `feat/laopo-pet`  
-**Commit:** `0c654f0` — feat: support optional startupGreeting in pet manifests
+## 实现摘要
 
-## Summary
+实现了纯逻辑序列控制器 `createSequenceController`，供后续 Electron main 集成闺蜜宠物（小美&小甜）的多阶段动画序列。模块通过依赖注入接收 `getManifest`、`sendState`、`pauseBehavior`、`scheduleBehavior` 及可选定时器钩子（`now`、`setTimer`、`clearTimer`），无 UI、无 petpack 改动。
 
-Implemented optional `manifest.startupGreeting` support across the player, validators, schema docs, and tests. Custom greetings override default startup/switch messages; blank or whitespace-only values fall back to existing defaults.
+### 导出 API
 
-## TDD Workflow
+| 方法 | 行为 |
+|------|------|
+| `start(id)` | 校验序列存在且 stages 非空、各 action 在 animations 中；若已在播放则先 cancel（不 schedule）；调用 `pauseBehavior`；从 stage 0 播放；返回 boolean |
+| `cancel()` | 清 timer、`sendState('idle')`、`scheduleBehavior(900)` |
+| `dispose()` | 同 cancel 但不 schedule |
+| `continueFromClick()` | 仅在 `waitForClick` 等待中 advance；返回 boolean |
+| `isWaitingForClick()` | 当前 stage 是否等待点击 |
+| `isActive()` | 序列是否进行中 |
 
-### RED (Step 1–2)
+### 阶段播放逻辑
 
-Created `scripts/test-startup-greeting.js` per brief. Initial run failed as expected:
+- 非 `waitForClick`：按 `duration`（缺省 3000ms）设 timer 后 advance；`idle` + `duration: 0` 立即 advance
+- `waitForClick`：播状态后进入等待，不设完成 timer；由 `continueFromClick` 推进
+- `sendState(action, message, '', extras)`：`messages` / `messageGapMs` 通过 extras 传递；有 `messages` 时 `message` 取 `stage.message` 或首句
+
+## 变更文件
+
+| 文件 | 操作 |
+|------|------|
+| `src/sequence-controller.js` | 新建 — 序列控制器实现 |
+| `scripts/test-sequence-controller.js` | 新建 — TDD 测试（与 brief  verbatim） |
+| `package.json` | 修改 — `test:js` 加入 `node --check src/sequence-controller.js` 与 `node scripts/test-sequence-controller.js` |
+
+## TDD 证据
+
+### RED — 模块不存在
 
 ```
-Error: Cannot find module '../src/startup-greeting'
+$ node scripts/test-sequence-controller.js
+Error: Cannot find module '../src/sequence-controller'
+Require stack:
+- D:\Vibe_Coding\desktop-pet\scripts\test-sequence-controller.js
+  code: 'MODULE_NOT_FOUND'
 ```
 
-### GREEN (Step 3–4)
-
-Implemented all specified changes. Focused test output:
+### GREEN — 实现后单测通过
 
 ```
+$ node scripts/test-sequence-controller.js
+test-sequence-controller: ok
+```
+
+### 全量 JS 测试
+
+```
+$ npm run test:js
+renderer interaction regression checks passed
+petpack archive security checks passed
+window interaction geometry checks passed
+window discovery checks passed
+interaction controller checks passed
+topmost guard checks passed
+runtime CDP contract tests passed
+laopo petpack regression checks passed
 startup greeting checks passed
+test-sequence-controller: ok
 ```
 
-Full `npm run test:js` also passed (all 10 test scripts + syntax checks).
+退出码：0。未引入新的既有测试失败。
 
-## Changes Made
+## 自检
 
-| File | Change |
-|------|--------|
-| `src/startup-greeting.js` | **Created** — `resolveStartupGreeting(manifest, { switching })` |
-| `src/main-v3.js` | Require helper; wire `switchPet` + `ready-to-show`; optional `publicManifest` passthrough |
-| `src/petpack-validator.js` | Validate optional string ≤ 80 chars |
-| `skills/desktop-pet-maker/scripts/petpack_tool.py` | Mirror validation in `validate_manifest_shape` |
-| `skills/desktop-pet-maker/references/petpack-schema.md` | Document `startupGreeting` field |
-| `scripts/test-startup-greeting.js` | **Created** — resolve logic + manifest validation tests |
-| `package.json` | Added to `test:js` and `build.files` |
+### 符合 brief 要点
 
-## Behavior
+- [x] TDD：先写失败测试，再实现，再全绿
+- [x] 导出 `createSequenceController`，CommonJS `module.exports`
+- [x] 注入 timer 钩子，缺省回退真实 `setTimeout`/`clearTimeout`
+- [x] `start` 校验 stages 与 animations
+- [x] `waitForClick` / `continueFromClick` 分支
+- [x] `cancel` / `dispose` 差异（schedule 与否）
+- [x] 重复 `start` 先 cancel（`schedule: false`）
+- [x] `package.json` `test:js` 已更新
+- [x] 未创建 git commit（按 Global Constraints）
 
-| Scenario | Result |
-|----------|--------|
-| No `startupGreeting`, startup | `我是${name}。` |
-| No `startupGreeting`, switch | `你好，我是${name}。` |
-| Custom `startupGreeting` | Custom text (both startup & switch) |
-| Whitespace-only `startupGreeting` | Falls back to defaults |
-| Missing/empty `name` | Uses `桌宠` as fallback name |
-| `startupGreeting` > 80 chars | Validation error (JS + Python) |
+### 代码质量
 
-## Self-Review
+- 与 `interaction-controller.js` 一致：`'use strict'`、依赖注入、可选 deps 回退
+- 无多余抽象；状态变量最小集（active、stageIndex、stages、waitingForClick、timerId）
+- 语法检查：`node --check src/sequence-controller.js` 通过（含于 `npm run test:js`）
 
-**Correctness:** Logic matches brief verbatim. `publicManifest` only exposes trimmed non-empty `startupGreeting`.
+### 未覆盖（留待后续 task）
 
-**Scope:** No laopo assets created (per instructions). No renderer changes needed — greeting flows through existing `sendState('reaction', message)`.
+- 无效 sequence id / 空 stages / 未知 action 的单元断言（brief 测试未要求）
+- `dispose` 独立测试
+- 与 main-v3 的实际接线
 
-**Gaps / non-blocking:**
-- Python unit tests do not yet cover `startupGreeting` validation (brief did not require; JS test covers validator).
-- `npm run test:python` and `npm run validate:demo` were not re-run (focused test per task scope; JS suite fully green).
+## Concerns
 
-**Build:** `src/startup-greeting.js` included in `build.files` so customer EXE builds bundle the module.
+1. **测试覆盖面较窄**：当前仅一条 happy-path + cancel；边界错误路径无断言，后续集成前可考虑补充。
+2. **`cancel({ schedule: false })` 为内部选项**：未暴露在公开 API，重复 `start` 时由内部使用；若外部需要「静默取消」需再暴露或文档化。
+3. **无 concern 阻塞合并**：单测与全量 `test:js` 均通过，可进入 Task 2 接线。
 
-## Verification Commands Run
+## Commits
 
-```powershell
-node scripts/test-startup-greeting.js   # PASS
-npm run test:js                         # PASS
-```
-
-## Next Task Dependency
-
-Task 2+ can add laopo petpack with `startupGreeting: "老公，我来啦~"` — player is ready to consume it.
+无（按 plan Global Constraints 与用户规则，未执行 commit）。

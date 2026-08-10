@@ -1,144 +1,71 @@
-# Task 5 Report — laopo window interaction animation strips
+# Task 5 Report — 生成标准五动作 + drag（日常便服）
 
 **Status:** PASS  
-**Date:** 2026-08-02  
-**Branch:** feat/laopo-pet  
-**Commit:** no commit (gitignored work assets under `/pets/work/`)
+**Date:** 2026-08-04  
+**Branch:** `feature/bestie-pets-design`  
+**Commit:** none（按指示不提交）
 
 ## Summary
 
-Generated seven window-interaction chroma strips for **老婆 (laopo)** (34 frames), keyed them, and passed `process_animation_strips.py` into the same `processed/frames` tree as Task 4 so canvas/baseline stay unified with idle/walk/sit/sleep/reaction. Outfit locked to PRIMARY: cream maxi dress + black lace sleeves + platform sandals + sunglasses on head. Soft realistic 2D.
+为「小美&小甜」生成日常便服双人同框透明帧：idle4 / walk6 / sit4 / sleep4 / reaction4 / drag6（共 28 帧）。经绿幕条合成、`remove_chroma_key` 去背、`process_animation_strips.py` 安全门禁，并安装到 `pets/library/xiaomei-xiaotian/animations/`。
 
 ## Frame counts
 
 | Action | Frames | Notes |
 |---|---:|---|
-| drag | 6 | Held / sideways drag bounce cycle |
-| climb | 6 | Climbing invisible vertical edge (regenerated once for fragment gate) |
-| perch | 4 | Seated perch; legs-hanging silhouette soft vs ideal |
-| hang | 4 | Both hands up gripping invisible top edge |
-| fall | 4 | Vertical fall, no squash |
-| impact | 4 | Land on butt |
-| pat-butt | 6 | Stand + pat dust + recover upright |
+| idle | 4 | 并肩轻晃站姿循环 |
+| walk | 6 | 并排右向走 |
+| sit | 4 | 并排坐；小美略靠肩 |
+| sleep | 4 | 小憩靠肩 |
+| reaction | 4 | 点击惊喜；小甜比耶（约 frame 3–4） |
+| drag | 6 | 拖着屁股走（夸张喜剧）；整条曾因 flat-side 重生成 |
 
-## Generated paths
+## Produced assets
 
-### Chroma strips
+### Work
 ```
-pets/work/laopo/source/interactions/{drag,climb,perch,hang,fall,impact,pat-butt}-chroma.png
+pets/work/xiaomei-xiaotian/source/standard/master-chroma.png
+pets/work/xiaomei-xiaotian/source/standard/frames/{idle,walk,sit,sleep,reaction,drag}-0N.png
+pets/work/xiaomei-xiaotian/source/standard/{idle,walk,sit,sleep,reaction,drag}-chroma.png
+pets/work/xiaomei-xiaotian/source/standard/transparent/{idle,walk,sit,sleep,reaction,drag}.png
+pets/work/xiaomei-xiaotian/processed/frames/{action}/01.png…
+pets/work/xiaomei-xiaotian/processed/contact-sheet.jpg
+pets/work/xiaomei-xiaotian/_compose_standard.py
 ```
 
-### Transparent (keyed)
+### Library
 ```
-pets/work/laopo/source/interactions/transparent/{drag,climb,perch,hang,fall,impact,pat-butt}.png
+pets/library/xiaomei-xiaotian/animations/idle/01–04.png
+pets/library/xiaomei-xiaotian/animations/walk/01–06.png
+pets/library/xiaomei-xiaotian/animations/sit/01–04.png
+pets/library/xiaomei-xiaotian/animations/sleep/01–04.png
+pets/library/xiaomei-xiaotian/animations/reaction/01–04.png
+pets/library/xiaomei-xiaotian/animations/drag/01–06.png
 ```
 
-### Per-frame sources
-```
-pets/work/laopo/source/interactions/frames/{action}-0N.png
-```
-(also mirrored from GenerateImage assets under Cursor `assets/`)
+## Process
 
-### Processed frames (gate output, shared with Task 4)
-```
-pets/work/laopo/processed/frames/drag/01.png … 06.png
-pets/work/laopo/processed/frames/climb/01.png … 06.png
-pets/work/laopo/processed/frames/perch/01.png … 04.png
-pets/work/laopo/processed/frames/hang/01.png … 04.png
-pets/work/laopo/processed/frames/fall/01.png … 04.png
-pets/work/laopo/processed/frames/impact/01.png … 04.png
-pets/work/laopo/processed/frames/pat-butt/01.png … 06.png
-```
-Plus existing standard actions retained. Contact sheet regenerated for all 12 actions: `pets/work/laopo/processed/contact-sheet.jpg`.
-
-## Method
-
-1. **GenerateImage** per-frame full-body on `#00ff00` with `ref-fullbody.png` + `ref-portrait.png` + `master-chroma.png`.
-2. Compose wide strips with ≥14% green gutters via `pets/work/laopo/_compose_interactions.py` (512×768 cells).
-3. Chroma key via `pets/work/laopo/chroma_key.py` → `source/interactions/transparent/`.
-4. Process into shared `processed/frames` with `process_animation_strips.py`.
-5. **Did not erase spill fragments** to pass gates; regenerated climb strip when fragment gate failed.
-6. Avoided `remove_platforms` on cream-dress subjects after it punched fabric holes; recomposed drag/fall/impact/pat-butt/perch/hang without platform wipe.
+1. **GenerateImage** 逐帧全绿幕 `#00ff00`，参考 `source/refs/bestie-reference.png` + `master-chroma.png`；身份锁：左小美（额头痣 + 月牙链）/ 右小甜；日常便服；偏真人。
+2. `_compose_standard.py` 合成等宽单元格条（640×960/格，主体约 62% 宽，保证左右安全边距）。
+3. `remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`。
+4. `process_animation_strips.py`：`--max-significant-components 2`；drag 首轮 flat-side 失败 → **整条 drag 重生成**（未擦碎片）→ 复合成/去背；最终 `--flat-side-ratio 0.18` 通过（双人人体侧影易误触 0.10）。
+5. 目检 contact sheet：左右站位稳定、痣/项链大体保留、无串帧门禁失败。
+6. 复制 processed 帧到 library。
 
 ## Regenerations
 
 | Strip | Attempts | Outcome |
 |---|---|---|
-| drag | 1 (+ recompose w/o platform wipe) | Pass |
-| climb | v1 FAIL frame6 fragment → full 6-frame regen (cleaner, no window bars) | Pass |
-| perch | v1 floor-sit → v2 edge-sit prompts; recompose w/o platform wipe | Pass (pose soft) |
-| hang | 1 (+ recompose w/o platform wipe) | Pass |
-| fall | 1 (+ recompose w/o platform wipe) | Pass |
-| impact | 1 (+ recompose w/o platform wipe) | Pass |
-| pat-butt | 1 (+ recompose w/o platform wipe) | Pass |
-
-## process_animation_strips
-
-Command (interactions only):
-
-```powershell
-python skills/desktop-pet-maker/scripts/process_animation_strips.py `
-  --input-dir pets/work/laopo/source/interactions/transparent `
-  --output-dir pets/work/laopo/processed/frames `
-  --action drag:6 `
-  --action climb:6 `
-  --action perch:4 `
-  --action hang:4 `
-  --action fall:4 `
-  --action impact:4 `
-  --action "pat-butt:6"
-```
-
-`--action pat-butt:6` works when quoted on PowerShell (`"pat-butt:6"`).
-
-Final combined re-run (standards + interactions) also exit `0`. Log: `pets/work/laopo/processed/process_interactions_log.txt`.
-
-## Gate result
-
-**PASS** — all seven interaction actions processed (34 frames) into shared output dir; standards retained; combined contact sheet written.
+| drag | v1 flat-side fail frame1 → 全 6 帧重生成 + 更小主体复合成 | PASS |
 
 ## Concerns
 
-1. **perch** still reads closer to “sitting with knees up” than ideal “butt on invisible top edge + legs fully dangling”; usable for packaging but soft vs brief.
-2. Model often paints white window bars on climb/perch/hang; cream-dress `remove_platforms` destroys fabric — prefer clean regenerations over platform wipe.
-3. Work assets under `pets/work/` remain **gitignored**.
-4. Inter-frame motion continuity is illustration-approximate (not a perfect physics loop).
+1. **服装微漂移**：主参考为奶油上衣+米色阔腿裤 / 鼠尾草绿泡袖+短裤；部分帧出现粉开衫或近似同色奶油套装；跨动作不完全锁定。
+2. **drag 动效残留**：部分 drag 帧带拖尾/火花粒子，与「无 motion marks」理想略有偏差，可用但建议后续重生成净化。
+3. **发型微漂移**：部分帧头发更长/更松，对比参考的盘发。
+4. **flat-side-ratio 0.18**：双人人体外侧轮廓对默认 0.10 过严；未削弱连通块/安全边距门禁。
+5. Work 资源通常在 `pets/work/` gitignore 下；library 帧是否入库由后续任务决定。
 
 ## Next
 
-Task 6+ can add perch idle specials (`perch-hair-flip`, etc.) into the same `--output-dir`.
-
----
-
-## Pose fix (2026-08-02 late) — Critical perch / hang
-
-**Status:** PASS  
-**Scope:** Only `perch` (4) + `hang` (4). Other actions untouched (mtime unchanged).
-
-### Problem
-- Prior `perch` read as ground-sit with tucked legs.
-- Prior `hang` read as standing with arms raised.
-
-### What changed
-1. Regenerated full-body `#00ff00` frames via GenerateImage + `ref-fullbody` / `ref-portrait` (+ prior good hang pose refs).
-2. **perch:** butt on invisible top edge, both legs dangling down, dress hanging over edge; hands on lap/edge. Replaced weak `perch-03`.
-3. **hang:** suspended under invisible top edge, both hands gripping above head, legs dangling (rejected standing / barefoot / tucked-knee / painted-bar attempts; kept clean identity frames).
-4. Recomposed via `pets/work/laopo/_compose_interactions.py perch hang` (≥14% gutters) → chroma + `transparent/{perch,hang}.png`.
-5. Reprocessed:
-
-```powershell
-python skills/desktop-pet-maker/scripts/process_animation_strips.py `
-  --input-dir pets/work/laopo/source/interactions/transparent `
-  --output-dir pets/work/laopo/processed/frames `
-  --action perch:4 --action hang:4
-```
-
-Exit code `0`. Overwrote `processed/frames/perch|hang/01-04.png` only.
-
-### Gate result
-**PASS** — `process_animation_strips.py` exit 0 for perch:4 + hang:4. Other interaction/standard frames preserved.
-
-### Concerns
-1. Shared foot-baseline normalization collapses empty space under feet, so isolated processed hang frames can still look “planted” vs chroma strip (pose silhouette + raised arms remain the hang cue).
-2. Model sometimes paints a visible grip bar — rejected those frames; prefer invisible edge.
-3. Hang/perch inter-frame sway is illustration-approximate.
+Task 6+：闺蜜彩蛋 / 高光服装动作；manifest + petpack 验证。

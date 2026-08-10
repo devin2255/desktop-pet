@@ -123,6 +123,25 @@ function publicManifest(manifest) {
         if (item.sequence) {
           return { ...base, sequence: item.sequence };
         }
+        if (Array.isArray(item.randomActions)) {
+          return {
+            ...base,
+            randomActions: item.randomActions.map((choice) => {
+              if (choice.sequence) {
+                return { sequence: choice.sequence };
+              }
+              return {
+                action: choice.action,
+                message: typeof choice.message === 'string' ? choice.message : '',
+                speech: typeof choice.speech === 'string' ? choice.speech : '',
+                speechAudio: typeof choice.speechAudio === 'string' && choice.speechAudio
+                  ? petAssetUrl(manifest.id, choice.speechAudio)
+                  : '',
+                duration: Number.isInteger(choice.duration) ? choice.duration : 3000
+              };
+            })
+          };
+        }
         return {
           ...base,
           action: item.action,
@@ -437,6 +456,29 @@ function hidePet() {
   petWindow?.hide();
 }
 
+function pickRandomMenuChoice(item) {
+  if (!Array.isArray(item?.randomActions) || item.randomActions.length === 0) return null;
+  const index = Math.floor(Math.random() * item.randomActions.length);
+  return item.randomActions[index] || null;
+}
+
+function runDirectMenuAction(choice) {
+  if (!activeManifest || !choice || !activeManifest.animations[choice.action]) return;
+  pauseBehavior();
+  sendState(choice.action, choice.message || '', choice.speech || '', choice.action, {
+    speechAudio: choice.speechAudio || ''
+  });
+  const duration = Number.isInteger(choice.duration) ? choice.duration : 3000;
+  // Return to kneel/idle before random roaming so custom actions don't hard-cut mid-pose.
+  if (behaviorTimer) clearTimeout(behaviorTimer);
+  behaviorTimer = setTimeout(() => {
+    behaviorTimer = undefined;
+    if (!activeManifest || (interaction && interaction.state() !== 'normal')) return;
+    sendState('idle');
+    scheduleBehavior(900);
+  }, duration);
+}
+
 function runContextMenuAction(item) {
   if (!activeManifest || !item || (interaction && interaction.state() !== 'normal')) return;
   if (sequence?.isActive()) {
@@ -449,18 +491,20 @@ function runContextMenuAction(item) {
     }
     return;
   }
-  if (!activeManifest.animations[item.action]) return;
-  pauseBehavior();
-  sendState(item.action, item.message || '', item.speech || '');
-  const duration = Number.isInteger(item.duration) ? item.duration : 3000;
-  // Return to kneel/idle before random roaming so custom actions don't hard-cut mid-pose.
-  if (behaviorTimer) clearTimeout(behaviorTimer);
-  behaviorTimer = setTimeout(() => {
-    behaviorTimer = undefined;
-    if (!activeManifest || (interaction && interaction.state() !== 'normal')) return;
-    sendState('idle');
-    scheduleBehavior(900);
-  }, duration);
+  if (Array.isArray(item.randomActions)) {
+    const choice = pickRandomMenuChoice(item);
+    if (!choice) return;
+    if (choice.sequence) {
+      pauseBehavior();
+      if (!sequence.start(choice.sequence)) {
+        scheduleBehavior(900);
+      }
+      return;
+    }
+    runDirectMenuAction(choice);
+    return;
+  }
+  runDirectMenuAction(item);
 }
 
 function buildTrayMenu() {

@@ -49,7 +49,15 @@ function referencedFiles(manifest) {
     for (const frame of animation.frames || []) referenced.add(frame);
   }
   for (const item of manifest.contextMenuActions || []) {
-    if (item && typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
+    if (!item || typeof item !== 'object') continue;
+    if (typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
+    if (Array.isArray(item.randomActions)) {
+      for (const choice of item.randomActions) {
+        if (choice && typeof choice.speechAudio === 'string' && choice.speechAudio) {
+          referenced.add(choice.speechAudio);
+        }
+      }
+    }
   }
   for (const list of [manifest.behavior?.random, manifest.behavior?.perched]) {
     if (!Array.isArray(list)) continue;
@@ -218,8 +226,10 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       if (typeof item.label !== 'string' || !item.label.trim() || item.label.length > 24) throw new Error('右键动作 label 必须为 1 到 24 个字符');
       const hasAction = item.action !== undefined;
       const hasSequence = item.sequence !== undefined;
-      if (hasAction === hasSequence) {
-        throw new Error('右键动作必须且只能包含 action 或 sequence 之一');
+      const hasRandom = item.randomActions !== undefined;
+      const triggerCount = Number(hasAction) + Number(hasSequence) + Number(hasRandom);
+      if (triggerCount !== 1) {
+        throw new Error('右键动作必须且只能包含 action、sequence 或 randomActions 之一');
       }
       if (hasSequence) {
         if (typeof item.sequence !== 'string' || !manifest.sequences || !Object.hasOwn(manifest.sequences, item.sequence)) {
@@ -230,6 +240,53 @@ function validateManifest(manifest, root = '', requireFiles = false) {
         if (item.speech !== undefined || item.speechAudio !== undefined) {
           throw new Error('引用 sequence 的右键动作不能包含 speech 或 speechAudio');
         }
+      } else if (hasRandom) {
+        if (!Array.isArray(item.randomActions) || item.randomActions.length < 2 || item.randomActions.length > 6) {
+          throw new Error('randomActions 必须包含 2 到 6 个选项');
+        }
+        if (item.message !== undefined || item.duration !== undefined || item.speech !== undefined || item.speechAudio !== undefined) {
+          throw new Error('引用 randomActions 的右键动作不能包含 message、duration、speech 或 speechAudio');
+        }
+        for (const choice of item.randomActions) {
+          if (!choice || typeof choice !== 'object') throw new Error('randomActions 选项格式不正确');
+          const choiceHasAction = choice.action !== undefined;
+          const choiceHasSequence = choice.sequence !== undefined;
+          if (choiceHasAction === choiceHasSequence) {
+            throw new Error('randomActions 每个选项必须且只能包含 action 或 sequence 之一');
+          }
+          if (choiceHasSequence) {
+            if (typeof choice.sequence !== 'string' || !manifest.sequences || !Object.hasOwn(manifest.sequences, choice.sequence)) {
+              throw new Error('randomActions 引用了不存在的序列：' + choice.sequence);
+            }
+            if (choice.message !== undefined || choice.duration !== undefined || choice.speech !== undefined || choice.speechAudio !== undefined) {
+              throw new Error('randomActions 的 sequence 选项不能包含 message、duration、speech 或 speechAudio');
+            }
+            continue;
+          }
+          if (typeof choice.action !== 'string' || !manifest.animations[choice.action]) {
+            throw new Error('randomActions 引用了不存在的动画：' + choice.action);
+          }
+          if (!validatedAnimations.has(choice.action)) {
+            validateAnimation(choice.action);
+            validatedAnimations.add(choice.action);
+          }
+          if (choice.message !== undefined && (typeof choice.message !== 'string' || choice.message.length > 80)) {
+            throw new Error('randomActions message 不能超过 80 个字符');
+          }
+          if (choice.duration !== undefined && (!Number.isInteger(choice.duration) || choice.duration < 600 || choice.duration > 10000)) {
+            throw new Error('randomActions duration 必须为 600 到 10000 毫秒');
+          }
+          if (choice.speech !== undefined && (typeof choice.speech !== 'string' || choice.speech.length > 20)) {
+            throw new Error('randomActions speech 不能超过 20 个字符');
+          }
+          if (choice.speechAudio !== undefined) {
+            if (typeof choice.speechAudio !== 'string' || !choice.speechAudio) throw new Error('randomActions speechAudio 路径不合法');
+            safeRelative(choice.speechAudio);
+            if (!AUDIO_EXTENSIONS.has(path.posix.extname(choice.speechAudio).toLowerCase())) {
+              throw new Error('randomActions speechAudio 只支持 mp3/wav/ogg');
+            }
+          }
+        }
       } else {
         if (typeof item.action !== 'string' || !manifest.animations[item.action]) throw new Error('右键动作引用了不存在的动画：' + item.action);
         if (!validatedAnimations.has(item.action)) {
@@ -239,12 +296,14 @@ function validateManifest(manifest, root = '', requireFiles = false) {
         if (item.message !== undefined && (typeof item.message !== 'string' || item.message.length > 80)) throw new Error('右键动作 message 不能超过 80 个字符');
         if (item.duration !== undefined && (!Number.isInteger(item.duration) || item.duration < 600 || item.duration > 10000)) throw new Error('右键动作 duration 必须为 600 到 10000 毫秒');
       }
-      if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) throw new Error('右键动作 speech 不能超过 20 个字符');
-      if (item.speechAudio !== undefined) {
-        if (typeof item.speechAudio !== 'string' || !item.speechAudio) throw new Error('右键动作 speechAudio 路径不合法');
-        safeRelative(item.speechAudio);
-        if (!AUDIO_EXTENSIONS.has(path.posix.extname(item.speechAudio).toLowerCase())) {
-          throw new Error('右键动作 speechAudio 只支持 mp3/wav/ogg');
+      if (!hasRandom) {
+        if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) throw new Error('右键动作 speech 不能超过 20 个字符');
+        if (item.speechAudio !== undefined) {
+          if (typeof item.speechAudio !== 'string' || !item.speechAudio) throw new Error('右键动作 speechAudio 路径不合法');
+          safeRelative(item.speechAudio);
+          if (!AUDIO_EXTENSIONS.has(path.posix.extname(item.speechAudio).toLowerCase())) {
+            throw new Error('右键动作 speechAudio 只支持 mp3/wav/ogg');
+          }
         }
       }
     }

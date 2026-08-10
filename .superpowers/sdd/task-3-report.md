@@ -1,62 +1,77 @@
-# Task 3 Report: 素材目录与制作 Prompt
+# Task 3 Report: 主进程接入序列 + 渲染多句气泡
 
-**Status:** DONE  
-**Branch:** `feat/laopo-pet`  
-**Commit:** `c13cb94` — docs: add laopo pet creation prompt
+## Status: Complete
 
 ## Summary
 
-Copied user reference photos to local workspace, wrote stable identity doc and laopo creation prompt mirroring boss structure with approved spec requirements.
+Wired `createSequenceController` into Electron main, extended `pet:state` with staggered `messages` / `messageGapMs`, and taught the renderer to show multi-line bubbles on a single bubble element. Menu items with `sequence` start sequences; click-wait, drag, hide, switchPet, and other menu actions interrupt correctly.
 
-## Files Created
+## Changes
 
-| File | Status |
-|------|--------|
-| `pets/work/laopo/source/refs/ref-fullbody.png` | Created (222,058 bytes) — local only |
-| `pets/work/laopo/source/refs/ref-portrait.png` | Created (100,301 bytes) — local only |
-| `pets/work/laopo/IDENTITY.md` | Created — local only |
-| `docs/prompts/make-laopo-pet.txt` | Created — committed |
+### `src/main-v3.js`
 
-## Ref Verification
+- Extended `sendState(..., options)` payload with `messages` and `messageGapMs`.
+- Created `sequence` after `createWindow()` via `createSequenceController({ getManifest, sendState, pauseBehavior, scheduleBehavior })`, wrapping controller `sendState(action, message, speech, extras)` into the existing 5-arg main signature (`logicalRole` + options).
+- `publicManifest` passes through menu `sequence` items (no `action`/`message`/`duration` on sequence entries).
+- `runContextMenuAction`: cancel any active sequence; if `item.sequence` → `sequence.start(...)` and return; else legacy action path.
+- `pet:interact`: waiting → `continueFromClick()`; active (not waiting) → ignore reaction; else legacy reaction.
+- `pet:drag-start` / tray「暂时藏起来」/ `switchPet` → `sequence.cancel()`; `before-quit` → `sequence.dispose()`.
 
-Both refs copied from Cursor assets, readable, same person confirmed:
+### `src/renderer-v3.js`
 
-- **ref-fullbody.png:** Outdoor park full-body; cream sleeveless maxi dress, black lace short-sleeve layer, chunky black platform sandals, sunglasses on head, arms outstretched.
-- **ref-portrait.png:** Indoor close-up; long straight black hair, glasses on head, playful sweet expression, beige ribbed top (face/hair/accessory anchor).
+- `clearBubbleTimers` / `showStaggeredMessages`: show first line immediately, advance remaining lines by `messageGapMs` (default 700), hide after last gap + bubble duration.
+- `setState` / `onState`: prefer `messages[]` over single `message`; empty payload clears pending stagger timers and hides bubble.
 
-## IDENTITY.md Contents
+### `scripts/test-renderer-interaction.js`
 
-Covers: young East Asian woman; long straight black hair; black sunglasses/glasses on head; cream sleeveless maxi dress; black lace short-sleeve layer; chunky black platform sandals; playful sweet expression; soft realistic 2D illustration style; full body visible in animations.
+- Fake `setTimeout`/`clearTimeout` queue + `runTimers(ms)`.
+- Asserts staggered first/second line timing and interrupt-on-empty-state.
 
-## make-laopo-pet.txt Highlights
+### `package.json`
 
-Mirrors `make-boss-pet.txt` structure with laopo spec:
-
-- Upright idle/walk (no crawling)
-- Female speech (`speechGender: female`)
-- Startup greeting「老公，我来啦~」
-- Context menu: 叫老公 / 磕头 / 上才艺
-- Roaming: 老公喝茶, 爱你老公, 宝贝真棒, 老公辛苦了
-- Perch actions: hair-flip, blow-kiss, look (removed cross-leg phone)
-- build:laopo / build:customer delivery path
-
-## Git Note
-
-`/pets/work/` is gitignored (private source photos per AGENTS.md). Only `docs/prompts/make-laopo-pet.txt` committed — same pattern as boss (`3efae57` committed prompt only).
+- `build.files` includes `src/sequence-controller.js` (portable ASAR packaging).
 
 ## Test Results
 
-No automated tests required for this task. Manual verification:
+| Command | Result |
+|---------|--------|
+| `node scripts/test-renderer-interaction.js` | PASS (incl. messages stagger) |
+| `node scripts/test-sequence-controller.js` | PASS |
+| `npm run test:js` | PASS (all checks + JS tests) |
 
-- Ref file sizes > 0 ✓
-- Visual read of both PNGs ✓
-- Same-person identity anchor ✓
+## Commits
 
-## Concerns
+None (per instructions).
 
-- Portrait ref shows beige ribbed top (indoor); animation outfit should follow fullbody ref (cream dress + lace layer) per IDENTITY.md.
-- Long dress walk/dance frames will need extra skirt baseline checks during generation (noted in spec).
+## Concerns / Notes
 
-## Ready For
+1. Tray icon click hide (`tray.on('click')` when visible) does **not** call `sequence.cancel()` — only the「暂时藏起来」menu item does, matching the brief literally. If tray-click hide should also interrupt, follow up later.
+2. `sequence.cancel()` on drag-start schedules behavior at 900ms while still in `normal` before `startDrag`; `runBehavior` guards non-normal interaction state, so this is safe but briefly arms a timer.
+3. No Electron runtime smoke in this task (no petpack with sequences yet — resource task later).
 
-Task 4+ can use `IDENTITY.md`, refs, and `docs/prompts/make-laopo-pet.txt` to drive desktop-pet-maker image generation.
+## Review Fix (Important findings)
+
+### Changes
+
+- Added `hidePet()` helper: `sequence?.cancel()` then `petWindow?.hide()`.
+- Reused by tray click (hide path), window `close` (non-quit hide), and menu「暂时藏起来」— no duplicated cancel logic.
+- `pet:drag-start` uses `sequence.cancel({ schedule: false })` when active (avoids arming behavior timer during drag).
+
+### Test Results (review fix)
+
+| Command | Result |
+|---------|--------|
+| `node --check src/main-v3.js` | PASS |
+| `node scripts/test-renderer-interaction.js` | PASS |
+| `node scripts/test-sequence-controller.js` | PASS |
+
+### Resolved concerns
+
+- Tray click hide and close→hide now cancel active sequences (previously only menu「暂时藏起来」did).
+
+## Files Touched
+
+- `src/main-v3.js`
+- `src/renderer-v3.js`
+- `scripts/test-renderer-interaction.js`
+- `package.json`
