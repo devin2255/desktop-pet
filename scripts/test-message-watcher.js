@@ -80,7 +80,49 @@ function testDedupe() {
     .then(() => assert.strictEqual(sent.length, 1, '同 event_id 去重'));
 }
 
-const tasks = [testParseValid, testParseInvalid, testPipelineTriggers, testNonBossSkipped, testFallbackAndVoiceNull, testDedupe];
+function testLifecycleReconnect() {
+  const { EventEmitter } = require('events');
+  let spawnedCount = 0;
+  let currentChild;
+  const fakeSpawn = () => {
+    spawnedCount++;
+    currentChild = new EventEmitter();
+    currentChild.stdout = new EventEmitter();
+    currentChild.stderr = new EventEmitter();
+    currentChild.kill = () => { try { currentChild.emit('exit'); } catch (_) {} };
+    return currentChild;
+  };
+  const sent = [];
+  const watcher = createMessageWatcher({
+    rules: { ids: ['ou_1'], cooldownSec: 0, quietHours: [], keywords: { '画饼': ['a'] }, fallback: 'b', state: 'reaction' },
+    voice: { synthesize: async () => null },
+    sendState: (s, m, sp, o) => sent.push(m),
+    spawnExec: fakeSpawn,
+    onStatus: () => {},
+    larkCliPath: 'fake-lark'
+  });
+  const origSetTimeout = setTimeout;
+  let savedTimer = null;
+  global.setTimeout = (fn, ms) => { savedTimer = { fn, ms }; return { fn, ms }; };
+  try {
+    watcher.start();
+    assert.strictEqual(spawnedCount, 1, 'first spawn');
+    assert.strictEqual(watcher.isRunning(), true);
+    currentChild.stdout.emit('data', Buffer.from(JSON.stringify({ event_id: 'e1', sender_id: 'ou_1', content: '画饼' })));
+    currentChild.emit('exit');
+    assert.strictEqual(watcher.isRunning(), false, 'not running after exit before reconnect');
+    assert.ok(savedTimer, 'reconnect timer scheduled');
+    savedTimer.fn();
+    assert.strictEqual(spawnedCount, 2, 'respawned after reconnect');
+    assert.strictEqual(watcher.isRunning(), true, 'running again after reconnect');
+    watcher.stop();
+    assert.strictEqual(watcher.isRunning(), false, 'stopped');
+  } finally {
+    global.setTimeout = origSetTimeout;
+  }
+}
+
+const tasks = [testParseValid, testParseInvalid, testPipelineTriggers, testNonBossSkipped, testFallbackAndVoiceNull, testDedupe, testLifecycleReconnect];
 Promise.all(tasks.map((t) => t())).then(
   () => { console.log('message-watcher: all tests passed'); },
   (e) => { console.error('FAIL:', e.message); process.exit(1); }

@@ -26,6 +26,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   let running = false;
   let stopRequested = false;
   let restartCount = 0;
+  let restartWindowStart = 0;
   let restartTimer = null;
 
   async function processLine(line) {
@@ -50,7 +51,11 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   }
 
   function scheduleRestart() {
-    if (!running || stopRequested) return;
+    if (stopRequested) return;
+    if (restartWindowStart === 0 || Date.now() - restartWindowStart >= 3600000) {
+      restartCount = 0;
+      restartWindowStart = Date.now();
+    }
     if (restartCount >= 10) {
       running = false;
       onStatus && onStatus({ level: 'error', message: '画饼雷达事件流多次断开，已暂停。' });
@@ -62,6 +67,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   }
 
   function start() {
+    if (stopRequested) return;
     if (running) return;
     if (!larkCliPath) { onStatus && onStatus({ level: 'warn', message: '未配置 lark-cli 路径，画饼雷达未启动。' }); return; }
     running = true;
@@ -78,7 +84,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     child.stdout && child.stdout.on('data', (chunk) => {
       const text = chunk.toString();
       for (const line of text.split(/\r?\n/)) {
-        if (line.trim()) processLine(line).catch(() => {});
+        if (line.trim()) processLine(line).catch((err) => { onStatus && onStatus({ level: 'error', message: '画饼雷达处理异常：' + (err?.message || 'unknown') }); });
       }
     });
     child.stderr && child.stderr.on('data', (chunk) => {
@@ -86,13 +92,13 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
       onStatus && onStatus({ level: 'info', message: '画饼雷达: ' + stderrBuf.split('\n').pop().trim() });
     });
     child.on('error', (err) => {
-      running = false;
       onStatus && onStatus({ level: 'error', message: '画饼雷达进程错误：' + (err.message || 'unknown') });
       scheduleRestart();
     });
     child.on('exit', () => {
       child = null;
-      if (running) scheduleRestart();
+      running = false;
+      if (!stopRequested) scheduleRestart();
     });
     onStatus && onStatus({ level: 'info', message: '画饼雷达已连接。' });
   }
