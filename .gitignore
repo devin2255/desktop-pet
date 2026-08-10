@@ -34,7 +34,8 @@ tmp/
 /名字：小狗/
 /assets/references/
 /pets/work/
-/pets/library/
+/pets/library/*
+!/pets/library/brother-judge/
 *.docx
 
 # Private interaction orchestration state and likeness previews
@@ -50,6 +51,11 @@ tmp/
 # Publish one reviewed demo pet only. Customer packages stay local.
 /pets/packages/*
 !/pets/packages/laopo.petpack
+!/pets/packages/brother-judge.petpack
+
+# Allow reviewed brother-judge library directory
+!/pets/library/brother-judge/
+!/pets/library/brother-judge/**
 
 # Historical player snapshots are kept locally but not shipped as source.
 /src/index.html

@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "packageVersion": "1.0.0",
+  "id": "brother-judge",
+  "name": "兄弟判官",
+  "description": "接地气判官桌宠：白背心大裤衩人字拖，头戴判官帽，手握判官笔，专治老板画饼吹牛。",
+  "personality": [
+    "毒舌",
+    "护短",
+    "接地气"
+  ],
+  "speechGender": "male",
+  "startupGreeting": "本官到了，有冤的报冤，有饼的退下！",
+  "defaultSize": "small",
+  "preview": "preview.png",
+  "normalizationMetric": "alpha-area-v1",
+  "animations": {
+    "idle": {
+      "frames": [
+        "animations/idle/01.png",
+        "animations/idle/02.png",
+        "animations/idle/03.png",
+        "animations/idle/04.png"
+      ],
+      "durations": [
+        480,
+        360,
+        320,
+        480
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "walk": {
+      "frames": [
+        "animations/walk/01.png",
+        "animations/walk/02.png",
+        "animations/walk/03.png",
+        "animations/walk/04.png",
+        "animations/walk/05.png",
+        "animations/walk/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "sit": {
+      "frames": [
+        "animations/sit/01.png",
+        "animations/sit/02.png",
+        "animations/sit/03.png",
+        "animations/sit/04.png"
+      ],
+      "durations": [
+        220,
+        240,
+        280,
+        1800
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "sleep": {
+      "frames": [
+        "animations/sleep/01.png",
+        "animations/sleep/02.png",
+        "animations/sleep/03.png",
+        "animations/sleep/04.png"
+      ],
+      "durations": [
+        700,
+        700,
+        500,
+        700
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 0.88
+    },
+    "reaction": {
+      "frames": [
+        "animations/reaction/01.png",
+        "animations/reaction/02.png",
+        "animations/reaction/03.png",
+        "animations/reaction/04.png"
+      ],
+      "durations": [
+        180,
+        220,
+        280,
+        1600
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    }
+  },
+  "behavior": {
+    "random": [
+      {
+        "state": "walk",
+        "weight": 30,
+        "minDuration": 1600,
+        "maxDuration": 4000
+      },
+      {
+        "state": "sit",
+        "weight": 25,
+        "minDuration": 4500,
+        "maxDuration": 7000,
+        "message": "本官歇会儿，有事先候着。"
+      },
+      {
+        "state": "reaction",
+        "weight": 25,
+        "minDuration": 2400,
+        "maxDuration": 3600,
+        "message": "嗯？又有画饼的？"
+      },
+      {
+        "state": "sleep",
+        "weight": 20,
+        "minDuration": 5000,
+        "maxDuration": 8000,
+        "message": "……退堂。"
+      }
+    ]
+  },
+  "contextMenuActions": [
+    {
+      "id": "hold-court",
+      "label": "升堂",
+      "action": "reaction",
+      "message": "升——堂——！有冤的报冤，有饼的退下！",
+      "duration": 3000
+    },
+    {
+      "id": "adjourn",
+      "label": "退堂",
+      "action": "sit",
+      "message": "退堂，本官要歇了。",
+      "duration": 3600
+    },
+    {
+      "id": "rest",
+      "label": "歇息",
+      "action": "sleep",
+      "message": "本官先眯一会儿……",
+      "duration": 5000
+    }
+  ],
+  "watch": {
+    "keywords": {
+      "画饼": [
+        "老板画的饼别吃，你啃不动！",
+        "这饼画得再圆，也就是个饼。",
+        "本官判你：画饼无效，驳回！"
+      ],
+      "吹牛": [
+        "你的老板吹了个牛逼！",
+        "这牛吹得，本官的判官笔都抖了。"
+      ]
+    },
+    "fallback": "老板又在整活儿了，本官先记他一笔。",
+    "state": "reaction"
+  }
+}
