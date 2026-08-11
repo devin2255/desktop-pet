@@ -75,8 +75,25 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     stopRequested = false;
     const spawn = spawnExec || require('child_process').spawn;
     let stderrBuf = '';
+    // Resolve to lark-cli-core exe on Windows to avoid .cmd wrapper stdin EOF issue.
+    // lark-cli event consume treats stdin close as shutdown signal, so keep stdin as a pipe
+    // (never use 'ignore' which causes immediate EOF → graceful exit).
+    let actualCliPath = larkCliPath;
+    let useShell = false;
+    if (process.platform === 'win32' && larkCliPath && larkCliPath.endsWith('.cmd')) {
+      const fs = require('fs');
+      const path = require('path');
+      const coreExe = path.join(path.dirname(larkCliPath), 'ext', 'lark-cli-core-windows-amd64.exe');
+      if (fs.existsSync(coreExe)) {
+        actualCliPath = coreExe;
+        useShell = false;
+      }
+    }
     try {
-      child = spawn(larkCliPath, ['event', 'consume', 'im.message.receive_v1'], { shell: true, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(actualCliPath, ['event', 'consume', 'im.message.receive_v1', '--as', 'bot'],
+        { shell: useShell, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      // Keep stdin open so lark-cli doesn't interpret EOF as shutdown
+      // (never write to stdin, never close it until stop())
     } catch (e) {
       running = false;
       onStatus && onStatus({ level: 'error', message: '启动画饼雷达失败：' + (e.message || 'unknown') });
@@ -108,7 +125,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     stopRequested = true;
     running = false;
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
-    if (child) { try { child.kill(); } catch (_) {} child = null; }
+    if (child) { try { child.stdin && child.stdin.end(); child.kill(); } catch (_) {} child = null; }
   }
 
   return { start, stop, processLine, isRunning: () => running };
