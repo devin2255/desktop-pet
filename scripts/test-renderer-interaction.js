@@ -90,6 +90,7 @@ const context = {
     this.src = src || '';
     this.pause = () => {};
     this.play = () => Promise.resolve();
+    this.addEventListener = () => {};
   },
   setTimeout: (callback, delay = 0) => {
     const id = ++timeoutId;
@@ -289,7 +290,9 @@ assert.strictEqual(bubble.textContent, '第一句', 'staggered messages should w
 runTimers(1);
 assert.strictEqual(bubble.textContent, '第二句', 'staggered messages should advance to the next line after messageGapMs');
 
-stateCallback({ state: 'idle', message: '' });
+// Stop audio before testing empty state hides the bubble
+runTimers(100);
+stateCallback({ state: 'idle', message: '', speech: '', speechAudio: '' });
 assert.strictEqual(bubble.classList.contains('visible'), false, 'empty state should hide the bubble and clear stagger timers');
 
 console.log('renderer interaction regression checks passed');

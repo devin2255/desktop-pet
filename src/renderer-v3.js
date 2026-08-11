@@ -158,13 +158,13 @@ function pickSpeechVoice(preferredGender) {
   return pool.find((voice) => voice.default) || pool[0];
 }
 
-let speechAudio;
+let activeAudio;
 
 function stopSpeechAudio() {
-  if (!speechAudio) return;
-  speechAudio.pause();
-  speechAudio.src = '';
-  speechAudio = undefined;
+  if (!activeAudio) return;
+  activeAudio.pause();
+  activeAudio.src = '';
+  activeAudio = undefined;
 }
 
 function resolveSpeechAudio(state) {
@@ -177,8 +177,12 @@ function playSpeechAudio(url) {
   if (!url) return false;
   stopSpeechAudio();
   if (window.speechSynthesis) window.speechSynthesis.cancel();
-  speechAudio = new Audio(url);
-  speechAudio.play().catch(() => {});
+  activeAudio = new Audio(url);
+  activeAudio.play().catch(() => {});
+  if (activeAudio.addEventListener) {
+    activeAudio.addEventListener('ended', () => { activeAudio = undefined; });
+    activeAudio.addEventListener('error', () => { activeAudio = undefined; });
+  }
   return true;
 }
 
@@ -235,9 +239,13 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
     showStaggeredMessages(messages, Number.isFinite(messageGapMs) ? messageGapMs : 700, bubbleMs);
   } else if (message) {
     showBubble(message, bubbleMs);
-  } else {
-    clearBubbleTimers();
-    bubble.classList.remove('visible');
+  } else if (!speechAudio && !speech) {
+    // Don't clear bubble while audio is playing — prevents behavior animations from interrupting TTS
+    const audioPlaying = activeAudio && activeAudio.paused === false;
+    if (!audioPlaying) {
+      clearBubbleTimers();
+      bubble.classList.remove('visible');
+    }
   }
   const audio = speechAudio || resolveSpeechAudio(state);
   if (speech || audio) speak(speech, audio);
