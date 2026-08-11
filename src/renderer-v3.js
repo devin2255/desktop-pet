@@ -228,7 +228,7 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
     ? 4200
     : baseActionName(state).startsWith('perch-')
       ? 4800
-      : 2400;
+      : 6000;
   if (Array.isArray(messages) && messages.length) {
     showStaggeredMessages(messages, Number.isFinite(messageGapMs) ? messageGapMs : 700, bubbleMs);
   } else if (message) {
