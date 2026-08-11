@@ -325,54 +325,78 @@ function createInteractionController(dependencies) {
     if (disposed || currentState !== 'climbing' || !attachment) return;
     if (attachment.edge !== 'left' && attachment.edge !== 'right') return;
 
+    const climbEdge = attachment.edge;
     const targetId = attachment.id;
     const targetBounds = { ...attachment.bounds };
-    const climbOffset = attachment.offset;
 
     // Stop side attachment polling during ascent
     clearAttachmentPolling();
 
     const startPos = petWindow.getBounds();
+    // Left climb → sit at left corner of top edge; right climb → right corner
+    const perchAnchorX = climbEdge === 'left' ? 0.15 : 0.85;
+    const perchAnchor = { x: perchAnchorX, y: DEFAULT_ANCHORS.perch.y };
     const endPos = positionForAttachment(
       targetBounds,
       'top',
-      anchorFor('perch', 'top'),
+      perchAnchor,
       currentSize(),
       visibleInsets,
-      climbOffset
+      Math.max(0, Math.min(targetBounds.width, startPos.x - targetBounds.x + currentSize().width / 2))
     );
 
     const token = generation;
-    const duration = 800;
-    const startTime = now();
+    const totalSteps = 4;
+    const stepDuration = 400; // ms per step
+    const stepPause = 120; // ms pause between steps
+    let currentStep = 0;
+    let stepStartTime = now();
 
-    const tick = (timestamp) => {
+    function climbStep(timestamp) {
       frameTimer = undefined;
       if (disposed || generation !== token || currentState !== 'climbing') return;
       const frameTime = Number.isFinite(timestamp) ? timestamp : now();
-      const elapsed = Math.max(0, frameTime - startTime);
-      const progress = Math.min(1, elapsed / duration);
-      const eased = progress * (2 - progress); // ease-out
-      const x = Math.round(startPos.x + (endPos.x - startPos.x) * eased);
-      const y = Math.round(startPos.y + (endPos.y - startPos.y) * eased);
+      const elapsed = Math.max(0, frameTime - stepStartTime);
+      const stepProgress = Math.min(1, elapsed / stepDuration);
+      const eased = stepProgress * (2 - stepProgress);
+
+      // Compute intermediate position for this step
+      const stepStartY = startPos.y + (endPos.y - startPos.y) * (currentStep / totalSteps);
+      const stepEndY = startPos.y + (endPos.y - startPos.y) * ((currentStep + 1) / totalSteps);
+      const stepStartX = startPos.x + (endPos.x - startPos.x) * (currentStep / totalSteps);
+      const stepEndX = startPos.x + (endPos.x - startPos.x) * ((currentStep + 1) / totalSteps);
+      const x = Math.round(stepStartX + (stepEndX - stepStartX) * eased);
+      const y = Math.round(stepStartY + (stepEndY - stepStartY) * eased);
       setPosition({ x, y });
 
-      if (progress >= 1) {
-        attachment = {
-          id: String(targetId),
-          edge: 'top',
-          offset: climbOffset,
-          role: 'perch',
-          bounds: targetBounds
-        };
-        transition('perched', 'perch');
-        startAttachmentPolling();
-        schedulePerchedIdle(900);
-      } else {
-        frameTimer = scheduleFrame(tick);
+      if (stepProgress >= 1) {
+        currentStep += 1;
+        if (currentStep >= totalSteps) {
+          // Reached top — perch
+          attachment = {
+            id: String(targetId),
+            edge: 'top',
+            offset: endPos.x - targetBounds.x + visibleInsets.left,
+            role: 'perch',
+            bounds: targetBounds
+          };
+          transition('perched', 'perch');
+          startAttachmentPolling();
+          schedulePerchedIdle(900);
+          return;
+        }
+        // Pause between steps — freeze position for stepPause ms
+        animationTimer = setTimeoutFn(() => {
+          animationTimer = undefined;
+          if (disposed || generation !== token || currentState !== 'climbing') return;
+          stepStartTime = now();
+          frameTimer = scheduleFrame(climbStep);
+        }, stepPause);
+        return;
       }
-    };
-    frameTimer = scheduleFrame(tick);
+      frameTimer = scheduleFrame(climbStep);
+    }
+    frameTimer = scheduleFrame(climbStep);
   }
 
   function restOnSide(target, pointer, edge) {

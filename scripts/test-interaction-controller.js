@@ -288,8 +288,11 @@ async function run() {
     harness.clock.flushTimeouts(1);
     assert.strictEqual(harness.controller.state(), 'climbing', 'still climbing during ascent animation');
     assert.ok(harness.clock.pending().frames > 0, 'ascent animation frames running');
-    // Run the ascent animation to completion
-    harness.clock.flushAnimationFrames();
+    // Run 4 climb steps with pauses between each
+    for (let i = 0; i < 4; i++) {
+      harness.clock.flushAnimationFrames(); // run one step's frames
+      if (i < 3) harness.clock.flushTimeouts(1); // run the pause timer
+    }
     assert.strictEqual(harness.controller.state(), 'perched', 'reached top and perched');
     assert.strictEqual(harness.states.at(-1), 'perch');
     assert.strictEqual(harness.clock.pending().intervals, 1, 'top attachment polling active');
