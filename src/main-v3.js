@@ -525,6 +525,46 @@ function runContextMenuAction(item) {
   runDirectMenuAction(item);
 }
 
+const petTaskDir = () => path.join(app.getPath('userData'), 'pet-tasks');
+let petTaskPollTimer = null;
+
+function triggerPetTask(taskType) {
+  const dir = petTaskDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const taskFile = path.join(dir, `${id}.json`);
+  const task = { id, type: taskType, status: 'pending', createdAt: new Date().toISOString() };
+  fs.writeFileSync(taskFile, JSON.stringify(task, null, 2), 'utf8');
+  sendState('reaction', '本官这就去办，稍候片刻。', '本官这就去办', 'reaction', {});
+  startPetTaskPolling();
+}
+
+function startPetTaskPolling() {
+  if (petTaskPollTimer) return;
+  petTaskPollTimer = setInterval(() => {
+    const dir = petTaskDir();
+    if (!fs.existsSync(dir)) return;
+    for (const file of fs.readdirSync(dir)) {
+      if (!file.endsWith('.json')) continue;
+      const filePath = path.join(dir, file);
+      try {
+        const task = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (task.status === 'done' && task.result) {
+          const summary = String(task.result).slice(0, 200);
+          sendState('reaction', summary, summary, 'reaction', {});
+          fs.unlinkSync(filePath);
+        }
+      } catch (_) {}
+    }
+    // Stop polling if no pending tasks remain
+    const remaining = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')) : [];
+    if (remaining.length === 0) {
+      clearInterval(petTaskPollTimer);
+      petTaskPollTimer = null;
+    }
+  }, 3000);
+}
+
 function buildTrayMenu() {
   const pets = listPets();
   const template = [];
@@ -533,6 +573,15 @@ function buildTrayMenu() {
     template.push(...customActions.map((item) => ({ label: item.label, click: () => runContextMenuAction(item) })));
     template.push({ type: 'separator' });
   }
+  template.push({
+    label: '当个事儿办',
+    submenu: [
+      { label: '写周报', click: () => triggerPetTask('weekly-report') },
+      { label: '总结群聊信息重点', click: () => triggerPetTask('summarize-chat') },
+      { label: '搜集群聊八卦', click: () => triggerPetTask('collect-gossip') }
+    ]
+  });
+  template.push({ type: 'separator' });
   template.push({ label: '叫宠物回来', click: showPet });
   if (!deliveryConfig || deliveryConfig.allowPetManagement) {
     template.push({ label: '切换宠物', submenu: pets.map((pet) => ({ label: pet.name, type: 'radio', checked: activeManifest?.id === pet.id, click: () => switchPet(pet.id) })) });
@@ -855,5 +904,6 @@ app.on('before-quit', () => {
   interaction?.dispose();
   sequence?.dispose();
   messageWatcher?.stop();
+  if (petTaskPollTimer) { clearInterval(petTaskPollTimer); petTaskPollTimer = null; }
   pauseBehavior();
 });
