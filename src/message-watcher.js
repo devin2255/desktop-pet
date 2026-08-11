@@ -150,7 +150,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
         pollGroupMessages().catch((err) => {
           onStatus && onStatus({ level: 'error', message: '画饼雷达群消息轮询异常：' + (err?.message || 'unknown') });
         });
-      }, 10000);
+      }, 3000);
     });
   }
 
