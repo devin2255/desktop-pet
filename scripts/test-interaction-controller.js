@@ -728,7 +728,8 @@ async function run() {
     assert.ok(chooseBehaviorSource, 'player exposes chooseBehavior for runtime policy testing');
     const runtimePolicy = {
       result: null,
-      Math: Object.create(Math)
+      Math: Object.create(Math),
+      settings: { crawlMode: false }
     };
     runtimePolicy.Math.random = () => 0;
     vm.runInNewContext(

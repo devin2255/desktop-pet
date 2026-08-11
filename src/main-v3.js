@@ -355,13 +355,21 @@ function walkTo(targetX) {
     }, false);
     if (progress >= 1) {
       stopWalk();
-      sendState('idle');
+      sendState(idleState());
       scheduleBehavior();
     }
   }, 16);
 }
 
+function idleState() {
+  return (settings.crawlMode && activeManifest?.animations?.crawl) ? 'crawl-right' : 'idle';
+}
+
 function chooseBehavior() {
+  // Crawl mode: only crawl-walk, never stand/sit/sleep
+  if (settings.crawlMode && activeManifest?.animations?.crawl) {
+    return { state: 'walk', weight: 100, minDuration: 2000, maxDuration: 5000 };
+  }
   const choices = activeManifest?.behavior?.random;
   const filteredChoices = Array.isArray(choices)
     ? choices.filter((item) => item?.state !== 'sleep')
@@ -484,7 +492,7 @@ function runDirectMenuAction(choice) {
   behaviorTimer = setTimeout(() => {
     behaviorTimer = undefined;
     if (!activeManifest || (interaction && interaction.state() !== 'normal')) return;
-    sendState('idle');
+    sendState(idleState());
     scheduleBehavior(900);
   }, duration);
 }
@@ -541,7 +549,7 @@ function buildTrayMenu() {
         saveSettings();
         if (interaction && interaction.state() !== 'normal') return;
         stopWalk();
-        sendState('idle');
+        sendState(idleState());
         scheduleBehavior(1200);
       }
     },
@@ -554,7 +562,7 @@ function buildTrayMenu() {
         saveSettings();
         if (interaction && interaction.state() !== 'normal') return;
         stopWalk();
-        sendState('idle');
+        sendState(idleState());
         scheduleBehavior(600);
       },
       visible: Boolean(activeManifest?.animations?.crawl)
