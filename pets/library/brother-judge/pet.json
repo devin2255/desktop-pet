@@ -234,6 +234,27 @@
       "loop": false,
       "holdLastFrame": true,
       "scale": 1
+    },
+    "crawl": {
+      "frames": [
+        "animations/crawl/01.png",
+        "animations/crawl/02.png",
+        "animations/crawl/03.png",
+        "animations/crawl/04.png",
+        "animations/crawl/05.png",
+        "animations/crawl/06.png"
+      ],
+      "durations": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
     }
   },
   "interactionActions": {

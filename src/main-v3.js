@@ -61,7 +61,7 @@ let petWindow;
 let tray;
 let libraryRoot;
 let settingsPath;
-let settings = { petId: '', sizeKey: 'small', roaming: true };
+let settings = { petId: '', sizeKey: 'small', roaming: true, crawlMode: false };
 let activeManifest;
 let behaviorTimer;
 let walkTimer;
@@ -339,7 +339,8 @@ function walkTo(targetX) {
   const distance = Math.abs(targetX - startBounds.x);
   const duration = Math.max(1400, Math.min(4200, distance * 9));
   const startedAt = Date.now();
-  sendState(`walk-${direction}`);
+  const moveAction = settings.crawlMode && activeManifest?.animations?.crawl ? 'crawl' : 'walk';
+  sendState(`${moveAction}-${direction}`);
   walkTimer = setInterval(() => {
     if (!petWindow || petWindow.isDestroyed()) return stopWalk();
     const progress = Math.min(1, (Date.now() - startedAt) / duration);
@@ -543,6 +544,20 @@ function buildTrayMenu() {
         sendState('idle');
         scheduleBehavior(1200);
       }
+    },
+    {
+      label: '跪爬模式',
+      type: 'checkbox',
+      checked: settings.crawlMode,
+      click: (item) => {
+        settings.crawlMode = item.checked;
+        saveSettings();
+        if (interaction && interaction.state() !== 'normal') return;
+        stopWalk();
+        sendState('idle');
+        scheduleBehavior(600);
+      },
+      visible: Boolean(activeManifest?.animations?.crawl)
     },
     {
       label: '始终置顶',

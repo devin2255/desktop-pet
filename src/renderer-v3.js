@@ -43,6 +43,7 @@ function resolveAction(state, logicalRole) {
   const action = resolveLogicalRole(baseActionName(role));
   const normalized = baseActionName(action);
   if (normalized === 'walk-left' || normalized === 'walk-right') return 'walk';
+  if (normalized === 'crawl-left' || normalized === 'crawl-right') return 'crawl';
   if (normalized === 'clingy' || normalized === 'shy') return 'reaction';
   if (manifest.animations[normalized]) return normalized;
   const stateBase = baseActionName(state);
@@ -51,6 +52,7 @@ function resolveAction(state, logicalRole) {
 
 function isFacingLeft() {
   return pet.classList.contains('state-walk-left')
+    || pet.classList.contains('state-crawl-left')
     || pet.classList.contains('state-drag-left')
     || pet.classList.contains('state-climb-left');
 }
