@@ -549,12 +549,12 @@ function notifyQwenWork(taskType, taskFile) {
     try { if (require('fs').existsSync(coreExe)) exe = coreExe; } catch (_) {}
   }
   const taskPrompts = {
-    'summarize-chat': '总结群聊重点。用一句话搞笑吐槽群里的画饼和吹牛，不超过50字',
+    'summarize-chat': '总结群聊重点。对群里所有消息做总结，提炼核心内容，用一句话搞笑判官风格吐槽，不超过50字',
     'weekly-report': '写周报。用一句话搞笑总结这周群聊干了啥（或没干啥），不超过50字',
-    'collect-gossip': '搜集群聊八卦。用一句话搞笑爆料群里的八卦，不超过50字'
+    'collect-gossip': '搜集群聊八卦。从群里消息中挖掘八卦和趣事，用一句话搞笑爆料，不超过50字'
   };
   const prompt = taskPrompts[taskType] || taskType;
-  const msg = `桌宠任务请求：${prompt}。请拉取飞书群 oc_55c490880d9fd2d16ffe1e86eeb81488 的最近消息（用 lark-cli api GET /open-apis/im/v1/messages --as user），提炼后把结果 JSON 写入文件 ${taskFile}，格式为 {"status":"done","result":"总结内容"}。风格：判官吐槽，精炼幽默，50字以内。写完后桌宠自动弹气泡汇报。`;
+  const msg = `桌宠任务请求：${prompt}。请拉取飞书群 oc_55c490880d9fd2d16ffe1e86eeb81488 的最近30条消息（用 lark-cli api GET /open-apis/im/v1/messages --as user --params {"container_id_type":"chat","container_id":"oc_55c490880d9fd2d16ffe1e86eeb81488","page_size":30,"sort_type":"ByCreateTimeDesc"}），提炼后把结果 JSON 写入文件 ${taskFile}，格式为 {"status":"done","result":"总结内容"}。风格：判官吐槽，精炼幽默，50字以内。写完后桌宠自动弹气泡汇报。`;
   // Send as user to the bot p2p chat — QwenWork's Feishu channel receives this instantly
   execFile(exe, ['im', '+messages-send', '--as', 'user',
     '--chat-id', 'oc_b808a8dca7f10072c3e76b66a18477c8',
