@@ -536,7 +536,32 @@ function triggerPetTask(taskType) {
   const task = { id, type: taskType, status: 'pending', createdAt: new Date().toISOString() };
   fs.writeFileSync(taskFile, JSON.stringify(task, null, 2), 'utf8');
   sendState('reaction', '本官这就去办，稍候片刻。', '本官这就去办', 'reaction', {});
+  // Notify QwenWork instantly via Feishu message to bot
+  notifyQwenWork(taskType, taskFile);
   startPetTaskPolling();
+}
+
+function notifyQwenWork(taskType, taskFile) {
+  const { execFile } = require('child_process');
+  const larkCliPath = (deliveryConfig ? null : null) || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd';
+  let exe = larkCliPath;
+  if (process.platform === 'win32' && exe.endsWith('.cmd')) {
+    const coreExe = exe.replace(/lark-cli\.cmd$/, 'ext/lark-cli-core-windows-amd64.exe');
+    try { if (require('fs').existsSync(coreExe)) exe = coreExe; } catch (_) {}
+  }
+  const taskLabels = {
+    'summarize-chat': '总结群聊信息重点',
+    'weekly-report': '写周报',
+    'collect-gossip': '搜集群聊八卦'
+  };
+  const label = taskLabels[taskType] || taskType;
+  const msg = `桌宠任务请求：${label}。请拉取飞书群 oc_55c490880d9fd2d16ffe1e86eeb81488 的最近消息，做简洁判官风格总结（不超过200字），把结果 JSON 写入文件 ${taskFile}，格式为 {"status":"done","result":"总结内容"}。写完后桌宠会自动读取并弹气泡汇报。`;
+  execFile(exe, ['im', '+messages-send', '--as', 'user',
+    '--user-id', 'ou_c213c1a364e0818e671eb4823b4b9e2f',
+    '--text', msg],
+    { timeout: 15000, windowsHide: true },
+    () => {}
+  );
 }
 
 function startPetTaskPolling() {
