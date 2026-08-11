@@ -1,71 +1,59 @@
-# Task 5 Report — 生成标准五动作 + drag（日常便服）
+# Task 5 报告：main-v3.js 集成 — 协议、sendState 修正、启动/停止
 
-**Status:** PASS  
-**Date:** 2026-08-04  
-**Branch:** `feature/bestie-pets-design`  
-**Commit:** none（按指示不提交）
+## 已实施的变更（按 brief 顺序）
 
-## Summary
+1. **Step 1 — 注册 voice-cache 协议**：在 `protocol.registerSchemesAsPrivileged` 数组中追加 `voice-cache` 项，权限与 `pet-asset` 一致（`standard/secure/supportFetchAPI/corsEnabled/stream`）。
+2. **Step 2 — 修正 sendState speechAudio 改写**：将 `!speechAudio.startsWith('pet-asset:')` 替换为 `!/^[a-z][a-z0-9+.-]*:/i.test(speechAudio)`，使任何带协议前缀的字符串（pet-asset/voice-cache/data/file）都视为完整 URL，不再被当作相对路径改写。
+3. **Step 3 — 引入新模块 + 声明模块级变量**：在 `createSequenceController` require 之后追加 `message-watcher`/`watch-config`/`edge-voice` 三个 require；在 `let sequence;` 之后追加 `let messageWatcher;`。
+4. **Step 4 — 注册 voice-cache 处理器**：紧跟 `protocol.handle('pet-asset', ...)` 之后注册 `voice-cache` 处理器。预先创建 `userData/voice-cache` 目录，使用 `hostname + 去掉前导斜杠的 pathname` 拼接提取文件名，再以正则 `^[a-f0-9]{32}\.mp3$` 白名单校验，通过后用 `resolveInside` 防穿越并读取文件，返回 `audio/mpeg`。
+5. **Step 5 — 启动集成**：在 `createTray()` 之后调用 `loadWatchConfig`（configPath = `userData/boss-watch.json`，manifestWatch = `activeManifest?.watch`）。当 `watchConfig.enabled` 为真时创建 voice synthesizer（cacheDir = `userData/voice-cache`，voice/rate 取自 `watchConfig.voice`），构造 messageWatcher（sendState 包装为 `(state, message, speech, opts) => sendState(state, message, speech, state, opts || {})`），并 `start()`。
+6. **Step 6 — 退出清理**：在 `before-quit` 中追加 `messageWatcher?.stop();`。
+7. **Step 7 — 语法 + 回归**：`node --check src/main-v3.js` 通过；`npm run test:js` 全绿（含 watch-rules / watch-config / edge-voice / message-watcher）。
+8. **Step 8 — 提交**：commit `999b690`。
 
-为「小美&小甜」生成日常便服双人同框透明帧：idle4 / walk6 / sit4 / sleep4 / reaction4 / drag6（共 28 帧）。经绿幕条合成、`remove_chroma_key` 去背、`process_animation_strips.py` 安全门禁，并安装到 `pets/library/xiaomei-xiaotian/animations/`。
+## voice-cache URL 解析验证
 
-## Frame counts
+实测 Node `new URL(...)` 结果：
 
-| Action | Frames | Notes |
-|---|---:|---|
-| idle | 4 | 并肩轻晃站姿循环 |
-| walk | 6 | 并排右向走 |
-| sit | 4 | 并排坐；小美略靠肩 |
-| sleep | 4 | 小憩靠肩 |
-| reaction | 4 | 点击惊喜；小甜比耶（约 frame 3–4） |
-| drag | 6 | 拖着屁股走（夸张喜剧）；整条曾因 flat-side 重生成 |
-
-## Produced assets
-
-### Work
-```
-pets/work/xiaomei-xiaotian/source/standard/master-chroma.png
-pets/work/xiaomei-xiaotian/source/standard/frames/{idle,walk,sit,sleep,reaction,drag}-0N.png
-pets/work/xiaomei-xiaotian/source/standard/{idle,walk,sit,sleep,reaction,drag}-chroma.png
-pets/work/xiaomei-xiaotian/source/standard/transparent/{idle,walk,sit,sleep,reaction,drag}.png
-pets/work/xiaomei-xiaotian/processed/frames/{action}/01.png…
-pets/work/xiaomei-xiaotian/processed/contact-sheet.jpg
-pets/work/xiaomei-xiaotian/_compose_standard.py
-```
-
-### Library
-```
-pets/library/xiaomei-xiaotian/animations/idle/01–04.png
-pets/library/xiaomei-xiaotian/animations/walk/01–06.png
-pets/library/xiaomei-xiaotian/animations/sit/01–04.png
-pets/library/xiaomei-xiaotian/animations/sleep/01–04.png
-pets/library/xiaomei-xiaotian/animations/reaction/01–04.png
-pets/library/xiaomei-xiaotian/animations/drag/01–06.png
-```
-
-## Process
-
-1. **GenerateImage** 逐帧全绿幕 `#00ff00`，参考 `source/refs/bestie-reference.png` + `master-chroma.png`；身份锁：左小美（额头痣 + 月牙链）/ 右小甜；日常便服；偏真人。
-2. `_compose_standard.py` 合成等宽单元格条（640×960/格，主体约 62% 宽，保证左右安全边距）。
-3. `remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`。
-4. `process_animation_strips.py`：`--max-significant-components 2`；drag 首轮 flat-side 失败 → **整条 drag 重生成**（未擦碎片）→ 复合成/去背；最终 `--flat-side-ratio 0.18` 通过（双人人体侧影易误触 0.10）。
-5. 目检 contact sheet：左右站位稳定、痣/项链大体保留、无串帧门禁失败。
-6. 复制 processed 帧到 library。
-
-## Regenerations
-
-| Strip | Attempts | Outcome |
+| 输入 | hostname | pathname |
 |---|---|---|
-| drag | v1 flat-side fail frame1 → 全 6 帧重生成 + 更小主体复合成 | PASS |
+| `voice-cache://abc123.mp3` | `abc123.mp3` | `` |
+| `voice-cache://abc123.mp3/` | `abc123.mp3` | `/` |
 
-## Concerns
+采用 brief 的 `hostname + pathname.replace(/^\//, '')` 拼接策略：对 `voice-cache://abc123.mp3` 得 `abc123.mp3 + '' = abc123.mp3`；对带尾斜杠者得 `abc123.mp3 + '' = abc123.mp3`；若极端情况 hostname 为空（如 `voice-cache:///abc.mp3`），pathname 为 `/abc.mp3`，拼接得 `abc.mp3`。所有路径提取后再以 `^[a-f0-9]{32}\.mp3$` 强校验，不匹配一律拒绝。
 
-1. **服装微漂移**：主参考为奶油上衣+米色阔腿裤 / 鼠尾草绿泡袖+短裤；部分帧出现粉开衫或近似同色奶油套装；跨动作不完全锁定。
-2. **drag 动效残留**：部分 drag 帧带拖尾/火花粒子，与「无 motion marks」理想略有偏差，可用但建议后续重生成净化。
-3. **发型微漂移**：部分帧头发更长/更松，对比参考的盘发。
-4. **flat-side-ratio 0.18**：双人人体外侧轮廓对默认 0.10 过严；未削弱连通块/安全边距门禁。
-5. Work 资源通常在 `pets/work/` gitignore 下；library 帧是否入库由后续任务决定。
+## sendState 正则验证
 
-## Next
+正则：`/^[a-z][a-z0-9+.-]*:/i`
 
-Task 6+：闺蜜彩蛋 / 高光服装动作；manifest + petpack 验证。
+| 输入 | 判定 | 行为 |
+|---|---|---|
+| `pet-asset://x/y` | FULL | 不改写 |
+| `voice-cache://abc.mp3` | FULL | 不改写 |
+| `data:audio/mpeg;base64,AAA` | FULL | 不改写 |
+| `file:///C:/x` | FULL | 不改写 |
+| `animations/foo.png` | RELATIVE | 改写为 pet-asset URL |
+| `foo.mp3` | RELATIVE | 改写为 pet-asset URL |
+
+所有现有 `sendState` 调用点（`runBehavior`/`runDirectMenuAction`/`publicManifest` 等）传入的 speechAudio 要么是相对路径（会被改写为 pet-asset URL，与旧行为一致），要么已经在 `publicManifest` 中改写为 pet-asset URL（FULL，不再二次改写）——行为保持兼容。
+
+## 验证结果
+
+- `node --check src/main-v3.js`：**SYNTAX OK**
+- `npm run test:js`：**全绿**，输出 pristine（renderer interaction / petpack security / sequences schema / window interactions / window discovery / interaction controller / topmost guard / runtime CDP / laopo petpack / startup greeting / sequence controller / watch-rules / watch-config / edge-voice / message-watcher 全部通过）
+
+## 变更文件
+
+- `D:/Vibe_Coding/desktop-pet/src/main-v3.js`（+45 / -1）
+
+## 自审发现
+
+- **启动/停止配对**：`whenReady` 内根据 `watchConfig.enabled` 创建并 `start()`；`before-quit` 通过可选链 `messageWatcher?.stop()` 清理，未启用时为 undefined 也不会报错。✓
+- **sendState 正则兼容性**：所有现有调用点传入相对路径或已带 `pet-asset:` 前缀；新 voice-cache URL 也带前缀——均按预期判定。✓
+- **voice-cache 白名单**：`^[a-f0-9]{32}\.mp3$` 在提取后强校验；`resolveInside` 二次防穿越。✓
+- **未破坏 pet-asset 处理器**：新处理器独立注册，未触碰原 pet-asset 逻辑。✓
+- **潜在隐患**：Step 5 的 `larkCliPath` 默认值硬编码为 `C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd`，这是本机开发路径；客户交付时若 `boss-watch.json` 未提供 `larkCliPath`，会回退到该路径。由于客户场景默认 `watchConfig.enabled=false`（`boss-watch.json` 不存在时 `loadWatchConfig` 返回 `enabled: false`），不会触发。仅开发调试场景受影响，与 brief 一致。
+
+## 提交
+
+- `999b690` — feat: integrate boss watch radar into player main process

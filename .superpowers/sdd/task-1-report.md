@@ -1,103 +1,109 @@
-# Task 1 Report: 序列引擎（纯逻辑 + 测试）
+# Task 1 Report: watch-rules.js 过滤管线纯函数（TDD）
 
-## 实现摘要
+## What I Implemented
 
-实现了纯逻辑序列控制器 `createSequenceController`，供后续 Electron main 集成闺蜜宠物（小美&小甜）的多阶段动画序列。模块通过依赖注入接收 `getManifest`、`sendState`、`pauseBehavior`、`scheduleBehavior` 及可选定时器钩子（`now`、`setTimer`、`clearTimer`），无 UI、无 petpack 改动。
+Created the pure-function filtering pipeline for the "飞书画饼雷达" (boss watch radar) feature:
 
-### 导出 API
+- **`src/watch-rules.js`** — Six exports per the brief's Step 3 implementation, transcribed verbatim:
+  - `createDedupeSet(maxSize = 5000)` — LRU set with FIFO eviction (`seen` Set + `queue` array; shifts oldest when over limit).
+  - `isBoss(senderId, bossIds)` — strict boolean; returns false for empty array or non-string senderId.
+  - `matchKeyword(text, keywordMap)` — checks `text.toLowerCase().includes(category.toLowerCase())` per category in object-key order; returns the first matching category or `null`.
+  - `inQuietHours(now, quietHours)` — minute-based comparison; supports same-day (`s < e`) and cross-midnight (`s > e`) intervals; empty array → false.
+  - `pickLine(pool, rng = Math.random)` — injectable RNG for testability; falls back to `['']` on empty/non-array.
+  - `DEFAULT_KEYWORDS` — constant with 画饼 / 吹牛 response-line pools.
+- **`scripts/test-watch-rules.js`** — Six test functions covering all exports, transcribed from the brief Step 1 with one typo fix (see below).
+- **`package.json`** — Appended ` && node scripts/test-watch-rules.js` to the `test:js` script chain.
 
-| 方法 | 行为 |
-|------|------|
-| `start(id)` | 校验序列存在且 stages 非空、各 action 在 animations 中；若已在播放则先 cancel（不 schedule）；调用 `pauseBehavior`；从 stage 0 播放；返回 boolean |
-| `cancel()` | 清 timer、`sendState('idle')`、`scheduleBehavior(900)` |
-| `dispose()` | 同 cancel 但不 schedule |
-| `continueFromClick()` | 仅在 `waitForClick` 等待中 advance；返回 boolean |
-| `isWaitingForClick()` | 当前 stage 是否等待点击 |
-| `isActive()` | 序列是否进行中 |
+### Typo Fix (documented deviation from brief)
 
-### 阶段播放逻辑
+The brief's `testMatchKeyword` test text `'年底给你画个大饼'` does NOT contain `'画饼'` as a contiguous substring (the characters 画 and 饼 are separated by 个大 in that string). Since the implementation checks `text.toLowerCase().includes(category.toLowerCase())` — i.e. the text must contain the category key as a substring — this test case would always return `null` and fail.
 
-- 非 `waitForClick`：按 `duration`（缺省 3000ms）设 timer 后 advance；`idle` + `duration: 0` 立即 advance
-- `waitForClick`：播状态后进入等待，不设完成 timer；由 `continueFromClick` 推进
-- `sendState(action, message, '', extras)`：`messages` / `messageGapMs` 通过 extras 传递；有 `messages` 时 `message` 取 `stage.message` 或首句
+The `DEFAULT_KEYWORDS` values are clearly response *lines* (long sentences with exclamation marks), confirming that the keywordMap's array values are pickLine pools, not match keywords. The implementation correctly matches the category key against the text, consistent with the interface description (`text.toLowerCase().includes(keyword.toLowerCase())`).
 
-## 变更文件
+Fix: changed the test text from `'年底给你画个大饼'` to `'年底给你画饼了'` (画 and 饼 are now adjacent), preserving the semantic intent (drawing a pie = making empty promises) while making the substring match succeed. No implementation code was changed.
 
-| 文件 | 操作 |
-|------|------|
-| `src/sequence-controller.js` | 新建 — 序列控制器实现 |
-| `scripts/test-sequence-controller.js` | 新建 — TDD 测试（与 brief  verbatim） |
-| `package.json` | 修改 — `test:js` 加入 `node --check src/sequence-controller.js` 与 `node scripts/test-sequence-controller.js` |
+## TDD Evidence
 
-## TDD 证据
+### RED — Step 2 (before implementation)
 
-### RED — 模块不存在
-
+Command:
 ```
-$ node scripts/test-sequence-controller.js
-Error: Cannot find module '../src/sequence-controller'
+node scripts/test-watch-rules.js
+```
+
+Failing output excerpt:
+```
+Error: Cannot find module '../src/watch-rules'
 Require stack:
-- D:\Vibe_Coding\desktop-pet\scripts\test-sequence-controller.js
-  code: 'MODULE_NOT_FOUND'
+- D:\Vibe_Coding\desktop-pet\scripts\test-watch-rules.js
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
+    ...
+    code: 'MODULE_NOT_FOUND'
+EXIT_CODE=1
 ```
 
-### GREEN — 实现后单测通过
+### GREEN — Step 4 (after implementation)
+
+Command:
+```
+node scripts/test-watch-rules.js
+```
+
+Passing output:
+```
+ok - testDedupe
+ok - testIsBoss
+ok - testMatchKeyword
+ok - testQuietHours
+ok - testPickLine
+ok - testDefaults
+watch-rules: all tests passed
+EXIT_CODE=0
+```
+
+All six test functions pass.
+
+## `npm run test:js` Result
+
+Command:
+```
+npm run test:js
+```
+
+Result: **PASSING** (exit code 0). The entire JS test chain (syntax checks + all existing test scripts + the new `test-watch-rules.js`) ran cleanly with no errors. Output was pristine — all existing tests still pass and the new test output appears at the end:
 
 ```
-$ node scripts/test-sequence-controller.js
+... (existing test output) ...
 test-sequence-controller: ok
+ok - testDedupe
+ok - testIsBoss
+ok - testMatchKeyword
+ok - testQuietHours
+ok - testPickLine
+ok - testDefaults
+watch-rules: all tests passed
 ```
 
-### 全量 JS 测试
+## Files Changed
 
-```
-$ npm run test:js
-renderer interaction regression checks passed
-petpack archive security checks passed
-window interaction geometry checks passed
-window discovery checks passed
-interaction controller checks passed
-topmost guard checks passed
-runtime CDP contract tests passed
-laopo petpack regression checks passed
-startup greeting checks passed
-test-sequence-controller: ok
-```
+- `src/watch-rules.js` (created — 46 lines)
+- `scripts/test-watch-rules.js` (created — 68 lines)
+- `package.json` (modified — `test:js` script extended with `&& node scripts/test-watch-rules.js`)
 
-退出码：0。未引入新的既有测试失败。
+## Self-Review Findings
 
-## 自检
+1. **Completeness**: All six exports from the brief are implemented and tested. The module is CommonJS (`module.exports`), uses `'use strict'`, and has zero dependencies — consistent with `src/startup-greeting.js` style.
 
-### 符合 brief 要点
+2. **TDD discipline**: RED was confirmed (module-not-found, exit 1) before any implementation was written. GREEN was confirmed after implementation.
 
-- [x] TDD：先写失败测试，再实现，再全绿
-- [x] 导出 `createSequenceController`，CommonJS `module.exports`
-- [x] 注入 timer 钩子，缺省回退真实 `setTimeout`/`clearTimeout`
-- [x] `start` 校验 stages 与 animations
-- [x] `waitForClick` / `continueFromClick` 分支
-- [x] `cancel` / `dispose` 差异（schedule 与否）
-- [x] 重复 `start` 先 cancel（`schedule: false`）
-- [x] `package.json` `test:js` 已更新
-- [x] 未创建 git commit（按 Global Constraints）
+3. **Test hygiene**: The test script follows the repo's established pattern (tests object, iterate with try/catch, `console.log` on pass / `console.error` on fail, `process.exit(1)` on any failure). No test pollution — each test function is independent. RNG is injected in `testPickLine` (deterministic). No flaky randomness.
 
-### 代码质量
+4. **YAGNI**: No extra functions, no over-engineering. The `pickLine` fallback to `['']` is defensive but minimal. The `toMinutes` helper is private (not exported).
 
-- 与 `interaction-controller.js` 一致：`'use strict'`、依赖注入、可选 deps 回退
-- 无多余抽象；状态变量最小集（active、stageIndex、stages、waitingForClick、timerId）
-- 语法检查：`node --check src/sequence-controller.js` 通过（含于 `npm run test:js`）
+5. **Chain integrity**: The `test:js` chain was extended correctly — the new test runs last and the whole chain passes, confirming no existing test was broken.
 
-### 未覆盖（留待后续 task）
+6. **Concern**: The brief contained a typo in the test text (see Typo Fix section above). The fix is minimal and preserves intent. The implementation was NOT modified — only the test text was corrected to contain the required substring.
 
-- 无效 sequence id / 空 stages / 未知 action 的单元断言（brief 测试未要求）
-- `dispose` 独立测试
-- 与 main-v3 的实际接线
+## Commits Created
 
-## Concerns
-
-1. **测试覆盖面较窄**：当前仅一条 happy-path + cancel；边界错误路径无断言，后续集成前可考虑补充。
-2. **`cancel({ schedule: false })` 为内部选项**：未暴露在公开 API，重复 `start` 时由内部使用；若外部需要「静默取消」需再暴露或文档化。
-3. **无 concern 阻塞合并**：单测与全量 `test:js` 均通过，可进入 Task 2 接线。
-
-## Commits
-
-无（按 plan Global Constraints 与用户规则，未执行 commit）。
+- `3ed0243` — `feat: add watch rules filtering pipeline`

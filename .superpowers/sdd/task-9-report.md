@@ -1,94 +1,142 @@
-# Task 9 Report — 开发版手测 + 客户 EXE
+# Task 9 报告：兄弟判官桌面宠物自用便携版 EXE 构建
 
-**Status:** PASS（自动化项已验证；视觉手测项待人工）  
-**Date:** 2026-08-04  
-**Delivery id:** `xiaomei-xiaotian`  
-**Commit:** none（按指示不提交；仅修了客户构建 `files` 列表）
+## Step 1：自用 boss-watch 默认配置
 
-## Summary
+### 现状
 
-回归门禁全部通过；客户便携版 EXE 已构建并短暂实机启动。修复 `scripts/build-customer.js` 漏打 `src/sequence-controller.js`（否则客户包运行时无法 `require` 序列引擎）。`delivery.json` 中 `allowPetManagement: false`，导入/切换/宠物库入口已隐藏。
+`src/watch-config.js` 的 `loadWatchConfig` 只读取已存在的 `boss-watch.json`，**不会**在文件缺失时写入默认配置。首次启动时画饼雷达不会自动启用。
 
-## Artifacts
+### 新增
 
-| 产物 | 路径 |
-|---|---|
-| 客户 EXE | `dist/customers/xiaomei-xiaotian/小美&小甜桌面宠物-1.0.0.exe` |
-| 构建报告 | `dist/customers/xiaomei-xiaotian/build-report.json` |
-| 构建脚本修复 | `scripts/build-customer.js`（加入 `src/sequence-controller.js`） |
+在 `src/watch-config.js` 新增 `ensureBossWatchDefaults(configPath)` 辅助函数 + `SELF_USE_DEFAULT_CONFIG` 常量，并在 `src/main-v3.js` 的 `loadWatchConfig` 调用前执行：
 
-### build-report.json（要点）
-
-- `appName`: 小美&小甜桌面宠物  
-- `version`: 1.0.0  
-- `petpackSha256`: `593a62a884959601afe6b14b210ab2311cc8713abc690dd6a9f23b376c4803f7`  
-- `executableSha256`: `7568ab75091b57dd7ad0759085e1f53e75368a63427ae0c6d1df3d8c4f49308f`  
-- `signExecutable`: false（未做数字签名）
-
-## Step 2 — 回归门禁
-
-```text
-npm run test:regression          → PASS
-node scripts/test-sequence-controller.js → ok
-node scripts/test-sequences-schema.js    → ok
-node scripts/test-bestie-petpack.js      → ok
+```js
+const watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
+ensureBossWatchDefaults(watchConfigPath);
+const watchConfig = loadWatchConfig({ configPath: watchConfigPath, ... });
 ```
 
-## Step 1 — 开发版（npm start）
+当文件缺失时写入自用默认值（存在文件则永不覆盖）：
 
-- 命令：`npm start`（Electron userData：`%APPDATA%\desktop-pet`）
-- 已确认 `player-settings.json` 的 `petId` = `xiaomei-xiaotian`
-- 库内已解包 `pets/xiaomei-xiaotian`，16 套动画，`sequences.relax` 存在
-- 菜单动作标签可读：贴贴 / 合个影 / 说悄悄话 / 加油鸭 / 去放松 / 去睡觉
-- 进程可启动；**未做**完整 GUI 手测（见未验证）
+| 字段 | 值 |
+|---|---|
+| enabled | true |
+| larkCliPath | `C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd` |
+| bosses | `["ou_221a684c00848f0cd7f3e29d1061d908"]` |
+| cooldownSec | 30 |
+| quietHours | `[]` |
+| voice.enabled | true |
+| voice.gender | "male" |
+| voice.rate | "+0%" |
+| voice.voice | "zh-CN-YunxiNeural" |
 
-如何手动加载 bestie：开发版会 `ensureBundledPets()` 导入 `pets/packages/*.petpack`；右键托盘「切换宠物」选「小美&小甜」，或写入 `%APPDATA%\desktop-pet\player-settings.json` 的 `petId` 后重启。
+### message-watcher spawn stdio 修复
 
-## Step 3–4 — 客户 EXE
+`src/message-watcher.js` 的 `spawn(larkCliPath, ['event','consume','im.message.receive_v1'], { shell:true, windowsHide:true })` 新增 `stdio: ['ignore','pipe','pipe']`，显式忽略 stdin，避免 Windows 下 `lark-cli.cmd` 在非交互上下文的 stdin EOF / 挂起问题。
 
-- 构建：`npm run build:bestie`（第二次因 Electron CDN 超时失败；第三次设 `CUSTOMER_ELECTRON_DIST=node_modules/electron/dist` 成功）
-- ASAR 含：`src/sequence-controller.js`、`delivery/delivery.json`、`delivery/pet.petpack`
-- `allowPetManagement: false`
-- 实机启动：便携进程树存活；独立 userData  
-  `%APPDATA%\Desktop Pet Deliveries\xiaomei-xiaotian\`  
-  含 `player-settings.json`（petId / deliveryPackageSha256）与解包宠物目录
+单元测试 `test-watch-config.js` 与 `test-message-watcher.js` 全部通过（fakeSpawn 不受 options 影响）。
 
-## Verified checklist
+## Step 2：版本号 + CHANGELOG
 
-- [x] 回归门禁（renderer interaction + strip safety）
-- [x] sequence controller / sequences schema / bestie petpack 测试
-- [x] 客户 EXE 产物 + build-report.json
-- [x] EXE 可启动、独立 userData、内置 pet 解包
-- [x] ASAR 含 sequence-controller + delivery 配置
-- [x] 客户模式隐藏导入 / 切换宠物 / 打开宠物库（配置 + 主进程逻辑）
-- [x] 开发版可加载 xiaomei-xiaotian（settings + 库目录）
-- [x] 构建脚本补齐 sequence-controller 打包
+- `package.json` version: `0.4.0` -> `0.5.0`
+- `CHANGELOG.md` 新增 `## 0.5.0 - 2026-08-10` 段，包含：飞书画饼雷达监听、兄弟判官 petpack（12 动作 + 判官风吐槽词库）、voice-cache 协议、sendState speechAudio 协议前缀修正、自用默认配置、stdio 修复、构建打包新增 watch 文件。
+- 已知限制：飞书用户需授权 `im:message` scope；Task 8 e2e 因飞书授权 BLOCKED；GUI 人工 QA 待确认；数字签名未做。
 
-## Unverified（需人工 GUI）
+注意：客户构建的交付版本号来自 `pet.json` 的 `packageVersion`（1.0.0），与播放器 0.5.0 是两条独立版本线，符合 `build-customer.js` 现有设计。
 
-- [ ] 双人同框 idle/walk/坐/睡/点击 reaction 观感
-- [ ] 拖拽「拖着屁股走」与松手恢复
-- [ ] 菜单：贴贴/合影/悄悄话/加油鸭/睡觉 实际播放
-- [ ] 去放松全流程（化妆→换装→跑→男模+「我要这个」暂停→再点→拥抱→娇羞→回日常）
-- [ ] 暂停时拖拽中断回 idle
-- [ ] 透明像素鼠标穿透
-- [ ] 静止连点 50 次无缩放/平移
-- [ ] 托盘退出交互细节
-- [ ] 数字签名（未做；`signExecutable: false`）
+## Step 3：构建便携版 EXE
 
-## Concerns
+命令：
 
-1. 客户构建依赖网络拉 Electron；离线/超时需设 `CUSTOMER_ELECTRON_DIST`。
-2. 首次成功构建曾漏打 `sequence-controller.js`；已修复并重建。若只用旧 EXE 会运行失败。
-3. 控制台对中文 EXE 文件名可能乱码；路径以 UTF-8 `build-report.json` 为准。
-4. 完整手测清单仍需人工在桌面完成后再标「已交付」。
+```
+npm run build:customer -- --pet pets/packages/brother-judge.petpack --name "兄弟判官桌面宠物" --delivery-id brother-judge
+```
 
-## Commit
+结果：构建成功。
 
-- **No commit.**
+| 项 | 值 |
+|---|---|
+| EXE 路径 | `D:\Vibe_Coding\desktop-pet\dist\customers\brother-judge\兄弟判官桌面宠物-1.0.0.exe` |
+| EXE 大小 | 94,321,541 字节（约 89.9 MiB） |
+| 交付版本 | 1.0.0（来自 pet.json packageVersion） |
+| build-report | `D:\Vibe_Coding\desktop-pet\dist\customers\brother-judge\build-report.json` |
+| petpackSha256 | `dff910dcbfc83410a41a96dff4809559fa7a9c613fc5cb81e00b7f3b5458b3f9` |
+| executableSha256 | `2afba9d8c15276abe965620aea11a6c357252e1e9bd4fe568b3ad17e88c27798` |
 
-## Final branch review fix (2026-08-04)
+构建警告：`NODE_TLS_REJECT_UNAUTHORIZED=0` TLS 警告（electron-builder 内部下载 electron 时设置，不影响成品）；`duplicate dependency references`（重复传递依赖，electron-builder 自动去重，无害）。
 
-- **Issue:** 菜单启动序列时，若先 `cancel({ schedule: false })` + `pauseBehavior()`，随后 `sequence.start` 返回 `false`，日常漫游不会恢复。
-- **Fix:** `runContextMenuAction` 在 `start` 为 `false` 时调用 `scheduleBehavior(900)`；成功路径不变。
-- **Tests:** `node scripts/test-sequence-controller.js`、`node --check src/main-v3.js`。
+## Step 4：ASAR / build-report 内容核查
+
+由于便携版 EXE 是 7z 自解压格式且本机无 7z，使用相同 `files` 配置运行 `electron-builder --win dir` 生成未打包目录，对 `resources/app.asar`（8,898,219 字节，1709 条目）做内容核查：
+
+### 播放器源文件（全部 OK）
+
+- src/main-v3.js
+- src/preload-v3.js
+- src/renderer-v3.js
+- src/index-v3.html
+- src/styles-v3.css
+- src/petpack-validator.js
+- src/startup-greeting.js
+- src/window-interactions.js
+- src/window-discovery.js
+- src/interaction-controller.js
+- src/topmost-guard.js
+- src/sequence-controller.js
+- **src/watch-config.js**（新增）
+- **src/message-watcher.js**（新增）
+- **src/watch-rules.js**（新增）
+- **src/edge-voice.js**（新增）
+- package.json
+
+### node_modules 依赖（全部 OK）
+
+- edge-tts ✓
+- adm-zip ✓
+- get-windows ✓
+- koffi ✓
+
+### petpack
+
+客户构建通过 `delivery/` 目录内联 petpack（`{ from: relativeDelivery, to: 'delivery', filter: ['**/*'] }`），运行时从 `delivery/pet.petpack` 加载。build-report.json 确认 petpackSha256 与原包一致，构建成功。（dir 检查构建为提速省略了 delivery 目录，正式客户构建包含该目录。）
+
+### build-report.json 摘要
+
+```json
+{
+  "schemaVersion": 1,
+  "builtAt": "2026-08-10T12:41:57.681Z",
+  "appName": "兄弟判官桌面宠物",
+  "deliveryId": "brother-judge",
+  "petId": "brother-judge",
+  "petName": "兄弟判官",
+  "petpack": "brother-judge.petpack",
+  "petpackSha256": "dff910dc...b3f9",
+  "executable": "兄弟判官桌面宠物-1.0.0.exe",
+  "executableSha256": "2afba9d8...7798",
+  "version": "1.0.0"
+}
+```
+
+## 自审
+
+- **缺失项**：无。播放器源、4 个画饼雷达模块、4 个 node_modules 依赖、petpack 均在 ASAR 中确认。
+- **构建警告**：TLS 与重复依赖警告均来自 electron-builder 内部，不影响成品。
+- **关键修复**：原 `build-customer.js` 的 `files` 数组**未包含** watch-config/message-watcher/watch-rules/edge-voice —— 若不修复，画饼雷达功能不会随 EXE 交付。已补齐 `scripts/build-customer.js` 与 `package.json` 的 `build.files`。
+- **GUI 人工 QA**：未启动 GUI（按要求留给 controller）。动画、透明背景及鼠标穿透、连续点击 50 次无放大/平移、拖动、漫游、左右朝向、右键菜单、托盘、退出等需人工确认。
+- **数字签名**：未做，Windows SmartScreen 首次运行可能弹窗。
+
+## 提交
+
+| 短 SHA | 说明 |
+|---|---|
+| ffb6a18 | release: brother judge desktop pet 0.5.0 with boss watch radar |
+
+涉及文件：package.json、CHANGELOG.md、src/watch-config.js、src/message-watcher.js、src/main-v3.js、scripts/build-customer.js。
+（dist/ 被 .gitignore 忽略，EXE 与 build-report.json 未纳入版本库。）
+
+## EXE 绝对路径（供 controller 启动）
+
+```
+D:\Vibe_Coding\desktop-pet\dist\customers\brother-judge\兄弟判官桌面宠物-1.0.0.exe
+```
