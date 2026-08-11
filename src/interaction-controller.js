@@ -239,9 +239,9 @@ function createInteractionController(dependencies) {
     const base = getManifest()?.interactionActions?.[role]?.anchor
       || DEFAULT_ANCHORS[role]
       || { x: 0.5, y: 0.5 };
-    // Side-profile climb art faces the wall (climbing toward it), back toward user.
-    if (role === 'climb' && edge === 'left') return { x: 0.16, y: base.y };
-    if (role === 'climb' && edge === 'right') return { x: 0.84, y: base.y };
+    // Side-profile climb art reaches a vertical wall on the facing side.
+    if (role === 'climb' && edge === 'left') return { x: 0.84, y: base.y };
+    if (role === 'climb' && edge === 'right') return { x: 0.16, y: base.y };
     return base;
   }
 
