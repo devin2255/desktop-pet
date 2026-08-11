@@ -277,6 +277,37 @@ async function run() {
     assert.strictEqual(harness.clock.pending().intervals, 0, 'side target loss clears attachment polling');
   }
 
+  // Climb-up: after 1s on a side edge, auto-climb to top and perch
+  {
+    const sideTarget = { id: 'side-climbup', bounds: { x: 100, y: 100, width: 500, height: 400 } };
+    const harness = createHarness({ windows: [sideTarget] });
+    await dragAndEnd(harness, { x: 100, y: 250 });
+    assert.strictEqual(harness.controller.state(), 'climbing');
+    assert.strictEqual(harness.clock.pending().timeouts, 1, 'climb-up timer scheduled');
+    // Fire the 1s climb-up timer
+    harness.clock.flushTimeouts(1);
+    assert.strictEqual(harness.controller.state(), 'climbing', 'still climbing during ascent animation');
+    assert.ok(harness.clock.pending().frames > 0, 'ascent animation frames running');
+    // Run the ascent animation to completion
+    harness.clock.flushAnimationFrames();
+    assert.strictEqual(harness.controller.state(), 'perched', 'reached top and perched');
+    assert.strictEqual(harness.states.at(-1), 'perch');
+    assert.strictEqual(harness.clock.pending().intervals, 1, 'top attachment polling active');
+  }
+
+  // Dragging away before 1s cancels climb-up
+  {
+    const sideTarget = { id: 'side-cancel-climbup', bounds: { x: 100, y: 100, width: 500, height: 400 } };
+    const harness = createHarness({ windows: [sideTarget] });
+    await dragAndEnd(harness, { x: 100, y: 250 });
+    assert.strictEqual(harness.controller.state(), 'climbing');
+    assert.strictEqual(harness.clock.pending().timeouts, 1, 'climb-up timer scheduled');
+    // Start dragging before the timer fires
+    harness.controller.startDrag({ x: 100, y: 250 });
+    assert.strictEqual(harness.controller.state(), 'dragging');
+    assert.strictEqual(harness.clock.pending().timeouts, 0, 'climb-up timer cleared on drag');
+  }
+
   {
     const sideTarget = { id: 'side-target-redrag', bounds: { ...target.bounds } };
     const harness = createHarness({ windows: [sideTarget] });
@@ -642,7 +673,7 @@ async function run() {
     });
     harness.controller.startDrag({ x: 200, y: 150 });
     await harness.controller.endDrag({ x: 100, y: 250 });
-    assert.deepStrictEqual(harness.clock.pending(), { frames: 0, timeouts: 0, intervals: 1 });
+    assert.deepStrictEqual(harness.clock.pending(), { frames: 0, timeouts: 1, intervals: 1 });
     harness.behavior.walkTimer = harness.clock.setInterval(() => {}, 16);
     harness.behavior.behaviorTimer = harness.clock.setTimeout(() => {}, 5000);
     harness.controller.dispose();

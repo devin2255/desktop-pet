@@ -97,6 +97,7 @@ function createInteractionController(dependencies) {
   let frameTimer;
   let animationTimer;
   let perchedIdleTimer;
+  let climbUpTimer;
   let generation = 0;
   let disposed = false;
 
@@ -158,6 +159,8 @@ function createInteractionController(dependencies) {
     frameTimer = undefined;
     if (animationTimer !== undefined) clearTimeoutFn(animationTimer);
     animationTimer = undefined;
+    if (climbUpTimer !== undefined) clearTimeoutFn(climbUpTimer);
+    climbUpTimer = undefined;
     clearPerchedIdle();
   }
 
@@ -317,10 +320,66 @@ function createInteractionController(dependencies) {
     if (nextState === 'perched') schedulePerchedIdle(900);
   }
 
+  function climbUpToTop() {
+    climbUpTimer = undefined;
+    if (disposed || currentState !== 'climbing' || !attachment) return;
+    if (attachment.edge !== 'left' && attachment.edge !== 'right') return;
+
+    const targetId = attachment.id;
+    const targetBounds = { ...attachment.bounds };
+    const climbOffset = attachment.offset;
+
+    // Stop side attachment polling during ascent
+    clearAttachmentPolling();
+
+    const startPos = petWindow.getBounds();
+    const endPos = positionForAttachment(
+      targetBounds,
+      'top',
+      anchorFor('perch', 'top'),
+      currentSize(),
+      visibleInsets,
+      climbOffset
+    );
+
+    const token = generation;
+    const duration = 800;
+    const startTime = now();
+
+    const tick = (timestamp) => {
+      frameTimer = undefined;
+      if (disposed || generation !== token || currentState !== 'climbing') return;
+      const frameTime = Number.isFinite(timestamp) ? timestamp : now();
+      const elapsed = Math.max(0, frameTime - startTime);
+      const progress = Math.min(1, elapsed / duration);
+      const eased = progress * (2 - progress); // ease-out
+      const x = Math.round(startPos.x + (endPos.x - startPos.x) * eased);
+      const y = Math.round(startPos.y + (endPos.y - startPos.y) * eased);
+      setPosition({ x, y });
+
+      if (progress >= 1) {
+        attachment = {
+          id: String(targetId),
+          edge: 'top',
+          offset: climbOffset,
+          role: 'perch',
+          bounds: targetBounds
+        };
+        transition('perched', 'perch');
+        startAttachmentPolling();
+        schedulePerchedIdle(900);
+      } else {
+        frameTimer = scheduleFrame(tick);
+      }
+    };
+    frameTimer = scheduleFrame(tick);
+  }
+
   function restOnSide(target, pointer, edge) {
     const sideOffset = pointer.y - target.bounds.y;
     const clingFacing = edge === 'right' ? 'right' : 'left';
     attach(target, edge, sideOffset, 'climb', 'climbing', { facing: clingFacing });
+    climbUpTimer = setTimeoutFn(climbUpToTop, 1000);
   }
 
   function finishFall(display, token) {
