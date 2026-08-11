@@ -1,5 +1,6 @@
 'use strict';
 const { createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine } = require('./watch-rules');
+const { execFile } = require('child_process');
 
 function parseEventLine(line) {
   if (typeof line !== 'string' || !line.trim()) return null;
@@ -19,6 +20,18 @@ function parseEventLine(line) {
   };
 }
 
+function resolveCoreExe(larkCliPath) {
+  if (process.platform === 'win32' && larkCliPath && larkCliPath.endsWith('.cmd')) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const coreExe = path.join(path.dirname(larkCliPath), 'ext', 'lark-cli-core-windows-amd64.exe');
+      if (fs.existsSync(coreExe)) return coreExe;
+    } catch (_) {}
+  }
+  return larkCliPath;
+}
+
 function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, larkCliPath, rng }) {
   const dedupe = createDedupeSet();
   const cooldown = new Map();
@@ -28,6 +41,10 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   let restartCount = 0;
   let restartWindowStart = 0;
   let restartTimer = null;
+  let pollTimer = null;
+  let groupChatIds = [];
+  let lastPollTime = Date.now();
+  const coreExe = resolveCoreExe(larkCliPath);
 
   async function processLine(line) {
     const ev = parseEventLine(line);
@@ -67,6 +84,76 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     restartTimer = setTimeout(start, delay);
   }
 
+  function runCli(args) {
+    return new Promise((resolve) => {
+      execFile(coreExe, args, { timeout: 15000, windowsHide: true, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+        if (err) { resolve(null); return; }
+        try { resolve(JSON.parse(stdout)); } catch (_) { resolve(null); }
+      });
+    });
+  }
+
+  async function discoverGroupChats() {
+    const result = await runCli(['im', '+chat-list', '--as', 'bot', '--types', 'group']);
+    if (!result || !result.ok || !result.data || !Array.isArray(result.data.chats)) return;
+    groupChatIds = result.data.chats.map((c) => c.chat_id).filter(Boolean);
+    if (groupChatIds.length) {
+      onStatus && onStatus({ level: 'info', message: `画饼雷达监控 ${groupChatIds.length} 个群的@所有人消息。` });
+    }
+  }
+
+  async function pollGroupMessages() {
+    if (stopRequested || !running) return;
+    const now = Date.now();
+    const startTime = new Date(lastPollTime - 5000).toISOString();
+    lastPollTime = now;
+
+    for (const chatId of groupChatIds) {
+      const result = await runCli([
+        'im', '+chat-messages-list', '--as', 'user',
+        '--chat-id', chatId,
+        '--start', startTime,
+        '--sort', 'asc',
+        '--page-size', '50'
+      ]);
+      if (!result || !result.ok || !result.data || !Array.isArray(result.data.items)) continue;
+
+      for (const msg of result.data.items) {
+        // Only process @all messages
+        const mentions = msg.mentions || msg.mention_list || [];
+        const isAtAll = mentions.some((m) => m && (m.key === '@_all' || m.id === '@_all' || m.name === '所有人'));
+        if (!isAtAll) continue;
+
+        const senderId = msg.sender && msg.sender.id ? msg.sender.id : (msg.sender_id || '');
+        const content = typeof msg.body && msg.body.content === 'string'
+          ? msg.body.content
+          : (typeof msg.text === 'string' ? msg.text : '');
+        const messageId = msg.message_id || msg.id || '';
+
+        if (!senderId || !content || !messageId) continue;
+        if (dedupe.has(messageId)) continue;
+        dedupe.add(messageId);
+
+        // Process like an event line
+        const fakeEv = { event_id: messageId, sender_id: senderId, content, chat_id: chatId, chat_type: 'group', timestamp: String(msg.create_time || now) };
+        await processLine(JSON.stringify(fakeEv));
+      }
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    lastPollTime = Date.now();
+    discoverGroupChats().then(() => {
+      if (stopRequested) return;
+      pollTimer = setInterval(() => {
+        pollGroupMessages().catch((err) => {
+          onStatus && onStatus({ level: 'error', message: '画饼雷达群消息轮询异常：' + (err?.message || 'unknown') });
+        });
+      }, 10000);
+    });
+  }
+
   function start() {
     if (stopRequested) return;
     if (running) return;
@@ -75,25 +162,9 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     stopRequested = false;
     const spawn = spawnExec || require('child_process').spawn;
     let stderrBuf = '';
-    // Resolve to lark-cli-core exe on Windows to avoid .cmd wrapper stdin EOF issue.
-    // lark-cli event consume treats stdin close as shutdown signal, so keep stdin as a pipe
-    // (never use 'ignore' which causes immediate EOF → graceful exit).
-    let actualCliPath = larkCliPath;
-    let useShell = false;
-    if (process.platform === 'win32' && larkCliPath && larkCliPath.endsWith('.cmd')) {
-      const fs = require('fs');
-      const path = require('path');
-      const coreExe = path.join(path.dirname(larkCliPath), 'ext', 'lark-cli-core-windows-amd64.exe');
-      if (fs.existsSync(coreExe)) {
-        actualCliPath = coreExe;
-        useShell = false;
-      }
-    }
     try {
-      child = spawn(actualCliPath, ['event', 'consume', 'im.message.receive_v1', '--as', 'bot'],
-        { shell: useShell, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-      // Keep stdin open so lark-cli doesn't interpret EOF as shutdown
-      // (never write to stdin, never close it until stop())
+      child = spawn(coreExe, ['event', 'consume', 'im.message.receive_v1', '--as', 'bot'],
+        { shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     } catch (e) {
       running = false;
       onStatus && onStatus({ level: 'error', message: '启动画饼雷达失败：' + (e.message || 'unknown') });
@@ -118,6 +189,8 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
       running = false;
       if (!stopRequested) scheduleRestart();
     });
+    // Start group message polling for @all messages
+    startPolling();
     onStatus && onStatus({ level: 'info', message: '画饼雷达已连接。' });
   }
 
@@ -125,6 +198,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     stopRequested = true;
     running = false;
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     if (child) { try { child.stdin && child.stdin.end(); child.kill(); } catch (_) {} child = null; }
   }
 
