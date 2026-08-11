@@ -244,7 +244,7 @@ async function run() {
     const result = await endPromise;
     assert.strictEqual(result, true);
     assert.strictEqual(harness.controller.state(), 'climbing');
-    assert.strictEqual(harness.states.at(-1), 'climb-right');
+    assert.strictEqual(harness.states.at(-1), 'climb-left');
     assert.strictEqual(harness.climbs.length, 0, 'side rest never starts position animation');
     assert.deepStrictEqual(harness.clock.intervalDelays(), [100]);
     const attached = harness.bounds();
@@ -259,7 +259,7 @@ async function run() {
     const result = await harness.controller.endDrag({ x: 599, y: 250 });
     assert.strictEqual(result, true);
     assert.strictEqual(harness.controller.state(), 'climbing');
-    assert.strictEqual(harness.states.at(-1), 'climb-left');
+    assert.strictEqual(harness.states.at(-1), 'climb-right');
     assert.strictEqual(harness.climbs.length, 0, 'right side rest never starts position animation');
   }
 
