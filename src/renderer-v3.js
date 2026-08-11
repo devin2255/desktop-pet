@@ -224,11 +224,13 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
   if (!manifest) return;
   playAnimation(state, logicalRole);
+  // Estimate bubble duration by text length: ~300ms per char (matches TTS pace), clamp 4s-30s
+  const textLen = (message || speech || '').length;
   const bubbleMs = state === 'sleep'
     ? 4200
     : baseActionName(state).startsWith('perch-')
       ? 4800
-      : 6000;
+      : Math.max(4000, Math.min(30000, textLen * 300));
   if (Array.isArray(messages) && messages.length) {
     showStaggeredMessages(messages, Number.isFinite(messageGapMs) ? messageGapMs : 700, bubbleMs);
   } else if (message) {
