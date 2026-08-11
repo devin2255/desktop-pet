@@ -346,52 +346,35 @@ function createInteractionController(dependencies) {
     );
 
     const token = generation;
-    const totalSteps = 4;
-    const stepDuration = 400; // ms per step
-    const stepPause = 120; // ms pause between steps
-    let currentStep = 0;
-    let stepStartTime = now();
+    const duration = 3000; // slow ascent
+    const startTime = now();
 
     function climbStep(timestamp) {
       frameTimer = undefined;
       if (disposed || generation !== token || currentState !== 'climbing') return;
       const frameTime = Number.isFinite(timestamp) ? timestamp : now();
-      const elapsed = Math.max(0, frameTime - stepStartTime);
-      const stepProgress = Math.min(1, elapsed / stepDuration);
-      const eased = stepProgress * (2 - stepProgress);
-
-      // Compute intermediate position for this step
-      const stepStartY = startPos.y + (endPos.y - startPos.y) * (currentStep / totalSteps);
-      const stepEndY = startPos.y + (endPos.y - startPos.y) * ((currentStep + 1) / totalSteps);
-      const stepStartX = startPos.x + (endPos.x - startPos.x) * (currentStep / totalSteps);
-      const stepEndX = startPos.x + (endPos.x - startPos.x) * ((currentStep + 1) / totalSteps);
-      const x = Math.round(stepStartX + (stepEndX - stepStartX) * eased);
-      const y = Math.round(stepStartY + (stepEndY - stepStartY) * eased);
+      const elapsed = Math.max(0, frameTime - startTime);
+      const progress = Math.min(1, elapsed / duration);
+      // ease-in-out so it starts gently, speeds up mid-climb, slows at top
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      const x = Math.round(startPos.x + (endPos.x - startPos.x) * eased);
+      const y = Math.round(startPos.y + (endPos.y - startPos.y) * eased);
       setPosition({ x, y });
 
-      if (stepProgress >= 1) {
-        currentStep += 1;
-        if (currentStep >= totalSteps) {
-          // Reached top — perch
-          attachment = {
-            id: String(targetId),
-            edge: 'top',
-            offset: endPos.x - targetBounds.x + visibleInsets.left,
-            role: 'perch',
-            bounds: targetBounds
-          };
-          transition('perched', 'perch');
-          startAttachmentPolling();
-          schedulePerchedIdle(900);
-          return;
-        }
-        // Pause between steps — freeze position for stepPause ms
-        animationTimer = setTimeoutFn(() => {
-          animationTimer = undefined;
-          if (disposed || generation !== token || currentState !== 'climbing') return;
-          stepStartTime = now();
-          frameTimer = scheduleFrame(climbStep);
-        }, stepPause);
+      if (progress >= 1) {
+        // Reached top — perch
+        attachment = {
+          id: String(targetId),
+          edge: 'top',
+          offset: endPos.x - targetBounds.x + visibleInsets.left,
+          role: 'perch',
+          bounds: targetBounds
+        };
+        transition('perched', 'perch');
+        startAttachmentPolling();
+        schedulePerchedIdle(900);
         return;
       }
       frameTimer = scheduleFrame(climbStep);
