@@ -175,6 +175,10 @@ function buildCustomer(options) {
         'src/interaction-controller.js',
         'src/topmost-guard.js',
         'src/sequence-controller.js',
+        'src/watch-config.js',
+        'src/message-watcher.js',
+        'src/watch-rules.js',
+        'src/edge-voice.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

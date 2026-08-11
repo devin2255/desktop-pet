@@ -9,6 +9,32 @@ const DEFAULT_BOSS_CONFIG = {
   voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
 };
 
+// Self-use default: the boss-watch radar ships enabled so the developer's own
+// machine starts listening on first launch without manual config. Customer
+// builds (separate delivery) would override with enabled:false.
+const SELF_USE_DEFAULT_CONFIG = {
+  enabled: true,
+  larkCliPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd',
+  bosses: ['ou_221a684c00848f0cd7f3e29d1061d908'],
+  cooldownSec: 30,
+  quietHours: [],
+  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
+};
+
+// Writes the self-use default boss-watch.json when the file is missing, so the
+// portable EXE works out of the box on the developer's machine. Returns the
+// config path for convenience. Existing files are never overwritten.
+function ensureBossWatchDefaults(configPath) {
+  if (!configPath) return configPath;
+  try {
+    if (fs.existsSync(configPath)) return configPath;
+    const dir = require('path').dirname(configPath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(SELF_USE_DEFAULT_CONFIG, null, 2) + '\n', 'utf8');
+  } catch (_) { /* best-effort; loadWatchConfig falls back to safe defaults */ }
+  return configPath;
+}
+
 function splitBosses(bosses) {
   const ids = [];
   const names = [];
@@ -74,4 +100,4 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   };
 }
 
-module.exports = { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG };
+module.exports = { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, SELF_USE_DEFAULT_CONFIG };

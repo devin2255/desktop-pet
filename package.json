@@ -1,6 +1,6 @@
 {
   "name": "desktop-pet",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "通用 Windows 桌面宠物播放器，支持安全导入 .petpack 和生成客户专属便携版。",
   "main": "src/main-v3.js",
   "author": "devin2255",
@@ -54,6 +54,10 @@
       "src/interaction-controller.js",
       "src/topmost-guard.js",
       "src/sequence-controller.js",
+      "src/watch-config.js",
+      "src/message-watcher.js",
+      "src/watch-rules.js",
+      "src/edge-voice.js",
       "assets/generated/laopo-tray.png",
       "pets/packages/laopo.petpack",
       "package.json"

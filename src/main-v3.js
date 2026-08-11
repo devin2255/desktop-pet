@@ -18,7 +18,7 @@ const { createTopmostGuard } = require('./topmost-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
 const { createSequenceController } = require('./sequence-controller');
 const { createMessageWatcher, parseEventLine } = require('./message-watcher');
-const { loadWatchConfig } = require('./watch-config');
+const { loadWatchConfig, ensureBossWatchDefaults } = require('./watch-config');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const {
   app,
@@ -790,8 +790,10 @@ if (!gotLock) {
       scheduleBehavior
     });
     createTray();
+    const watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
+    ensureBossWatchDefaults(watchConfigPath);
     const watchConfig = loadWatchConfig({
-      configPath: path.join(app.getPath('userData'), 'boss-watch.json'),
+      configPath: watchConfigPath,
       manifestWatch: activeManifest?.watch,
       larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
     });

@@ -75,7 +75,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     const spawn = spawnExec || require('child_process').spawn;
     let stderrBuf = '';
     try {
-      child = spawn(larkCliPath, ['event', 'consume', 'im.message.receive_v1'], { shell: true, windowsHide: true });
+      child = spawn(larkCliPath, ['event', 'consume', 'im.message.receive_v1'], { shell: true, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       running = false;
       onStatus && onStatus({ level: 'error', message: '启动画饼雷达失败：' + (e.message || 'unknown') });
