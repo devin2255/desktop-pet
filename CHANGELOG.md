@@ -7,7 +7,7 @@ All notable changes to this project are documented here.
 ### 新功能
 
 - 飞书画饼雷达监听：通过 `lark-cli event consume` 事件流监听老板消息，按 open_id 过滤、词库匹配、edge-tts 语音播报吐槽，支持冷却、静默时段和断线指数退避重连。
-- 兄弟判官桌面宠物 petpack：12 个动作（idle / walk / sit / sleep / reaction / point / wave / drink / doze / laugh / scold / verdict）+ 判官风吐槽词库。
+- 兄弟判官桌面宠物 petpack：12 个动作（idle / walk / sit / sleep / reaction / drag / climb / perch / hang / fall / impact / recover）+ 判官风吐槽词库。
 - voice-cache 协议：edge-tts 合成结果缓存到 userData/voice-cache，sendState 通过 `speechAudio` 字段传递 `voice-cache://` 协议 URL。
 - sendState `speechAudio` 协议前缀修正：渲染端按协议前缀正确解析缓存音频，避免把整个 URL 当作文件路径。
 

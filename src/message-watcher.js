@@ -52,6 +52,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
 
   function scheduleRestart() {
     if (stopRequested) return;
+    if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     if (restartWindowStart === 0 || Date.now() - restartWindowStart >= 3600000) {
       restartCount = 0;
       restartWindowStart = Date.now();

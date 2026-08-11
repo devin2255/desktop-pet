@@ -17,7 +17,7 @@ const {
 const { createTopmostGuard } = require('./topmost-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
 const { createSequenceController } = require('./sequence-controller');
-const { createMessageWatcher, parseEventLine } = require('./message-watcher');
+const { createMessageWatcher } = require('./message-watcher');
 const { loadWatchConfig, ensureBossWatchDefaults } = require('./watch-config');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const {
@@ -791,12 +791,15 @@ if (!gotLock) {
     });
     createTray();
     const watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
-    ensureBossWatchDefaults(watchConfigPath);
+    if (!deliveryConfig) ensureBossWatchDefaults(watchConfigPath);
     const watchConfig = loadWatchConfig({
       configPath: watchConfigPath,
       manifestWatch: activeManifest?.watch,
       larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
     });
+    if (watchConfig.names.length > 0) {
+      sendState('reaction', '画饼雷达：老板名单中的姓名待解析，请使用 open_id 或扫码授权后自动解析。');
+    }
     if (watchConfig.enabled) {
       const voice = createVoiceSynthesizer({
         cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
@@ -808,6 +811,11 @@ if (!gotLock) {
         voice,
         sendState: (state, message, speech, opts) => {
           sendState(state, message, speech, state, opts || {});
+        },
+        onStatus: (status) => {
+          if (status.level === 'warn' || status.level === 'error') {
+            sendState('reaction', status.message);
+          }
         },
         larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
       });

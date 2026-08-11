@@ -47,7 +47,6 @@ function splitBosses(bosses) {
 }
 
 function asStrings(v) { return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()) : []; }
-function asStringArray(v) { return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()) : []; }
 
 function normalizeQuietHours(v) {
   if (!Array.isArray(v)) return [];
@@ -87,8 +86,8 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   const { ids, names } = splitBosses(fileCfg.bosses);
   return {
     enabled: Boolean(fileCfg.enabled),
-    larkCliPath: typeof larkCliPath === 'string' && larkCliPath ? larkCliPath : '',
-    bosses: asStringArray(fileCfg.bosses),
+    larkCliPath: typeof larkCliPath === 'string' && larkCliPath ? larkCliPath : (typeof fileCfg.larkCliPath === 'string' && fileCfg.larkCliPath ? fileCfg.larkCliPath : ''),
+    bosses: asStrings(fileCfg.bosses),
     ids,
     names,
     cooldownSec: Number.isFinite(Number(fileCfg.cooldownSec)) ? Math.max(0, Number(fileCfg.cooldownSec)) : DEFAULT_BOSS_CONFIG.cooldownSec,
