@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "builtAt": "2026-08-12T09:21:24.017Z",
+  "appName": "兄弟判官桌面宠物",
+  "deliveryId": "brother-judge",
+  "petId": "brother-judge",
+  "petName": "兄弟判官",
+  "petpack": "brother-judge.petpack",
+  "petpackSha256": "87d78b104e20012dd1334204c355993e6946599ffc3c4f53197422b3ade9dba3",
+  "executable": "兄弟判官桌面宠物-1.0.0.exe",
+  "executableSha256": "5d96a1ab7ee3688f543d4c6612181b88b383fc5c7cdaf39628892fceecb0b27a",
+  "version": "1.0.0",
+  "paths": {
+    "exe": "dist/customers/brother-judge/兄弟判官桌面宠物-1.0.0.exe",
+    "buildReportCanonical": "delivery/brother-judge/build-report.json",
+    "buildReportRootCopy": "build-report.json",
+    "distBuildReport": "dist/customers/brother-judge/build-report.json",
+    "note": "dist/ 与 *.exe 被 gitignore；EXE 仅存在于本机 dist 路径"
+  },
+  "verification": {
+    "verified": [
+      "客户构建成功（electron-builder portable，未签名）",
+      "EXE 可启动：进程 兄弟判官桌面宠物-1.0.0.exe 已运行",
+      "独立 userData：%APPDATA%/Desktop Pet Deliveries/brother-judge/",
+      "内置宠物自动落地：pets/brother-judge/ 含 pet.json + preview + 动画",
+      "player-settings：petId=brother-judge，roaming=true，crawlMode=true，deliveryPackageSha256 与 petpack 一致",
+      "标准动作帧数：idle4/walk6/sit4/sleep4/reaction4；kowtow6",
+      "idle/01 写实脸与白背心大裤衩人字拖+判官帽可见（抽查帧图）",
+      "contextMenuActions 配置：叫爸→message/speech「爸」；磕头→action kowtow 无文案；睡会儿→sleep「睡会儿」"
+    ],
+    "unverified": [
+      "透明像素鼠标穿透（需 GUI 手测）",
+      "静止连点 50 次无放大/平移（需 GUI 手测）",
+      "右键菜单实机点选叫爸/磕头/睡会儿气泡与动画（仅校验了清单配置）",
+      "漫游、左右朝向、跪爬模式实际画面表现",
+      "托盘图标与退出流程",
+      "数字签名（signExecutable: false，故意未签）"
+    ]
+  }
+}
