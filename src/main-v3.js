@@ -403,7 +403,7 @@ function runBehavior() {
     walkTo(Math.max(workArea.x, Math.min(workArea.x + workArea.width - bounds.width, bounds.x + delta)));
     return;
   }
-  const fallbackMessages = { sit: '我就在这里陪你。', reaction: '别走太远……', sleep: 'z Z' };
+  const fallbackMessages = { sit: '上个毛的班，可以休息了！', reaction: '别走太远……', sleep: 'z Z' };
   const message = typeof behavior.message === 'string' && behavior.message
     ? behavior.message
     : (fallbackMessages[behavior.state] || '');
@@ -535,7 +535,7 @@ function triggerPetTask(taskType) {
   const taskFile = path.join(dir, `${id}.json`);
   const task = { id, type: taskType, status: 'pending', createdAt: new Date().toISOString() };
   fs.writeFileSync(taskFile, JSON.stringify(task, null, 2), 'utf8');
-  sendState('reaction', '本官这就去办，稍候片刻。', '本官这就去办', 'reaction', {});
+  sendState('reaction', '好的，爸！', '好的，爸！', 'reaction', {});
   // Notify QwenWork instantly via Feishu message to bot
   notifyQwenWork(taskType, taskFile);
   startPetTaskPolling();
