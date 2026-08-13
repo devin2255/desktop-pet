@@ -3,17 +3,17 @@
   "packageVersion": "1.0.0",
   "id": "brother-judge",
   "name": "兄弟判官",
-  "description": "接地气判官桌宠：白背心大裤衩人字拖，头戴判官帽，手握判官笔，专治老板画饼吹牛。",
+  "description": "接地气判官桌宠：红背心短裤人字拖，圆框眼镜，真人写实风，专治老板画饼吹牛。",
   "personality": [
     "毒舌",
     "护短",
     "接地气"
   ],
   "speechGender": "male",
-  "startupGreeting": "本官到了，有冤的报冤，有饼的退下！",
+  "startupGreeting": "爸，我来了！",
   "defaultSize": "small",
   "preview": "preview.png",
-  "normalizationMetric": "alpha-area-v1",
+  "normalizationMetric": "bbox-span-v1",
   "animations": {
     "idle": {
       "frames": [
@@ -254,7 +254,58 @@
       ],
       "loop": true,
       "holdLastFrame": false,
-      "scale": 1.3
+      "scale": 1
+    },
+    "kowtow": {
+      "frames": [
+        "animations/kowtow/01.png",
+        "animations/kowtow/02.png",
+        "animations/kowtow/03.png",
+        "animations/kowtow/04.png"
+      ],
+      "durations": [
+        300,
+        400,
+        800,
+        300
+      ],
+      "loop": false,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "kowtow-crawl": {
+      "frames": [
+        "animations/kowtow-crawl/01.png",
+        "animations/kowtow-crawl/02.png",
+        "animations/kowtow-crawl/03.png",
+        "animations/kowtow-crawl/04.png"
+      ],
+      "durations": [
+        300,
+        400,
+        800,
+        300
+      ],
+      "loop": false,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "mg": {
+      "frames": [
+        "animations/mg/01.png",
+        "animations/mg/02.png",
+        "animations/mg/03.png",
+        "animations/mg/04.png"
+      ],
+      "durations": [
+        300,
+        400,
+        300,
+        1600
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
     }
   },
   "interactionActions": {
@@ -305,60 +356,96 @@
         "weight": 25,
         "minDuration": 4500,
         "maxDuration": 7000,
-        "message": "本官歇会儿，有事先候着。"
+        "message": "爸，我歇会！",
+        "speechAudio": "audio/02-sit-rest.mp3"
       },
       {
         "state": "reaction",
         "weight": 25,
         "minDuration": 2400,
         "maxDuration": 3600,
-        "message": "嗯？又有画饼的？"
+        "message": "嗯？你同事又在舔领导？",
+        "speechAudio": "audio/03-reaction-lick.mp3"
       },
       {
         "state": "sleep",
         "weight": 20,
         "minDuration": 5000,
         "maxDuration": 8000,
-        "message": "……退堂。"
+        "message": "睡会儿"
+      }
+    ],
+    "perched": [
+      {
+        "state": "mg",
+        "weight": 100,
+        "minDuration": 3000,
+        "maxDuration": 3000,
+        "message": "我给你老板一梭子",
+        "speech": "我给你老板一梭子"
       }
     ]
   },
   "contextMenuActions": [
     {
       "id": "hold-court",
-      "label": "升堂",
+      "label": "叫爸",
       "action": "reaction",
-      "message": "升——堂——！有冤的报冤，有饼的退下！",
-      "duration": 3000
+      "message": "爸",
+      "duration": 3000,
+      "speech": "爸",
+      "speechAudio": "audio/05-call-dad.mp3"
     },
     {
       "id": "adjourn",
-      "label": "退堂",
-      "action": "sit",
-      "message": "退堂，本官要歇了。",
+      "label": "磕头",
+      "action": "kowtow",
       "duration": 3600
     },
     {
       "id": "rest",
-      "label": "歇息",
+      "label": "睡会儿",
       "action": "sleep",
-      "message": "本官先眯一会儿……",
-      "duration": 5000
+      "message": "行, 我睡会儿",
+      "duration": 5000,
+      "speechAudio": "audio/04-menu-sleep.mp3"
     }
   ],
   "watch": {
     "keywords": {
       "画饼": [
-        "老板画的饼别吃，你啃不动！",
-        "这饼画得再圆，也就是个饼。",
-        "本官判你：画饼无效，驳回！"
+        {
+          "text": "这孙子在画饼，狗都不吃！",
+          "audio": "audio/08-huabing-1.mp3"
+        },
+        {
+          "text": "又开始画饼，真欠揍！",
+          "audio": "audio/09-huabing-2.mp3"
+        },
+        {
+          "text": "真孙子，又在画饼！",
+          "audio": "audio/10-huabing-3.mp3"
+        }
       ],
       "吹牛": [
-        "你的老板吹了个牛逼！",
-        "这牛吹得，本官的判官笔都抖了。"
+        {
+          "text": "你老板吹了个牛逼！",
+          "audio": "audio/11-chuiniu-1.mp3"
+        },
+        {
+          "text": "这孙子在吹牛逼！",
+          "audio": "audio/12-chuiniu-2.mp3"
+        },
+        {
+          "text": "这孙子真能吹牛比！",
+          "audio": "audio/13-chuiniu-3.mp3"
+        }
       ]
     },
-    "fallback": "老板又在整活儿了，本官先记他一笔。",
+    "fallback": {
+      "text": "你老板又开始整活儿了，装没看见。",
+      "audio": "audio/14-fallback.mp3"
+    },
     "state": "reaction"
   }
 }

@@ -101,18 +101,28 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       if (!watch.keywords || typeof watch.keywords !== 'object' || Array.isArray(watch.keywords)) {
         throw new Error('watch.keywords 必须是对象');
       }
-      for (const [key, lines] of Object.entries(watch.keywords)) {
+      for (const [key, entries] of Object.entries(watch.keywords)) {
         if (typeof key !== 'string' || !key) {
           throw new Error('watch.keywords 的键必须是非空字符串');
         }
-        if (!Array.isArray(lines) || lines.length === 0
-          || lines.some((line) => typeof line !== 'string' || !line)) {
-          throw new Error(`watch.keywords.${key} 必须是非空字符串数组`);
+        if (!Array.isArray(entries) || entries.length === 0) {
+          throw new Error(`watch.keywords.${key} 必须是非空数组`);
+        }
+        for (const entry of entries) {
+          if (typeof entry === 'string' && entry) continue;
+          if (entry && typeof entry === 'object' && typeof entry.text === 'string' && entry.text) continue;
+          throw new Error(`watch.keywords.${key} 的条目必须是字符串或 {text, audio} 对象`);
         }
       }
     }
-    if (watch.fallback !== undefined && typeof watch.fallback !== 'string') {
-      throw new Error('watch.fallback 必须是字符串');
+    if (watch.fallback !== undefined) {
+      const fb = watch.fallback;
+      const validStr = typeof fb === 'string' && fb;
+      const validObj = fb && typeof fb === 'object'
+        && typeof fb.text === 'string' && fb.text;
+      if (!validStr && !validObj) {
+        throw new Error('watch.fallback 必须是字符串或 {text, audio} 对象');
+      }
     }
     if (watch.state !== undefined && typeof watch.state !== 'string') {
       throw new Error('watch.state 必须是字符串');

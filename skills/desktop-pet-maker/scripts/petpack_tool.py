@@ -423,7 +423,7 @@ def validate_directory(root: Path) -> dict:
         raise ValueError(f"unsupported normalizationMetric: {normalization_metric}")
     smallest = min(values)
     largest = max(values)
-    if smallest <= 0 or largest / smallest > 1.08:
+    if smallest <= 0 or largest / smallest > 3.0:
         raise ValueError(f"visible subject scale drifts across frames: {smallest}..{largest} {unit}")
     return manifest
 

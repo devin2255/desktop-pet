@@ -46,7 +46,25 @@ function splitBosses(bosses) {
   return { ids, names };
 }
 
-function asStrings(v) { return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()) : []; }
+// Normalize keyword pool entries: accept strings or {text, audio} objects
+function normalizePool(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((x) => {
+      if (typeof x === 'string' && x.trim()) return { text: x.trim(), audio: '' };
+      if (x && typeof x === 'object' && typeof x.text === 'string' && x.text.trim())
+        return { text: x.text.trim(), audio: typeof x.audio === 'string' ? x.audio.trim() : '' };
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function normalizeFallback(v, defaultText) {
+  if (typeof v === 'string' && v.trim()) return { text: v.trim(), audio: '' };
+  if (v && typeof v === 'object' && typeof v.text === 'string' && v.text.trim())
+    return { text: v.text.trim(), audio: typeof v.audio === 'string' ? v.audio.trim() : '' };
+  return { text: defaultText, audio: '' };
+}
 
 function normalizeQuietHours(v) {
   if (!Array.isArray(v)) return [];
@@ -74,12 +92,13 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   const manifest = manifestWatch && typeof manifestWatch === 'object' ? manifestWatch : {};
   const manifestKeywords = manifest.keywords && typeof manifest.keywords === 'object'
     ? Object.fromEntries(Object.entries(manifest.keywords)
-        .filter(([k, v]) => typeof k === 'string' && k && Array.isArray(v) && v.some((x) => typeof x === 'string' && x))
-        .map(([k, v]) => [k, asStrings(v)]))
+        .filter(([k, v]) => typeof k === 'string' && k && Array.isArray(v) && v.length > 0)
+        .map(([k, v]) => [k, normalizePool(v)]))
     : {};
-  const keywords = Object.keys(manifestKeywords).length ? manifestKeywords : DEFAULT_KEYWORDS;
-  const fallback = typeof manifest.fallback === 'string' && manifest.fallback.trim()
-    ? manifest.fallback.trim() : '老板又开始整活儿了，装没看见。';
+  const keywords = Object.keys(manifestKeywords).length
+    ? manifestKeywords
+    : Object.fromEntries(Object.entries(DEFAULT_KEYWORDS).map(([k, v]) => [k, normalizePool(v)]));
+  const fallback = normalizeFallback(manifest.fallback, '你老板又开始整活儿了，装没看见。');
   const state = typeof manifest.state === 'string' && manifest.state.trim()
     ? manifest.state.trim() : 'reaction';
 
@@ -87,7 +106,7 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   return {
     enabled: Boolean(fileCfg.enabled),
     larkCliPath: typeof larkCliPath === 'string' && larkCliPath ? larkCliPath : (typeof fileCfg.larkCliPath === 'string' && fileCfg.larkCliPath ? fileCfg.larkCliPath : ''),
-    bosses: asStrings(fileCfg.bosses),
+    bosses: Array.isArray(fileCfg.bosses) ? fileCfg.bosses.filter((x) => typeof x === 'string' && x.trim()) : [],
     ids,
     names,
     cooldownSec: Number.isFinite(Number(fileCfg.cooldownSec)) ? Math.max(0, Number(fileCfg.cooldownSec)) : DEFAULT_BOSS_CONFIG.cooldownSec,

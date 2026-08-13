@@ -57,12 +57,19 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     if (Date.now() - last < rules.cooldownSec * 1000) return;
     const category = matchKeyword(ev.content, rules.keywords);
     const pool = category ? rules.keywords[category] : [rules.fallback];
-    const text = pickLine(pool, rng);
+    const entry = pool[Math.floor((rng || Math.random)() * pool.length)];
+    const text = entry.text || (typeof entry === 'string' ? entry : '');
+    const preAudio = entry.audio || '';
     let audioUrl = '';
-    try {
-      const audio = await voice.synthesize(text);
-      if (audio) audioUrl = audio.url;
-    } catch (_) { audioUrl = ''; }
+    if (preAudio) {
+      // Pre-recorded audio path; sendState will convert relative paths to pet-asset URL
+      audioUrl = preAudio;
+    } else {
+      try {
+        const audio = await voice.synthesize(text);
+        if (audio) audioUrl = audio.url;
+      } catch (_) { audioUrl = ''; }
+    }
     sendState(rules.state, text, text, { speechAudio: audioUrl });
     cooldown.set(ev.sender_id, Date.now());
   }

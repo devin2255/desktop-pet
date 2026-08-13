@@ -18,7 +18,13 @@ function testDefaultsWhenMissing() {
   assert.strictEqual(cfg.cooldownSec, 30);
   assert.deepStrictEqual(cfg.quietHours, []);
   assert.strictEqual(cfg.state, 'reaction');
-  assert.deepStrictEqual(cfg.keywords, DEFAULT_KEYWORDS);
+  // Keywords are normalized to {text, audio} objects
+  const expectedKeywords = {};
+  for (const [k, v] of Object.entries(DEFAULT_KEYWORDS)) {
+    expectedKeywords[k] = v.map((text) => ({ text, audio: '' }));
+  }
+  assert.deepStrictEqual(cfg.keywords, expectedKeywords);
+  assert.deepStrictEqual(cfg.fallback, { text: '你老板又开始整活儿了，装没看见。', audio: '' });
   assert.strictEqual(cfg.voice.voice, 'zh-CN-YunxiNeural');
 }
 
@@ -37,8 +43,8 @@ function testMergeManifest() {
     manifestWatch: { keywords: { '画饼': ['专属文案'] }, fallback: '兜底', state: 'idle' }
   });
   assert.strictEqual(cfg.enabled, true);
-  assert.deepStrictEqual(cfg.keywords, { '画饼': ['专属文案'] });
-  assert.strictEqual(cfg.fallback, '兜底');
+  assert.deepStrictEqual(cfg.keywords, { '画饼': [{ text: '专属文案', audio: '' }] });
+  assert.deepStrictEqual(cfg.fallback, { text: '兜底', audio: '' });
   assert.strictEqual(cfg.state, 'idle');
 }
 

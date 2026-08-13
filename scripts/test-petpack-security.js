@@ -108,19 +108,19 @@ assert.ok(!referencedFiles(manifest).has('manifest.watch'), 'watch contents must
 
 // invalid: watch.keywords value not an array
 manifest.watch = { keywords: { '画饼': 'not-array' } };
-assert.throws(() => validateManifest(manifest), /watch\.keywords\..*必须是非空字符串数组/, 'watch.keywords value must be a non-empty string array');
+assert.throws(() => validateManifest(manifest), /watch\.keywords\..*必须是非空数组/, 'watch.keywords value must be a non-empty array');
 
 // invalid: watch.keywords empty array
 manifest.watch = { keywords: { '画饼': [] } };
-assert.throws(() => validateManifest(manifest), /watch\.keywords\..*必须是非空字符串数组/, 'watch.keywords value must be non-empty');
+assert.throws(() => validateManifest(manifest), /watch\.keywords\..*必须是非空数组/, 'watch.keywords value must be non-empty');
 
 // invalid: watch not an object
 manifest.watch = 'not-an-object';
 assert.throws(() => validateManifest(manifest), /watch 必须是对象/, 'watch must be an object');
 
-// invalid: watch.fallback not a string
+// invalid: watch.fallback not a string or object
 manifest.watch = { fallback: 42 };
-assert.throws(() => validateManifest(manifest), /watch\.fallback 必须是字符串/, 'watch.fallback must be a string');
+assert.throws(() => validateManifest(manifest), /watch\.fallback 必须是字符串或/, 'watch.fallback must be a string or object');
 
 // invalid: watch.state not a string
 manifest.watch = { state: 99 };
