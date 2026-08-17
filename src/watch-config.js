@@ -127,20 +127,22 @@ function normalizeKeywordStates(raw) {
 }
 
 function patchWatchFlags(configPath, flags = {}, { customer } = {}) {
-  if (!configPath) return configPath;
+  if (!configPath) return false;
   if (!fs.existsSync(configPath)) ensureBossWatchDefaults(configPath, { customer });
-  let raw = {};
+  let raw;
   try {
-    if (fs.existsSync(configPath)) {
-      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (parsed && typeof parsed === 'object') raw = parsed;
-    }
+    if (!fs.existsSync(configPath)) return false;
+    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+    raw = parsed;
   } catch (_) {
-    raw = {};
+    return false;
   }
   if (typeof flags.enabled === 'boolean') raw.enabled = flags.enabled;
   if (typeof flags.callHangupEnabled === 'boolean') {
-    const prev = raw.callHangup && typeof raw.callHangup === 'object' ? raw.callHangup : {};
+    const prev = raw.callHangup && typeof raw.callHangup === 'object' && !Array.isArray(raw.callHangup)
+      ? raw.callHangup
+      : {};
     raw.callHangup = { ...prev, enabled: flags.callHangupEnabled };
   }
   try {

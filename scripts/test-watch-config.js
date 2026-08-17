@@ -165,6 +165,19 @@ function testPatchWatchFlagsCreatesMissingFile() {
   }
 }
 
+function testPatchWatchFlagsSkipsCorruptFile() {
+  const p = path.join(os.tmpdir(), `boss-watch-patch-garbage-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  const garbage = '{not json, bosses still here 张总';
+  try {
+    fs.writeFileSync(p, garbage, 'utf8');
+    const result = patchWatchFlags(p, { enabled: true, callHangupEnabled: true });
+    assert.strictEqual(result, false);
+    assert.strictEqual(fs.readFileSync(p, 'utf8'), garbage);
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
 function testEnsureDefaultsNoOverwrite() {
   const p = path.join(os.tmpdir(), `boss-watch-existing-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
   const original = { enabled: false, bosses: ['王总'], platforms: ['lark'] };
@@ -184,7 +197,8 @@ const tests = {
   testManifestTriggersOverride, testSplitBosses,
   testCallHangupDefaultOff, testCallHangupFromFile,
   testEnsureDefaultsCustomer, testEnsureDefaultsSelfUse, testEnsureDefaultsNoOverwrite,
-  testPatchWatchFlagsKeepsBosses, testPatchWatchFlagsCreatesMissingFile
+  testPatchWatchFlagsKeepsBosses, testPatchWatchFlagsCreatesMissingFile,
+  testPatchWatchFlagsSkipsCorruptFile
 };
 let failed = 0;
 for (const [name, fn] of Object.entries(tests)) {
