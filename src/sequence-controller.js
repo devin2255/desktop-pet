@@ -7,6 +7,18 @@ const {
   mirrorAnchorX
 } = require('./approach-target');
 
+function asFn(value) {
+  return typeof value === 'function' ? value : null;
+}
+
+function snapshotPoint(source) {
+  if (!source) return null;
+  const x = Number(source.x);
+  const y = Number(source.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
 function createSequenceController(deps) {
   const getManifest = deps.getManifest;
   const sendState = deps.sendState;
@@ -14,10 +26,10 @@ function createSequenceController(deps) {
   const scheduleBehavior = deps.scheduleBehavior || (() => {});
   const setTimerFn = deps.setTimer || ((fn, ms) => setTimeout(fn, ms));
   const clearTimerFn = deps.clearTimer || clearTimeout;
-  const getPetBounds = typeof deps.getPetBounds === 'function' ? deps.getPetBounds : null;
-  const movePetWindow = typeof deps.movePetWindow === 'function' ? deps.movePetWindow : null;
-  const getApproachRect = typeof deps.getApproachRect === 'function' ? deps.getApproachRect : null;
-  const onContact = typeof deps.onContact === 'function' ? deps.onContact : null;
+  const defaultGetPetBounds = asFn(deps.getPetBounds);
+  const defaultMovePetWindow = asFn(deps.movePetWindow);
+  const defaultGetApproachRect = asFn(deps.getApproachRect);
+  const defaultOnContact = asFn(deps.onContact);
 
   let active = false;
   let stageIndex = 0;
@@ -28,6 +40,29 @@ function createSequenceController(deps) {
   let pollTimerId = null;
   let restoreFrom = null;
   let contacted = false;
+  let getPetBounds = defaultGetPetBounds;
+  let movePetWindow = defaultMovePetWindow;
+  let getApproachRect = defaultGetApproachRect;
+  let onContact = defaultOnContact;
+
+  function resetRunCallbacks() {
+    getPetBounds = defaultGetPetBounds;
+    movePetWindow = defaultMovePetWindow;
+    getApproachRect = defaultGetApproachRect;
+    onContact = defaultOnContact;
+    restoreFrom = null;
+  }
+
+  function applySession(session) {
+    getPetBounds = asFn(session?.getPetBounds) || defaultGetPetBounds;
+    movePetWindow = asFn(session?.movePetWindow) || defaultMovePetWindow;
+    getApproachRect = asFn(session?.getApproachRect) || defaultGetApproachRect;
+    onContact = asFn(session?.onContact) || defaultOnContact;
+    restoreFrom = snapshotPoint(session?.restoreFrom);
+    if (!restoreFrom && getPetBounds) {
+      restoreFrom = snapshotPoint(getPetBounds());
+    }
+  }
 
   function clearCurrentTimer() {
     if (advanceTimerId != null) {
@@ -155,9 +190,10 @@ function createSequenceController(deps) {
     if (!getApproachRect || !movePetWindow) {
       return;
     }
+    const pollStageIndex = stageIndex;
     pollTimerId = setTimerFn(() => {
       pollTimerId = null;
-      if (!active) {
+      if (!active || stageIndex !== pollStageIndex) {
         return;
       }
       moveToward(stage);
@@ -190,8 +226,8 @@ function createSequenceController(deps) {
     stages = [];
     currentSequence = null;
     stageIndex = 0;
-    restoreFrom = null;
     contacted = false;
+    resetRunCallbacks();
     scheduleBehavior(900);
   }
 
@@ -270,8 +306,8 @@ function createSequenceController(deps) {
     stages = [];
     currentSequence = null;
     stageIndex = 0;
-    restoreFrom = null;
     contacted = false;
+    resetRunCallbacks();
     sendState('idle');
     if (shouldSchedule) {
       scheduleBehavior(900);
@@ -293,13 +329,7 @@ function createSequenceController(deps) {
     active = true;
     waitingForClick = false;
     contacted = false;
-    restoreFrom = session?.restoreFrom || null;
-    if (!restoreFrom && getPetBounds) {
-      const bounds = getPetBounds();
-      if (bounds) {
-        restoreFrom = { x: bounds.x, y: bounds.y };
-      }
-    }
+    applySession(session);
     playStage(0);
     return true;
   }
