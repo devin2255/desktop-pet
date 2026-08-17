@@ -125,6 +125,21 @@ async function testVoiceCallCooldownSkipsSecondCall() {
   assert.strictEqual(calls.length, 1, '冷却期内第二次相同来电不调用 onVoiceCall');
 }
 
+async function testVoiceCallCooldownKeysByPersonNotEventId() {
+  const calls = [];
+  const adapter = makeFakeAdapter();
+  const bus = createImBus({
+    getRules: () => baseRules({ callHangup: { enabled: true, cooldownSec: 60 } }),
+    adapters: [adapter],
+    dispatchMessage: () => {},
+    onVoiceCall: (event) => calls.push(event)
+  });
+  await bus.start();
+  adapter.emit.onVoiceCall({ ...bossCall, eventId: 'c-boss-1' });
+  adapter.emit.onVoiceCall({ ...bossCall, eventId: 'c-boss-2' });
+  assert.strictEqual(calls.length, 1, '同一张总不同 eventId 在冷却期内只触发一次');
+}
+
 async function testNonBossVoiceCallSkipped() {
   const calls = [];
   const adapter = makeFakeAdapter();
@@ -227,6 +242,7 @@ const tasks = [
   testCallHangupDisabledSkipsVoiceCall,
   testCallHangupEnabledCallsOnVoiceCall,
   testVoiceCallCooldownSkipsSecondCall,
+  testVoiceCallCooldownKeysByPersonNotEventId,
   testNonBossVoiceCallSkipped,
   testQuietHoursSkipVoiceCall,
   testPlatformsSkipAdapter,

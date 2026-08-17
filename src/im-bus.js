@@ -13,10 +13,7 @@ function createImBus({ getRules, adapters, dispatchMessage, onVoiceCall, logger 
     if (inQuietHours(new Date(), rules.quietHours)) return;
     if (!matchBoss(event, rules)) return;
     const cooldownSec = Number(rules.callHangup.cooldownSec) || 0;
-    const key = [event.senderName, event.senderId, event.eventId]
-      .map((s) => String(s || ''))
-      .filter(Boolean)
-      .join('\0') || 'call';
+    const key = event.senderId || event.senderName || event.eventId || 'call';
     const now = Date.now();
     const last = callCooldown.get(key) || 0;
     if (now - last < cooldownSec * 1000) return;
