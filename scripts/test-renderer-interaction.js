@@ -51,7 +51,7 @@ const bubble = element();
 bubble.offsetHeight = 24;
 const hearts = element();
 const windowListeners = new Map();
-const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], spoken: [], audio: [], insets: [] };
+const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], spoken: [], audio: [], audioPaused: 0, lastAudio: null, insets: [] };
 let loadCallback;
 let stateCallback;
 
@@ -88,9 +88,14 @@ const context = {
   Audio: function Audio(src) {
     calls.audio.push(src);
     this.src = src || '';
-    this.pause = () => {};
+    this.loop = false;
+    this.pause = () => {
+      this.paused = true;
+      calls.audioPaused += 1;
+    };
     this.play = () => Promise.resolve();
     this.addEventListener = () => {};
+    calls.lastAudio = this;
   },
   setTimeout: (callback, delay = 0) => {
     const id = ++timeoutId;
@@ -294,5 +299,37 @@ assert.strictEqual(bubble.textContent, '第二句', 'staggered messages should a
 runTimers(100);
 stateCallback({ state: 'idle', message: '', speech: '', speechAudio: '' });
 assert.strictEqual(bubble.classList.contains('visible'), false, 'empty state should hide the bubble and clear stagger timers');
+
+const spokenBeforeLoop = calls.spoken.length;
+stateCallback({
+  state: 'call-climb',
+  message: '妈妈！',
+  messages: ['妈妈！', '接电话！'],
+  messageGapMs: 400,
+  messageLoop: true,
+  speechGender: 'female'
+});
+assert.strictEqual(calls.spoken.length, spokenBeforeLoop + 1, 'messageLoop without speechAudio should speak once at stage start');
+assert.strictEqual(calls.spoken.at(-1).voice, 'Microsoft Huihui - Chinese (Simplified, PRC)', 'stage speechGender should override manifest voice');
+assert.strictEqual(bubble.textContent, '妈妈！');
+runTimers(1199);
+assert.strictEqual(bubble.textContent, '妈妈！', 'looping bubbles should clamp messageGapMs to at least 1200ms');
+runTimers(1);
+assert.strictEqual(bubble.textContent, '接电话！', 'messageLoop should advance after the clamped gap');
+runTimers(1200);
+assert.strictEqual(bubble.textContent, '妈妈！', 'messageLoop should restart from the first line');
+assert.strictEqual(calls.spoken.length, spokenBeforeLoop + 1, 'messageLoop must not speak again on each gap');
+
+stateCallback({
+  state: 'call-climb',
+  message: '妈妈！',
+  speechAudio: 'audio/call-mom.mp3',
+  speechLoop: true
+});
+assert.strictEqual(calls.lastAudio.loop, true, 'speechLoop should loop the stage audio');
+const pausedBeforeStop = calls.audioPaused;
+stateCallback({ state: 'idle', message: '', speech: '', speechAudio: '' });
+assert.ok(calls.audioPaused > pausedBeforeStop, 'next setState should pause looping audio');
+assert.strictEqual(calls.lastAudio.loop, false, 'next setState should clear audio.loop');
 
 console.log('renderer interaction regression checks passed');

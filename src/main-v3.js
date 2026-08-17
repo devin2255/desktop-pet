@@ -307,7 +307,10 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
     speech,
     speechAudio,
     messages,
-    messageGapMs
+    messageGapMs,
+    speechGender: options?.speechGender === 'male' || options?.speechGender === 'female' ? options.speechGender : undefined,
+    messageLoop: options?.messageLoop === true,
+    speechLoop: options?.speechLoop === true
   });
 }
 

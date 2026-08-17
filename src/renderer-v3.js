@@ -9,7 +9,8 @@ let bubbleTimer;
 let bubbleStaggerTimers = [];
 let animationTimer;
 let animationToken = 0;
-let pendingState = { state: 'idle', message: '' };
+let pendingState = { state: 'idle', message: '', generation: 0 };
+let stateGeneration = 0;
 const DRAG_THRESHOLD_PX = 6;
 const HIT_ALPHA_CUTOFF = 32;
 const BUBBLE_GAP_PX = 2;
@@ -115,6 +116,8 @@ function showBubble(message, duration = 2200) {
 }
 
 function showStaggeredMessages(messages, gapMs = 700, bubbleMs = 2400) {
+  const generation = pendingState.generation;
+  const looping = pendingState.messageLoop === true;
   clearBubbleTimers();
   if (!messages.length) return;
   bubble.classList.add('visible');
@@ -125,6 +128,7 @@ function showStaggeredMessages(messages, gapMs = 700, bubbleMs = 2400) {
   });
   for (let index = 1; index < messages.length; index += 1) {
     const timerId = setTimeout(() => {
+      if (pendingState.generation !== generation) return;
       bubble.textContent = messages[index];
       if (lastVisibleInsets) positionBubble(lastVisibleInsets);
       requestAnimationFrame(() => {
@@ -133,8 +137,16 @@ function showStaggeredMessages(messages, gapMs = 700, bubbleMs = 2400) {
     }, index * gapMs);
     bubbleStaggerTimers.push(timerId);
   }
-  const totalMs = (messages.length - 1) * gapMs + bubbleMs;
-  bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), totalMs);
+  if (looping) {
+    const loopMs = Math.max(messages.length, 1) * gapMs;
+    bubbleTimer = setTimeout(() => {
+      if (pendingState.generation !== generation) return;
+      showStaggeredMessages(messages, gapMs, bubbleMs);
+    }, loopMs);
+  } else {
+    const totalMs = (messages.length - 1) * gapMs + bubbleMs;
+    bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), totalMs);
+  }
 }
 
 const MALE_VOICE_RE = /kang|yunyang|yunxi|yunjian|yunfeng|dongni|male|男|kangkang/i;
@@ -168,6 +180,7 @@ let activeAudio;
 function stopSpeechAudio() {
   if (!activeAudio) return;
   activeAudio.pause();
+  activeAudio.loop = false;
   activeAudio.src = '';
   activeAudio = undefined;
 }
@@ -183,9 +196,12 @@ function playSpeechAudio(url) {
   stopSpeechAudio();
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   activeAudio = new Audio(url);
+  if (pendingState.speechLoop) activeAudio.loop = true;
   activeAudio.play().catch(() => {});
   if (activeAudio.addEventListener) {
-    activeAudio.addEventListener('ended', () => { activeAudio = undefined; });
+    activeAudio.addEventListener('ended', () => {
+      if (activeAudio && !activeAudio.loop) activeAudio = undefined;
+    });
     activeAudio.addEventListener('error', () => { activeAudio = undefined; });
   }
   return true;
@@ -199,9 +215,12 @@ function speak(text, audioUrl = '') {
   const utterance = new window.SpeechSynthesisUtterance(text);
   utterance.lang = 'zh-CN';
   utterance.rate = 0.92;
-  const gender = manifest?.speechGender === 'male' || manifest?.speechGender === 'female'
-    ? manifest.speechGender
-    : '';
+  const stageGender = pendingState?.speechGender;
+  const gender = stageGender === 'male' || stageGender === 'female'
+    ? stageGender
+    : (manifest?.speechGender === 'male' || manifest?.speechGender === 'female'
+      ? manifest.speechGender
+      : '');
   const voice = pickSpeechVoice(gender);
   if (voice) {
     utterance.voice = voice;
@@ -228,8 +247,22 @@ function speak(text, audioUrl = '') {
   setTimeout(retry, 250);
 }
 
-function setState(state, message = '', speech = '', logicalRole, speechAudio = '', messages, messageGapMs) {
-  pendingState = { state, message, speech, logicalRole, speechAudio, messages, messageGapMs };
+function setState(state, message = '', speech = '', logicalRole, speechAudio = '', messages, messageGapMs, options = {}) {
+  stateGeneration += 1;
+  if (pendingState.speechLoop) stopSpeechAudio();
+  pendingState = {
+    state,
+    message,
+    speech,
+    logicalRole,
+    speechAudio,
+    messages,
+    messageGapMs,
+    speechGender: options.speechGender,
+    messageLoop: options.messageLoop === true,
+    speechLoop: options.speechLoop === true,
+    generation: stateGeneration
+  };
   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
   if (!manifest) return;
   playAnimation(state, logicalRole);
@@ -240,8 +273,10 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
     : baseActionName(state).startsWith('perch-')
       ? 4800
       : Math.max(4000, Math.min(30000, textLen * 300));
+  let gapMs = Number.isFinite(messageGapMs) ? messageGapMs : 700;
+  if (pendingState.messageLoop) gapMs = Math.max(1200, gapMs);
   if (Array.isArray(messages) && messages.length) {
-    showStaggeredMessages(messages, Number.isFinite(messageGapMs) ? messageGapMs : 700, bubbleMs);
+    showStaggeredMessages(messages, gapMs, bubbleMs);
   } else if (message) {
     showBubble(message, bubbleMs);
   } else if (!speechAudio && !speech) {
@@ -253,7 +288,13 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
     }
   }
   const audio = speechAudio || resolveSpeechAudio(state);
-  if (speech || audio) speak(speech, audio);
+  if (audio) {
+    speak(speech, audio);
+  } else if (speech) {
+    speak(speech);
+  } else if (pendingState.messageLoop && message) {
+    speak(message);
+  }
 }
 
 function loadPet(nextManifest) {
@@ -270,7 +311,12 @@ function loadPet(nextManifest) {
     pendingState.logicalRole,
     pendingState.speechAudio || '',
     pendingState.messages,
-    pendingState.messageGapMs
+    pendingState.messageGapMs,
+    {
+      speechGender: pendingState.speechGender,
+      messageLoop: pendingState.messageLoop,
+      speechLoop: pendingState.speechLoop
+    }
   );
 }
 
@@ -437,6 +483,6 @@ pet.addEventListener('contextmenu', (event) => {
 });
 
 window.petApi.onLoad(loadPet);
-window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, messages, messageGapMs }) =>
-  setState(state, message, speech, logicalRole, speechAudio || '', messages, messageGapMs));
+window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, messages, messageGapMs, speechGender, messageLoop, speechLoop }) =>
+  setState(state, message, speech, logicalRole, speechAudio || '', messages, messageGapMs, { speechGender, messageLoop, speechLoop }));
 window.petApi.getCurrentPet().then(loadPet);
