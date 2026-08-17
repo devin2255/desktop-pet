@@ -165,6 +165,7 @@ function testPackWhitelistIncludesImModules() {
   for (const file of [
     'src/im-bus.js',
     'src/im-adapter-lark.js',
+    'src/im-adapter-dingtalk.js',
     'src/im-match.js',
     'src/approach-target.js'
   ]) {

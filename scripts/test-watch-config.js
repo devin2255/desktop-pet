@@ -4,7 +4,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const {
-  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, SELF_USE_DEFAULT_CONFIG
+  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, patchWatchFlags, SELF_USE_DEFAULT_CONFIG
 } = require('../src/watch-config');
 const { DEFAULT_KEYWORDS } = require('../src/watch-rules');
 
@@ -130,6 +130,41 @@ function testEnsureDefaultsSelfUse() {
   }
 }
 
+function testPatchWatchFlagsKeepsBosses() {
+  const p = path.join(os.tmpdir(), `boss-watch-patch-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    fs.writeFileSync(p, JSON.stringify({
+      enabled: false,
+      bosses: ['张总', 'ou_keepme'],
+      platforms: ['lark', 'dingtalk'],
+      callHangup: { enabled: false, platforms: ['dingtalk'], cooldownSec: 90 },
+      extraKey: 'keep'
+    }, null, 2) + '\n', 'utf8');
+    patchWatchFlags(p, { enabled: true, callHangupEnabled: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.strictEqual(raw.enabled, true);
+    assert.strictEqual(raw.callHangup.enabled, true);
+    assert.strictEqual(raw.callHangup.cooldownSec, 90);
+    assert.deepStrictEqual(raw.bosses, ['张总', 'ou_keepme']);
+    assert.strictEqual(raw.extraKey, 'keep');
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testPatchWatchFlagsCreatesMissingFile() {
+  const p = path.join(os.tmpdir(), `boss-watch-patch-missing-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    patchWatchFlags(p, { enabled: true }, { customer: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.strictEqual(raw.enabled, true);
+    assert.deepStrictEqual(raw.bosses, []);
+    assert.ok(!JSON.stringify(raw).includes('ou_'));
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
 function testEnsureDefaultsNoOverwrite() {
   const p = path.join(os.tmpdir(), `boss-watch-existing-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
   const original = { enabled: false, bosses: ['王总'], platforms: ['lark'] };
@@ -148,7 +183,8 @@ const tests = {
   testKeywordStatesFromManifest, testKeywordStatesDefaultEmpty,
   testManifestTriggersOverride, testSplitBosses,
   testCallHangupDefaultOff, testCallHangupFromFile,
-  testEnsureDefaultsCustomer, testEnsureDefaultsSelfUse, testEnsureDefaultsNoOverwrite
+  testEnsureDefaultsCustomer, testEnsureDefaultsSelfUse, testEnsureDefaultsNoOverwrite,
+  testPatchWatchFlagsKeepsBosses, testPatchWatchFlagsCreatesMissingFile
 };
 let failed = 0;
 for (const [name, fn] of Object.entries(tests)) {

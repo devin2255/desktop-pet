@@ -126,6 +126,31 @@ function normalizeKeywordStates(raw) {
   return out;
 }
 
+function patchWatchFlags(configPath, flags = {}, { customer } = {}) {
+  if (!configPath) return configPath;
+  if (!fs.existsSync(configPath)) ensureBossWatchDefaults(configPath, { customer });
+  let raw = {};
+  try {
+    if (fs.existsSync(configPath)) {
+      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (parsed && typeof parsed === 'object') raw = parsed;
+    }
+  } catch (_) {
+    raw = {};
+  }
+  if (typeof flags.enabled === 'boolean') raw.enabled = flags.enabled;
+  if (typeof flags.callHangupEnabled === 'boolean') {
+    const prev = raw.callHangup && typeof raw.callHangup === 'object' ? raw.callHangup : {};
+    raw.callHangup = { ...prev, enabled: flags.callHangupEnabled };
+  }
+  try {
+    const dir = require('path').dirname(configPath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf8');
+  } catch (_) { /* best-effort */ }
+  return configPath;
+}
+
 function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   let fileCfg = {};
   try {
@@ -179,6 +204,6 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
 }
 
 module.exports = {
-  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults,
+  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, patchWatchFlags,
   SELF_USE_DEFAULT_CONFIG, CUSTOMER_DEFAULT_CONFIG, normalizePlatforms, normalizeCallHangup
 };

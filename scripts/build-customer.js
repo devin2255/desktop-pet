@@ -186,6 +186,7 @@ function buildCustomer(options) {
         'src/im-match.js',
         'src/im-bus.js',
         'src/im-adapter-lark.js',
+        'src/im-adapter-dingtalk.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

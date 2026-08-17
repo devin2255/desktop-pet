@@ -21,7 +21,9 @@ const { createSequenceController } = require('./sequence-controller');
 const { dispatchBossMessage } = require('./message-watcher');
 const { createImBus } = require('./im-bus');
 const { createLarkAdapter } = require('./im-adapter-lark');
-const { loadWatchConfig, ensureBossWatchDefaults } = require('./watch-config');
+const { createDingtalkAdapter, resolveHangupAction } = require('./im-adapter-dingtalk');
+const { loadWatchConfig, ensureBossWatchDefaults, patchWatchFlags } = require('./watch-config');
+const { insetRect } = require('./approach-target');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const { createEventHold } = require('./event-hold');
 const { nextRoamTarget, crawlIdleState } = require('./roam-motion');
@@ -78,6 +80,9 @@ let quitting = false;
 let deliveryConfig;
 let sequence;
 let imBus;
+let watchConfig = null;
+let watchConfigPath = '';
+let restartOfficeBus = () => {};
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');
@@ -632,6 +637,33 @@ function startPetTaskPolling() {
   }, 3000);
 }
 
+function applyLoadedWatchConfig(next) {
+  if (!watchConfig) {
+    watchConfig = next;
+    return;
+  }
+  for (const key of Object.keys(watchConfig)) {
+    if (!Object.prototype.hasOwnProperty.call(next, key)) delete watchConfig[key];
+  }
+  Object.assign(watchConfig, next);
+}
+
+function refreshTrayMenu() {
+  tray?.setContextMenu(buildTrayMenu());
+}
+
+function persistWatchFlags(flags) {
+  if (!watchConfigPath) return;
+  patchWatchFlags(watchConfigPath, flags, { customer: Boolean(deliveryConfig) });
+  applyLoadedWatchConfig(loadWatchConfig({
+    configPath: watchConfigPath,
+    manifestWatch: activeManifest?.watch,
+    larkCliPath: undefined
+  }));
+  restartOfficeBus();
+  refreshTrayMenu();
+}
+
 function buildTrayMenu() {
   const pets = listPets();
   const template = [];
@@ -688,6 +720,18 @@ function buildTrayMenu() {
       type: 'checkbox',
       checked: topmostGuard?.isEnabled() ?? true,
       click: (item) => topmostGuard?.setEnabled(item.checked)
+    },
+    {
+      label: '办公雷达',
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.enabled),
+      click: (item) => persistWatchFlags({ enabled: item.checked })
+    },
+    {
+      label: '拒接老板钉钉语音',
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.callHangup?.enabled),
+      click: (item) => persistWatchFlags({ callHangupEnabled: item.checked })
     },
     { label: '开机自动启动', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }) },
     { type: 'separator' }, {
@@ -933,16 +977,19 @@ if (!gotLock) {
         sendState(action, message, speech, action, extras || {});
       },
       pauseBehavior,
-      scheduleBehavior
+      scheduleBehavior,
+      getPetBounds: () => petWindow.getBounds(),
+      movePetWindow: (x, y) => petWindow.setPosition(x, y)
     });
     createTray();
-    const watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
-    ensureBossWatchDefaults(watchConfigPath);
-    const watchConfig = loadWatchConfig({
+    watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
+    ensureBossWatchDefaults(watchConfigPath, { customer: Boolean(deliveryConfig) });
+    applyLoadedWatchConfig(loadWatchConfig({
       configPath: watchConfigPath,
       manifestWatch: activeManifest?.watch,
       larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
-    });
+    }));
+    refreshTrayMenu();
     if (process.env.PET_WATCH_DEBUG === '1') { try { require('fs').appendFileSync('C:/Users/Thinkpad/.qwenworkcn/workspace/msr5talezbqs189b/watcher-debug.log', new Date().toISOString() + ' MAIN watchConfigPath=' + watchConfigPath + ' enabled=' + watchConfig.enabled + ' ids=' + JSON.stringify(watchConfig.ids) + ' larkCliPath=' + watchConfig.larkCliPath + '\n'); } catch (_) {} }
     if (watchConfig.names.length > 0) {
       sendState('reaction', '画饼雷达：老板名单中的姓名待解析，请使用 open_id 或扫码授权后自动解析。');
@@ -952,38 +999,90 @@ if (!gotLock) {
       sendState(state, message, speech, state, opts || {});
     };
     const cooldownMap = new Map();
-    const voice = watchConfig.enabled
+    let voice = watchConfig.enabled
       ? createVoiceSynthesizer({
         cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
         voice: watchConfig.voice.voice,
         rate: watchConfig.voice.rate
       })
       : null;
-    imBus = createImBus({
-      getRules: () => watchConfig,
-      adapters: [createLarkAdapter({
-        voice,
-        sendState: watchSendState,
-        onStatus: (status) => {
-          if (status.level === 'warn' || status.level === 'error') {
-            sendState('reaction', status.message);
+    const dingtalk = createDingtalkAdapter({});
+    function handleDingtalkVoiceCall() {
+      if (sequence.isActive()) return;
+      if (!activeManifest?.sequences?.['boss-call']) return;
+      const restoreFrom = petWindow.getBounds();
+      const started = sequence.start('boss-call', {
+        restoreFrom,
+        getPetBounds: () => petWindow.getBounds(),
+        movePetWindow: (x, y) => petWindow.setPosition(x, y),
+        getApproachRect: (name) => {
+          const located = dingtalk.getLastLocated();
+          if (!located) return null;
+          if (name === 'incoming-call-edge') return located.windowBounds;
+          if (name === 'incoming-call-reject') {
+            if (!located.rejectBounds) return null;
+            return insetRect(located.rejectBounds, 0.25);
           }
+          return null;
         },
-        larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
-      })],
-      dispatchMessage: watchConfig.enabled
-        ? (event, rules) => dispatchBossMessage(event, {
-          rules,
-          voice,
-          sendState: watchSendState,
-          rng: Math.random,
-          now: Date.now,
-          cooldownMap
-        })
-        : () => {},
-      onVoiceCall: () => {}
-    });
-    void imBus.start().catch(() => {});
+        onContact: async (stage) => {
+          const located = dingtalk.getLastLocated();
+          const pet = petWindow.getBounds();
+          const hangup = activeManifest.sequences['boss-call']?.contacts?.hangup;
+          const decision = resolveHangupAction({ located, petBounds: pet, hangup, stage });
+          if (!decision.invoke) {
+            sendState(decision.state, decision.message, '', decision.logicalRole, {});
+            return;
+          }
+          const ok = await dingtalk.invokeReject(decision.rejectBounds);
+          if (!ok) sendState(stage.action, '这次没挂上', '', stage.action, {});
+        }
+      });
+      if (!started) return;
+    }
+    function createOfficeBus() {
+      return createImBus({
+        getRules: () => watchConfig,
+        adapters: [
+          createLarkAdapter({
+            voice,
+            sendState: watchSendState,
+            onStatus: (status) => {
+              if (status.level === 'warn' || status.level === 'error') {
+                sendState('reaction', status.message);
+              }
+            },
+            larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
+          }),
+          dingtalk
+        ],
+        dispatchMessage: (event, rules) => {
+          if (!watchConfig.enabled) return;
+          dispatchBossMessage(event, {
+            rules,
+            voice,
+            sendState: watchSendState,
+            rng: Math.random,
+            now: Date.now,
+            cooldownMap
+          });
+        },
+        onVoiceCall: handleDingtalkVoiceCall
+      });
+    }
+    restartOfficeBus = () => {
+      imBus?.stop();
+      if (watchConfig.enabled && !voice) {
+        voice = createVoiceSynthesizer({
+          cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
+          voice: watchConfig.voice.voice,
+          rate: watchConfig.voice.rate
+        });
+      }
+      imBus = createOfficeBus();
+      void imBus.start().catch(() => {});
+    };
+    restartOfficeBus();
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);
     app.quit();
