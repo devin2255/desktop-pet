@@ -66,13 +66,18 @@ function preloadFrames() {
   }
 }
 
+let playingAction = '';
+
 function playAnimation(state, logicalRole) {
+  if (!manifest) return;
+  const action = resolveAction(state, logicalRole);
+  const animation = manifest.animations[action] || manifest.animations.idle;
+  pet.style.setProperty('--action-scale', String(animation.scale || 1));
+  if (action === playingAction && animation.loop) return;
+  playingAction = action;
   clearTimeout(animationTimer);
   animationToken += 1;
-  if (!manifest) return;
   const token = animationToken;
-  const animation = manifest.animations[resolveAction(state, logicalRole)] || manifest.animations.idle;
-  pet.style.setProperty('--action-scale', String(animation.scale || 1));
   let index = 0;
   function showNext() {
     if (token !== animationToken) return;
@@ -253,6 +258,7 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
 
 function loadPet(nextManifest) {
   manifest = nextManifest;
+  playingAction = '';
   petImage.crossOrigin = 'anonymous';
   petImage.alt = `${manifest.name}桌面宠物`;
   petImage.classList.remove('ready');

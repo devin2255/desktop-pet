@@ -56,10 +56,34 @@ def referenced_files(manifest: dict) -> set[str]:
                 referenced.add(safe_relative(str(choice["speechAudio"])).as_posix())
     behavior_root = manifest.get("behavior")
     if isinstance(behavior_root, dict):
-        for key in ("random", "perched"):
+        for key in ("random", "perched", "archivedPerched"):
             for item in behavior_root.get(key) or []:
                 if isinstance(item, dict) and item.get("speechAudio"):
                     referenced.add(safe_relative(str(item["speechAudio"])).as_posix())
+        fallback_audio = behavior_root.get("fallbackAudio")
+        if isinstance(fallback_audio, dict):
+            for value in fallback_audio.values():
+                if isinstance(value, str) and value:
+                    referenced.add(safe_relative(value).as_posix())
+    for key in ("startupGreetingAudio", "taskAcceptAudio"):
+        value = manifest.get(key)
+        if isinstance(value, str) and value:
+            referenced.add(safe_relative(value).as_posix())
+    watch = manifest.get("watch")
+    if isinstance(watch, dict):
+        fallback = watch.get("fallback")
+        if isinstance(fallback, dict) and fallback.get("audio"):
+            referenced.add(safe_relative(str(fallback["audio"])).as_posix())
+        for pool_key in ("keywords", "archivedKeywords"):
+            pool = watch.get(pool_key)
+            if not isinstance(pool, dict):
+                continue
+            for entries in pool.values():
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    if isinstance(entry, dict) and entry.get("audio"):
+                        referenced.add(safe_relative(str(entry["audio"])).as_posix())
     return referenced
 
 
@@ -340,6 +364,8 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
             validate_behavior_list(behavior_root.get("random"), "behavior.random")
         if behavior_root.get("perched") is not None:
             validate_behavior_list(behavior_root.get("perched"), "behavior.perched")
+        if behavior_root.get("archivedPerched") is not None:
+            validate_behavior_list(behavior_root.get("archivedPerched"), "behavior.archivedPerched")
     return frame_paths
 
 

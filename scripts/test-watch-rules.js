@@ -26,6 +26,17 @@ function testMatchKeyword() {
   assert.strictEqual(matchKeyword('老板又开始吹牛了', map), '吹牛');
   assert.strictEqual(matchKeyword('今天天气不错', map), null);
   assert.strictEqual(matchKeyword('', map), null);
+  assert.strictEqual(
+    matchKeyword('@_all 好好干，将来上市我记着大家的功劳', map),
+    '画饼',
+    '上市/记功劳属于画饼，不能只匹配「画饼」二字'
+  );
+  assert.strictEqual(matchKeyword('@_all 好好干，不会亏待大家的', map), '画饼');
+  assert.strictEqual(
+    matchKeyword('上市加油', map, { '画饼': ['画饼'], '吹牛': ['吹牛'] }),
+    null,
+    'petpack 收窄 triggers 时不应再用默认别名'
+  );
 }
 
 function testQuietHours() {

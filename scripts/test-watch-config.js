@@ -46,6 +46,39 @@ function testMergeManifest() {
   assert.deepStrictEqual(cfg.keywords, { '画饼': [{ text: '专属文案', audio: '' }] });
   assert.deepStrictEqual(cfg.fallback, { text: '兜底', audio: '' });
   assert.strictEqual(cfg.state, 'idle');
+  assert.ok(cfg.triggers['画饼'].includes('上市'));
+}
+
+function testKeywordStatesFromManifest() {
+  const p = tmpJson({ enabled: true, bosses: ['ou_abc'] });
+  const cfg = loadWatchConfig({
+    configPath: p,
+    larkCliPath: 'lark',
+    manifestWatch: {
+      keywords: { '画饼': ['画饼文案'], '吹牛': ['吹牛文案'] },
+      state: 'reaction',
+      keywordStates: { '吹牛': 'slipper' }
+    }
+  });
+  assert.deepStrictEqual(cfg.keywordStates, { '吹牛': 'slipper' });
+}
+
+function testKeywordStatesDefaultEmpty() {
+  const cfg = loadWatchConfig({ configPath: path.join(os.tmpdir(), 'nope-xxx.json'), larkCliPath: 'lark' });
+  assert.deepStrictEqual(cfg.keywordStates, {});
+}
+
+function testManifestTriggersOverride() {
+  const p = tmpJson({ enabled: true, bosses: ['ou_abc'] });
+  const cfg = loadWatchConfig({
+    configPath: p,
+    larkCliPath: 'lark',
+    manifestWatch: {
+      keywords: { '画饼': ['专属文案'] },
+      triggers: { '画饼': ['画饼'] }
+    }
+  });
+  assert.deepStrictEqual(cfg.triggers['画饼'], ['画饼']);
 }
 
 function testSplitBosses() {
@@ -54,7 +87,11 @@ function testSplitBosses() {
   assert.deepStrictEqual(names, ['王总', '李总']);
 }
 
-const tests = { testDefaultsWhenMissing, testCorruptFileFallsBack, testMergeManifest, testSplitBosses };
+const tests = {
+  testDefaultsWhenMissing, testCorruptFileFallsBack, testMergeManifest,
+  testKeywordStatesFromManifest, testKeywordStatesDefaultEmpty,
+  testManifestTriggersOverride, testSplitBosses
+};
 let failed = 0;
 for (const [name, fn] of Object.entries(tests)) {
   try { fn(); console.log(`ok - ${name}`); } catch (e) { failed++; console.error(`FAIL - ${name}: ${e.message}`); }

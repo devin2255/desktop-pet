@@ -1,6 +1,6 @@
 'use strict';
 const fs = require('fs');
-const { DEFAULT_KEYWORDS } = require('./watch-rules');
+const { DEFAULT_KEYWORDS, DEFAULT_TRIGGERS } = require('./watch-rules');
 
 const DEFAULT_BOSS_CONFIG = {
   enabled: false,
@@ -15,7 +15,7 @@ const DEFAULT_BOSS_CONFIG = {
 const SELF_USE_DEFAULT_CONFIG = {
   enabled: true,
   larkCliPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd',
-  bosses: ['ou_221a684c00848f0cd7f3e29d1061d908'],
+  bosses: ['ou_c213c1a364e0818e671eb4823b4b9e2f'],
   cooldownSec: 30,
   quietHours: [],
   voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
@@ -72,6 +72,29 @@ function normalizeQuietHours(v) {
     && typeof pair[0] === 'string' && typeof pair[1] === 'string' && /^\d{1,2}:\d{2}$/.test(pair[0]) && /^\d{1,2}:\d{2}$/.test(pair[1]));
 }
 
+function normalizeTriggers(raw, categories) {
+  const out = {};
+  for (const category of categories) {
+    const fromManifest = raw && Array.isArray(raw[category])
+      ? raw[category].filter((w) => typeof w === 'string' && w.trim()).map((w) => w.trim())
+      : [];
+    const fallback = Array.isArray(DEFAULT_TRIGGERS[category]) ? DEFAULT_TRIGGERS[category] : [category];
+    out[category] = fromManifest.length ? fromManifest : fallback.slice();
+  }
+  return out;
+}
+
+function normalizeKeywordStates(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof key === 'string' && key.trim() && typeof value === 'string' && value.trim()) {
+      out[key.trim()] = value.trim();
+    }
+  }
+  return out;
+}
+
 function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   let fileCfg = {};
   try {
@@ -101,6 +124,8 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   const fallback = normalizeFallback(manifest.fallback, '你老板又开始整活儿了，装没看见。');
   const state = typeof manifest.state === 'string' && manifest.state.trim()
     ? manifest.state.trim() : 'reaction';
+  const triggers = normalizeTriggers(manifest.triggers, Object.keys(keywords));
+  const keywordStates = normalizeKeywordStates(manifest.keywordStates);
 
   const { ids, names } = splitBosses(fileCfg.bosses);
   return {
@@ -113,8 +138,10 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
     quietHours: normalizeQuietHours(fileCfg.quietHours),
     voice,
     keywords,
+    triggers,
     fallback,
-    state
+    state,
+    keywordStates
   };
 }
 

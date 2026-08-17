@@ -174,10 +174,13 @@ function buildCustomer(options) {
         'src/window-discovery.js',
         'src/interaction-controller.js',
         'src/topmost-guard.js',
+        'src/mouse-through-guard.js',
         'src/sequence-controller.js',
         'src/watch-config.js',
         'src/message-watcher.js',
         'src/watch-rules.js',
+        'src/event-hold.js',
+        'src/roam-motion.js',
         'src/edge-voice.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'

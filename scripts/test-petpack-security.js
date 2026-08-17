@@ -106,6 +106,58 @@ assert.doesNotThrow(() => validateManifest(manifest), 'a valid watch field must 
 assert.ok(!referencedFiles(manifest).has('watch'), 'watch must not be treated as a referenced file');
 assert.ok(!referencedFiles(manifest).has('manifest.watch'), 'watch contents must not leak into referencedFiles');
 
+manifest.watch = {
+  keywords: { '画饼': [{ text: '画饼了', audio: 'audio/huabing.mp3' }] },
+  fallback: { text: '兜底', audio: 'audio/fallback.mp3' },
+  state: 'reaction'
+};
+assert.doesNotThrow(() => validateManifest(manifest), 'watch {text, audio} entries must validate');
+assert.ok(referencedFiles(manifest).has('audio/huabing.mp3'), 'watch.keywords audio must be referenced');
+assert.ok(referencedFiles(manifest).has('audio/fallback.mp3'), 'watch.fallback audio must be referenced');
+
+manifest.watch.archivedKeywords = { '画饼': [{ text: '旧画饼', audio: 'audio/old-huabing.mp3' }] };
+assert.doesNotThrow(() => validateManifest(manifest), 'watch.archivedKeywords must validate');
+assert.ok(referencedFiles(manifest).has('audio/old-huabing.mp3'), 'watch.archivedKeywords audio must stay referenced');
+manifest.watch.archivedKeywords = { '画饼': [] };
+assert.throws(() => validateManifest(manifest), /watch\.archivedKeywords/, 'watch.archivedKeywords empty array must fail');
+manifest.watch.archivedKeywords = { '画饼': [{ text: '旧画饼', audio: 'audio/old-huabing.mp3' }] };
+
+manifest.behavior.archivedPerched = [{
+  state: 'sit',
+  weight: 1,
+  minDuration: 600,
+  maxDuration: 1000,
+  speechAudio: 'audio/old-mg.mp3'
+}];
+assert.doesNotThrow(() => validateManifest(manifest), 'behavior.archivedPerched must validate');
+assert.ok(referencedFiles(manifest).has('audio/old-mg.mp3'), 'behavior.archivedPerched speechAudio must stay referenced');
+
+manifest.watch.triggers = { '画饼': ['画饼', '上市'] };
+assert.doesNotThrow(() => validateManifest(manifest), 'watch.triggers must validate');
+manifest.watch.triggers = { '画饼': [] };
+assert.throws(() => validateManifest(manifest), /watch\.triggers/, 'watch.triggers empty array must fail');
+manifest.watch.triggers = { '画饼': ['画饼', '上市'] };
+
+manifest.watch.keywordStates = { '吹牛': 'reaction' };
+assert.doesNotThrow(() => validateManifest(manifest), 'watch.keywordStates must validate when animation exists');
+manifest.watch.keywordStates = { '吹牛': 'missing-action' };
+assert.throws(() => validateManifest(manifest), /watch\.keywordStates/, 'watch.keywordStates must reference an existing animation');
+manifest.watch.keywordStates = { '吹牛': 'reaction' };
+manifest.watch.keywordStates = 12;
+assert.throws(() => validateManifest(manifest), /watch\.keywordStates 必须是对象/, 'watch.keywordStates must be an object');
+manifest.watch.keywordStates = { '吹牛': 'reaction' };
+
+manifest.startupGreetingAudio = 'audio/hello.mp3';
+manifest.taskAcceptAudio = 'audio/task-ok.mp3';
+manifest.behavior.fallbackAudio = { sit: 'audio/sit-fallback.mp3' };
+assert.ok(referencedFiles(manifest).has('audio/hello.mp3'), 'startupGreetingAudio must be referenced');
+assert.ok(referencedFiles(manifest).has('audio/task-ok.mp3'), 'taskAcceptAudio must be referenced');
+assert.ok(referencedFiles(manifest).has('audio/sit-fallback.mp3'), 'behavior.fallbackAudio must be referenced');
+assert.doesNotThrow(() => validateManifest(manifest), 'greeting/task/fallback audio fields must validate');
+manifest.startupGreetingAudio = 'audio/hello.txt';
+assert.throws(() => validateManifest(manifest), /startupGreetingAudio/, 'startupGreetingAudio must be an audio file');
+manifest.startupGreetingAudio = 'audio/hello.mp3';
+
 // invalid: watch.keywords value not an array
 manifest.watch = { keywords: { '画饼': 'not-array' } };
 assert.throws(() => validateManifest(manifest), /watch\.keywords\..*必须是非空数组/, 'watch.keywords value must be a non-empty array');
@@ -129,5 +181,12 @@ assert.throws(() => validateManifest(manifest), /watch\.state 必须是字符串
 // backward compat: removing watch still validates
 delete manifest.watch;
 assert.doesNotThrow(() => validateManifest(manifest), 'manifest without watch must still validate');
+
+const brotherPack = path.join(__dirname, '..', 'pets', 'packages', 'brother-judge.petpack');
+const brother = validatePetpack(brotherPack);
+const brotherAudio = [...referencedFiles(brother.manifest)].filter((item) => /\.(mp3|wav|ogg)$/i.test(item));
+assert.strictEqual(brotherAudio.length, 18, 'brother-judge petpack must ship active and archived voice files');
+assert.strictEqual(brother.manifest.startupGreetingAudio, 'audio/01-greeting.mp3');
+assert.strictEqual(brother.manifest.taskAcceptAudio, 'audio/06-task-ok.mp3');
 
 console.log('petpack archive security checks passed');

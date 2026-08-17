@@ -70,19 +70,27 @@ npm run build:customer -- --pet pets/packages/<pet-id>.petpack --name "<宠物�
 
 回答中必须给出下面这段可直接复制到新会话的 Prompt，并提醒用户先附上宠物照片再发送：
 
-```text
-请根据我附上的宠物照片，使用 desktop-pet-maker 制作完整的 Windows 桌面宠物。
+完整当前分支提示词以 `docs/prompts/make-current-branch-pet.txt` 为准。回答中必须完整给出该文件正文（可复制块），并提醒用户先附照片再发送。摘要如下，不得用只含 idle/walk/sit/sleep/reaction 的旧短提示词代替：
 
-宠物名字：<填写名字>
-性格：<填写性格关键词>
+```text
+请根据我附上的照片，使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
+不要修改播放器去写死这只宠物；身份、动画、文案、语音全部进 .petpack。
+
+宠物名字：<填写>
+性格：<填写>
 程序名称：<例如：旺财桌面宠物>
-风格：<像素风 / 柔和 2D 插画风；不填则使用默认风格>
-重点特征：<填写必须保留的毛色、花纹、眼睛、耳朵、尾巴等；可不填>
+delivery-id：<小写英文或拼音>
+风格：<柔和写实 2D / 像素风；不填则默认>
+称呼：<爸 / 老公 / 主人 等>
+重点特征：<脸、毛色/发型、衣服、体型等>
+语音：<有 mp3 则接到 speechAudio；否则用文案+系统中文语音>
 特殊要求：<可不填>
 
-请保持所有动画帧是同一只宠物，完成待机、走路、坐下、睡觉和互动动作，处理透明背景并统一画布和比例。切帧前必须检查单元格安全边距、相邻帧串帧、完整自然尾尖以及互动帧的尺度/重心漂移；任何一项失败都应重新生成，不能只擦除越界碎片。生成并验证 `.petpack` 后，执行 `npm run build:customer`，生成客户专属 Windows 便携版 EXE。
-
-客户双击 EXE 后宠物必须直接出现，不需要安装开发环境，也不需要手动导入资源包。请实际启动成品，验证动画、透明背景及透明像素鼠标穿透、静止连续点击 50 次无放大/平移、拖动、漫游、左右朝向、右键菜单、托盘、退出和独立数据目录。最终把专属 EXE、build-report.json 和验证结果交付给我，不要只交付 `.petpack`。
+必须做出与当前分支同等能力：标准五动作；窗口互动 drag/climb/perch/hang/fall/impact/recover（手贴墙、坐窗屁股贴边、不要把窗框画进图）；crawl 跪爬；右键至少 2 项；startupGreeting；behavior.random 与坐窗特色动作；pet.json.watch 画饼/吹牛词库，triggers 含上市/功劳/期权等；有录音则 referencedFiles 收齐。
+切帧前检查安全边距、串帧、完整肢体；失败重画，禁止只擦碎片。连播 50 次不得缩放平移；透明像素必须鼠标穿透。
+打包：python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/<id> pets/packages/<id>.petpack
+封装（不要用 npm 转发参数）：node scripts/build-customer.js --pet pets/packages/<id>.petpack --name "<程序名称>" --delivery-id <id>
+客户双击 EXE 后宠物必须直接出现。实际启动验证动画、穿透、拖动、攀爬、坐窗、吊挂、坠落、跪爬、漫游、右键、托盘、退出；有雷达则群发「@所有人 好好干，将来上市我记着大家的功劳」应触发画饼语音。交付 EXE、build-report.json 和验证结果，不要只交付 .petpack。
 ```
 
 教程结尾应清楚说明整个流程：`附照片和信息 → 生成动作帧 → 透明背景与统一尺寸 → 验证 petpack → 一键封装 EXE → 实际启动检查 → 交付`。

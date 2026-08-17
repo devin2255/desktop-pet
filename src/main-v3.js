@@ -15,11 +15,14 @@ const {
   shouldRestoreWindowBounds
 } = require('./interaction-controller');
 const { createTopmostGuard } = require('./topmost-guard');
+const { createMouseThroughGuard } = require('./mouse-through-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
 const { createSequenceController } = require('./sequence-controller');
 const { createMessageWatcher } = require('./message-watcher');
 const { loadWatchConfig, ensureBossWatchDefaults } = require('./watch-config');
 const { createVoiceSynthesizer } = require('./edge-voice');
+const { createEventHold } = require('./event-hold');
+const { nextRoamTarget, crawlIdleState } = require('./roam-motion');
 const {
   app,
   BrowserWindow,
@@ -65,10 +68,11 @@ let settings = { petId: '', sizeKey: 'small', roaming: true, crawlMode: false };
 let activeManifest;
 let behaviorTimer;
 let walkTimer;
+let lastWalkFacing = 'right';
 let interaction;
 let topmostGuard;
+let mouseThroughGuard;
 let quitting = false;
-let mouseThrough = false;
 let deliveryConfig;
 let sequence;
 let messageWatcher;
@@ -308,9 +312,7 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
 }
 
 function setMouseThrough(ignore) {
-  if (!petWindow || petWindow.isDestroyed() || mouseThrough === ignore) return;
-  mouseThrough = ignore;
-  petWindow.setIgnoreMouseEvents(ignore, { forward: true });
+  mouseThroughGuard?.set(ignore);
 }
 
 function stopWalk() {
@@ -324,7 +326,22 @@ function pauseBehavior() {
   behaviorTimer = undefined;
 }
 
+function finishEventHold() {
+  if (interaction && interaction.state() !== 'normal') {
+    interaction.resumePerchedIdle?.();
+    return;
+  }
+  scheduleBehavior(900);
+}
+
+const eventHold = createEventHold({
+  pauseBehavior,
+  resumeBehavior: finishEventHold,
+  pausePerchedIdle: () => interaction?.suspendPerchedIdle?.()
+});
+
 function scheduleBehavior(delay = 4500 + Math.random() * 5500) {
+  if (eventHold.isHeld()) return;
   if (interaction && interaction.state() !== 'normal') return;
   if (behaviorTimer) clearTimeout(behaviorTimer);
   behaviorTimer = setTimeout(runBehavior, delay);
@@ -336,6 +353,7 @@ function walkTo(targetX) {
   restorePetWindowSize();
   const startBounds = petWindow.getBounds();
   const direction = targetX >= startBounds.x ? 'right' : 'left';
+  lastWalkFacing = direction;
   const distance = Math.abs(targetX - startBounds.x);
   const duration = Math.max(1400, Math.min(4200, distance * 9));
   const startedAt = Date.now();
@@ -356,13 +374,15 @@ function walkTo(targetX) {
     if (progress >= 1) {
       stopWalk();
       sendState(idleState());
-      scheduleBehavior();
+      scheduleBehavior(settings.crawlMode ? 700 + Math.random() * 900 : undefined);
     }
   }, 16);
 }
 
 function idleState() {
-  return (settings.crawlMode && activeManifest?.animations?.crawl) ? 'crawl-right' : 'idle';
+  return (settings.crawlMode && activeManifest?.animations?.crawl)
+    ? crawlIdleState(lastWalkFacing)
+    : 'idle';
 }
 
 function chooseBehavior() {
@@ -389,6 +409,7 @@ function chooseBehavior() {
 }
 
 function runBehavior() {
+  if (eventHold.isHeld()) return;
   if (interaction && interaction.state() !== 'normal') return;
   if (!settings.roaming || !activeManifest || !petWindow || petWindow.isDestroyed()) {
     scheduleBehavior();
@@ -399,17 +420,21 @@ function runBehavior() {
   if (behavior.state === 'walk') {
     const bounds = petWindow.getBounds();
     const workArea = getWorkAreaForBounds(bounds);
-    const delta = Math.round((Math.random() * 2 - 1) * Math.min(300, workArea.width * 0.22));
-    walkTo(Math.max(workArea.x, Math.min(workArea.x + workArea.width - bounds.width, bounds.x + delta)));
+    const { targetX, direction } = nextRoamTarget(bounds, workArea, Math.random, lastWalkFacing);
+    lastWalkFacing = direction;
+    walkTo(targetX);
     return;
   }
   const fallbackMessages = { sit: '上个毛的班，可以休息了！', reaction: '别走太远……', sleep: 'z Z' };
-  const fallbackAudio = { sit: 'audio/07-sit-fallback.mp3' };
+  const fallbackAudio = (activeManifest.behavior && activeManifest.behavior.fallbackAudio
+    && typeof activeManifest.behavior.fallbackAudio === 'object')
+    ? activeManifest.behavior.fallbackAudio
+    : {};
   const message = typeof behavior.message === 'string' && behavior.message
     ? behavior.message
     : (fallbackMessages[behavior.state] || '');
   const speech = typeof behavior.speech === 'string' ? behavior.speech : '';
-  const fallbackAu = fallbackAudio[behavior.state] || '';
+  const fallbackAu = typeof fallbackAudio[behavior.state] === 'string' ? fallbackAudio[behavior.state] : '';
   const speechAudio = typeof behavior.speechAudio === 'string' && behavior.speechAudio
     ? petAssetUrl(activeManifest.id, behavior.speechAudio)
     : (fallbackAu ? petAssetUrl(activeManifest.id, fallbackAu) : '');
@@ -458,7 +483,9 @@ function switchPet(id) {
   updateTrayIcon();
   tray?.setContextMenu(buildTrayMenu());
   petWindow?.webContents.send('pet:load', publicManifest(next));
-  sendState('reaction', resolveStartupGreeting(next, { switching: true }));
+  sendState('reaction', resolveStartupGreeting(next, { switching: true }), '', 'reaction', {
+    speechAudio: typeof next.startupGreetingAudio === 'string' ? next.startupGreetingAudio : ''
+  });
   scheduleBehavior(3200);
   return true;
 }
@@ -541,7 +568,10 @@ function triggerPetTask(taskType) {
   const taskFile = path.join(dir, `${id}.json`);
   const task = { id, type: taskType, status: 'pending', createdAt: new Date().toISOString() };
   fs.writeFileSync(taskFile, JSON.stringify(task, null, 2), 'utf8');
-  sendState('reaction', '好的，爸！', '好的，爸', 'reaction', { speechAudio: 'audio/06-task-ok.mp3' });
+  eventHold.beginTask();
+  sendState('reaction', '好的，爸！', '好的，爸', 'reaction', {
+    speechAudio: typeof activeManifest?.taskAcceptAudio === 'string' ? activeManifest.taskAcceptAudio : ''
+  });
   // Notify QwenWork instantly via Feishu message to bot
   notifyQwenWork(taskType, taskFile);
   startPetTaskPolling();
@@ -582,6 +612,7 @@ function startPetTaskPolling() {
         const task = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         if (task.status === 'done' && task.result) {
           const summary = String(task.result).slice(0, 200);
+          eventHold.beginForSpeech(summary);
           sendState('reaction', summary, summary, 'reaction', {});
           fs.unlinkSync(filePath);
         }
@@ -705,6 +736,10 @@ function createWindow() {
     }
   });
   topmostGuard = createTopmostGuard({ getWindow: () => petWindow });
+  mouseThroughGuard = createMouseThroughGuard({
+    getWindow: () => petWindow,
+    getCursorPoint: () => screen.getCursorScreenPoint()
+  });
   topmostGuard.ensure();
   interaction = createInteractionController({
     window: petWindow,
@@ -737,12 +772,15 @@ function createWindow() {
   petWindow.once('ready-to-show', () => {
     petWindow.showInactive();
     topmostGuard?.ensure();
-    sendState('reaction', resolveStartupGreeting(activeManifest));
+    sendState('reaction', resolveStartupGreeting(activeManifest), '', 'reaction', {
+      speechAudio: typeof activeManifest?.startupGreetingAudio === 'string' ? activeManifest.startupGreetingAudio : ''
+    });
     scheduleBehavior(3600);
   });
   petWindow.on('close', (event) => {
     if (!quitting) { event.preventDefault(); hidePet(); }
   });
+  petWindow.on('closed', () => mouseThroughGuard?.dispose());
 }
 
 function trustedIpc(event) {
@@ -894,12 +932,13 @@ if (!gotLock) {
     });
     createTray();
     const watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
-    if (!deliveryConfig) ensureBossWatchDefaults(watchConfigPath);
+    ensureBossWatchDefaults(watchConfigPath);
     const watchConfig = loadWatchConfig({
       configPath: watchConfigPath,
       manifestWatch: activeManifest?.watch,
       larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
     });
+    if (process.env.PET_WATCH_DEBUG === '1') { try { require('fs').appendFileSync('C:/Users/Thinkpad/.qwenworkcn/workspace/msr5talezbqs189b/watcher-debug.log', new Date().toISOString() + ' MAIN watchConfigPath=' + watchConfigPath + ' enabled=' + watchConfig.enabled + ' ids=' + JSON.stringify(watchConfig.ids) + ' larkCliPath=' + watchConfig.larkCliPath + '\n'); } catch (_) {} }
     if (watchConfig.names.length > 0) {
       sendState('reaction', '画饼雷达：老板名单中的姓名待解析，请使用 open_id 或扫码授权后自动解析。');
     }
@@ -913,6 +952,7 @@ if (!gotLock) {
         rules: watchConfig,
         voice,
         sendState: (state, message, speech, opts) => {
+          eventHold.beginForSpeech(message || speech);
           sendState(state, message, speech, state, opts || {});
         },
         onStatus: (status) => {

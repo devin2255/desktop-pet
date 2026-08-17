@@ -43,6 +43,51 @@ function resolveInside(root, relative) {
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg']);
 
+function assertAudioField(value, label) {
+  if (value === undefined || value === '') return;
+  if (typeof value !== 'string') throw new Error(`${label} 路径不合法`);
+  safeRelative(value);
+  if (!AUDIO_EXTENSIONS.has(path.posix.extname(value).toLowerCase())) {
+    throw new Error(`${label} 只支持 mp3/wav/ogg`);
+  }
+}
+
+function addAudioRef(referenced, value) {
+  if (typeof value === 'string' && value) referenced.add(value);
+}
+
+function addWatchPoolAudio(referenced, pool) {
+  if (!pool || typeof pool !== 'object' || Array.isArray(pool)) return;
+  for (const entries of Object.values(pool)) {
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (entry && typeof entry === 'object') addAudioRef(referenced, entry.audio);
+    }
+  }
+}
+
+function validateWatchPool(pool, label) {
+  if (!pool || typeof pool !== 'object' || Array.isArray(pool)) {
+    throw new Error(`${label} 必须是对象`);
+  }
+  for (const [key, entries] of Object.entries(pool)) {
+    if (typeof key !== 'string' || !key) {
+      throw new Error(`${label} 的键必须是非空字符串`);
+    }
+    if (!Array.isArray(entries) || entries.length === 0) {
+      throw new Error(`${label}.${key} 必须是非空数组`);
+    }
+    for (const entry of entries) {
+      if (typeof entry === 'string' && entry) continue;
+      if (entry && typeof entry === 'object' && typeof entry.text === 'string' && entry.text) {
+        assertAudioField(entry.audio, `${label}.${key} audio`);
+        continue;
+      }
+      throw new Error(`${label}.${key} 的条目必须是字符串或 {text, audio} 对象`);
+    }
+  }
+}
+
 function referencedFiles(manifest) {
   const referenced = new Set(['pet.json', manifest.preview]);
   for (const animation of Object.values(manifest.animations || {})) {
@@ -50,20 +95,30 @@ function referencedFiles(manifest) {
   }
   for (const item of manifest.contextMenuActions || []) {
     if (!item || typeof item !== 'object') continue;
-    if (typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
+    addAudioRef(referenced, item.speechAudio);
     if (Array.isArray(item.randomActions)) {
       for (const choice of item.randomActions) {
-        if (choice && typeof choice.speechAudio === 'string' && choice.speechAudio) {
-          referenced.add(choice.speechAudio);
-        }
+        if (choice && typeof choice === 'object') addAudioRef(referenced, choice.speechAudio);
       }
     }
   }
-  for (const list of [manifest.behavior?.random, manifest.behavior?.perched]) {
+  for (const list of [manifest.behavior?.random, manifest.behavior?.perched, manifest.behavior?.archivedPerched]) {
     if (!Array.isArray(list)) continue;
     for (const item of list) {
-      if (item && typeof item.speechAudio === 'string' && item.speechAudio) referenced.add(item.speechAudio);
+      if (item && typeof item === 'object') addAudioRef(referenced, item.speechAudio);
     }
+  }
+  addAudioRef(referenced, manifest.startupGreetingAudio);
+  addAudioRef(referenced, manifest.taskAcceptAudio);
+  const fallbackAudio = manifest.behavior?.fallbackAudio;
+  if (fallbackAudio && typeof fallbackAudio === 'object' && !Array.isArray(fallbackAudio)) {
+    for (const value of Object.values(fallbackAudio)) addAudioRef(referenced, value);
+  }
+  const watch = manifest.watch;
+  if (watch && typeof watch === 'object' && !Array.isArray(watch)) {
+    if (watch.fallback && typeof watch.fallback === 'object') addAudioRef(referenced, watch.fallback.audio);
+    addWatchPoolAudio(referenced, watch.keywords);
+    addWatchPoolAudio(referenced, watch.archivedKeywords);
   }
   return referenced;
 }
@@ -92,28 +147,18 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       throw new Error('startupGreeting 必须是不超过 80 个字符的字符串');
     }
   }
+  assertAudioField(manifest.startupGreetingAudio, 'startupGreetingAudio');
+  assertAudioField(manifest.taskAcceptAudio, 'taskAcceptAudio');
   if (manifest.watch !== undefined) {
     const watch = manifest.watch;
     if (!watch || typeof watch !== 'object' || Array.isArray(watch)) {
       throw new Error('watch 必须是对象');
     }
     if (watch.keywords !== undefined) {
-      if (!watch.keywords || typeof watch.keywords !== 'object' || Array.isArray(watch.keywords)) {
-        throw new Error('watch.keywords 必须是对象');
-      }
-      for (const [key, entries] of Object.entries(watch.keywords)) {
-        if (typeof key !== 'string' || !key) {
-          throw new Error('watch.keywords 的键必须是非空字符串');
-        }
-        if (!Array.isArray(entries) || entries.length === 0) {
-          throw new Error(`watch.keywords.${key} 必须是非空数组`);
-        }
-        for (const entry of entries) {
-          if (typeof entry === 'string' && entry) continue;
-          if (entry && typeof entry === 'object' && typeof entry.text === 'string' && entry.text) continue;
-          throw new Error(`watch.keywords.${key} 的条目必须是字符串或 {text, audio} 对象`);
-        }
-      }
+      validateWatchPool(watch.keywords, 'watch.keywords');
+    }
+    if (watch.archivedKeywords !== undefined) {
+      validateWatchPool(watch.archivedKeywords, 'watch.archivedKeywords');
     }
     if (watch.fallback !== undefined) {
       const fb = watch.fallback;
@@ -123,9 +168,36 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       if (!validStr && !validObj) {
         throw new Error('watch.fallback 必须是字符串或 {text, audio} 对象');
       }
+      if (validObj) assertAudioField(fb.audio, 'watch.fallback audio');
     }
     if (watch.state !== undefined && typeof watch.state !== 'string') {
       throw new Error('watch.state 必须是字符串');
+    }
+    if (watch.keywordStates !== undefined) {
+      if (!watch.keywordStates || typeof watch.keywordStates !== 'object' || Array.isArray(watch.keywordStates)) {
+        throw new Error('watch.keywordStates 必须是对象');
+      }
+      for (const [key, state] of Object.entries(watch.keywordStates)) {
+        if (typeof key !== 'string' || !key) {
+          throw new Error('watch.keywordStates 的键必须是非空字符串');
+        }
+        if (typeof state !== 'string' || !state.trim()) {
+          throw new Error(`watch.keywordStates.${key} 必须是非空字符串`);
+        }
+      }
+    }
+    if (watch.triggers !== undefined) {
+      if (!watch.triggers || typeof watch.triggers !== 'object' || Array.isArray(watch.triggers)) {
+        throw new Error('watch.triggers 必须是对象');
+      }
+      for (const [key, words] of Object.entries(watch.triggers)) {
+        if (typeof key !== 'string' || !key) {
+          throw new Error('watch.triggers 的键必须是非空字符串');
+        }
+        if (!Array.isArray(words) || words.length === 0 || words.some((w) => typeof w !== 'string' || !w.trim())) {
+          throw new Error(`watch.triggers.${key} 必须是非空字符串数组`);
+        }
+      }
     }
   }
   safeRelative(manifest.preview);
@@ -372,6 +444,30 @@ function validateManifest(manifest, root = '', requireFiles = false) {
           throw new Error(`${label} speechAudio 只支持 mp3/wav/ogg`);
         }
       }
+      if (item.idleMinMs !== undefined && (!Number.isFinite(item.idleMinMs) || item.idleMinMs < 400 || item.idleMinMs > 120000)) {
+        throw new Error(`${label} idleMinMs 必须在 400 到 120000 毫秒之间`);
+      }
+      if (item.idleMaxMs !== undefined && (!Number.isFinite(item.idleMaxMs) || item.idleMaxMs < 400 || item.idleMaxMs > 120000)) {
+        throw new Error(`${label} idleMaxMs 必须在 400 到 120000 毫秒之间`);
+      }
+      if (item.idleMinMs !== undefined && item.idleMaxMs !== undefined && item.idleMaxMs < item.idleMinMs) {
+        throw new Error(`${label} idleMaxMs 不能小于 idleMinMs`);
+      }
+    }
+  }
+
+  const keywordStates = manifest.watch && manifest.watch.keywordStates;
+  if (keywordStates && typeof keywordStates === 'object' && !Array.isArray(keywordStates)) {
+    for (const [key, state] of Object.entries(keywordStates)) {
+      if (typeof state !== 'string' || !state.trim()) continue;
+      const action = state.trim();
+      if (!Object.hasOwn(manifest.animations, action)) {
+        throw new Error(`watch.keywordStates.${key} 引用了不存在的动画`);
+      }
+      if (!validatedAnimations.has(action)) {
+        validateAnimation(action);
+        validatedAnimations.add(action);
+      }
     }
   }
 
@@ -380,6 +476,19 @@ function validateManifest(manifest, root = '', requireFiles = false) {
   }
   if (manifest.behavior?.perched !== undefined) {
     validateBehaviorList(manifest.behavior.perched, 'behavior.perched');
+  }
+  if (manifest.behavior?.archivedPerched !== undefined) {
+    validateBehaviorList(manifest.behavior.archivedPerched, 'behavior.archivedPerched');
+  }
+  const fallbackAudio = manifest.behavior?.fallbackAudio;
+  if (fallbackAudio !== undefined) {
+    if (!fallbackAudio || typeof fallbackAudio !== 'object' || Array.isArray(fallbackAudio)) {
+      throw new Error('behavior.fallbackAudio 必须是对象');
+    }
+    for (const [state, audio] of Object.entries(fallbackAudio)) {
+      if (!manifest.animations[state]) throw new Error(`behavior.fallbackAudio 引用了不存在的动画：${state}`);
+      assertAudioField(audio, `behavior.fallbackAudio.${state}`);
+    }
   }
 
   if (requireFiles) {

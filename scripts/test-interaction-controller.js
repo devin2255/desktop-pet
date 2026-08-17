@@ -7,7 +7,8 @@ const path = require('path');
 const vm = require('vm');
 const {
   createInteractionController,
-  shouldRestoreWindowBounds
+  shouldRestoreWindowBounds,
+  perchedIdleWaitMs
 } = require('../src/interaction-controller');
 
 function createClock() {
@@ -263,6 +264,28 @@ async function run() {
     assert.strictEqual(harness.climbs.length, 0, 'right side rest never starts position animation');
   }
 
+  {
+    const harness = createHarness({ windows: [target] });
+    await dragAndEnd(harness, { x: 100, y: 250 });
+    assert.strictEqual(harness.states.at(-1), 'climb-left');
+    assert.strictEqual(
+      harness.bounds().x,
+      84,
+      'left wall should contact flipped hands (anchor 0.16), not the butt'
+    );
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    await dragAndEnd(harness, { x: 599, y: 250 });
+    assert.strictEqual(harness.states.at(-1), 'climb-right');
+    assert.strictEqual(
+      harness.bounds().x,
+      516,
+      'right wall should contact unflipped hands (anchor 0.84), not the butt'
+    );
+  }
+
   for (const lossMode of ['disappeared', 'minimized']) {
     const sideTarget = { id: `side-target-${lossMode}`, bounds: { ...target.bounds } };
     const harness = createHarness({ windows: [sideTarget] });
@@ -356,6 +379,44 @@ async function run() {
     assert.strictEqual(perchedSignal?.message, '喂, 军儿吗?', 'perched idle can show a dialogue bubble');
     assert.strictEqual(perchedSignal?.speechAudio, 'audio/perch-swing.mp3', 'perched idle forwards speechAudio');
     assert.strictEqual(harness.controller.state(), 'perched', 'perched idle must not detach from the window');
+    harness.controller.dispose();
+  }
+
+  {
+    assert.strictEqual(
+      perchedIdleWaitMs([{ idleMinMs: 25000, idleMaxMs: 25000 }], 900, () => 0),
+      25000,
+      'configured perched idle must ignore the short settle delay'
+    );
+    assert.strictEqual(
+      perchedIdleWaitMs([], 900, () => 0),
+      900,
+      'pets without idleMinMs keep the short first settle'
+    );
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.manifest.behavior = {
+      perched: [
+        {
+          state: 'perch-swing',
+          weight: 1,
+          minDuration: 800,
+          maxDuration: 800,
+          message: '我给你老板一梭子'
+        }
+      ]
+    };
+    harness.manifest.animations['perch-swing'] = { durations: [200, 200] };
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    assert.strictEqual(harness.controller.state(), 'perched');
+    harness.controller.suspendPerchedIdle();
+    harness.clock.runTimeouts(8);
+    assert.ok(!harness.states.includes('perch-swing'), 'event hold must block perched random lines');
+    harness.controller.resumePerchedIdle();
+    harness.clock.runTimeouts(3);
+    assert.ok(harness.states.includes('perch-swing'), 'perched random resumes after the event hold');
     harness.controller.dispose();
   }
 

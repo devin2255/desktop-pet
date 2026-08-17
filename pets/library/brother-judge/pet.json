@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "packageVersion": "1.0.0",
+  "packageVersion": "1.1.9",
   "id": "brother-judge",
   "name": "兄弟判官",
   "description": "接地气判官桌宠：红背心短裤人字拖，圆框眼镜，真人写实风，专治老板画饼吹牛。",
@@ -11,6 +11,8 @@
   ],
   "speechGender": "male",
   "startupGreeting": "爸，我来了！",
+  "startupGreetingAudio": "audio/01-greeting.mp3",
+  "taskAcceptAudio": "audio/06-task-ok.mp3",
   "defaultSize": "small",
   "preview": "preview.png",
   "normalizationMetric": "bbox-span-v1",
@@ -154,13 +156,30 @@
         "animations/perch/04.png"
       ],
       "durations": [
-        280,
-        280,
-        280,
-        1600
+        420,
+        420,
+        420,
+        420
       ],
       "loop": true,
       "holdLastFrame": false,
+      "scale": 1
+    },
+    "slipper": {
+      "frames": [
+        "animations/slipper/01.png",
+        "animations/slipper/02.png",
+        "animations/slipper/03.png",
+        "animations/slipper/04.png"
+      ],
+      "durations": [
+        200,
+        280,
+        320,
+        1800
+      ],
+      "loop": false,
+      "holdLastFrame": true,
       "scale": 1
     },
     "hang": {
@@ -245,12 +264,12 @@
         "animations/crawl/06.png"
       ],
       "durations": [
-        200,
-        200,
-        200,
-        200,
-        200,
-        200
+        110,
+        110,
+        110,
+        110,
+        110,
+        110
       ],
       "loop": true,
       "holdLastFrame": false,
@@ -344,6 +363,9 @@
     }
   },
   "behavior": {
+    "fallbackAudio": {
+      "sit": "audio/07-sit-fallback.mp3"
+    },
     "random": [
       {
         "state": "walk",
@@ -379,10 +401,25 @@
       {
         "state": "mg",
         "weight": 100,
+        "minDuration": 5200,
+        "maxDuration": 5200,
+        "idleMinMs": 25000,
+        "idleMaxMs": 50000,
+        "message": "让我帮你消消气，气我出了，你快回复OK吧！",
+        "speechAudio": "audio/18-cheer-ok.mp3"
+      }
+    ],
+    "archivedPerched": [
+      {
+        "state": "mg",
+        "weight": 100,
         "minDuration": 3000,
         "maxDuration": 3000,
+        "idleMinMs": 25000,
+        "idleMaxMs": 50000,
         "message": "我给你老板一梭子",
-        "speech": "我给你老板一梭子"
+        "speech": "我给你老板一梭子",
+        "speechAudio": "audio/15-mg-boss.mp3"
       }
     ]
   },
@@ -415,6 +452,20 @@
     "keywords": {
       "画饼": [
         {
+          "text": "你老板又在画饼，别吃！",
+          "audio": "audio/16-huabing-mild.mp3"
+        }
+      ],
+      "吹牛": [
+        {
+          "text": "你老板吹了个牛逼！",
+          "audio": "audio/17-chuiniu-mild.mp3"
+        }
+      ]
+    },
+    "archivedKeywords": {
+      "画饼": [
+        {
           "text": "这孙子在画饼，狗都不吃！",
           "audio": "audio/08-huabing-1.mp3"
         },
@@ -442,10 +493,53 @@
         }
       ]
     },
+    "triggers": {
+      "画饼": [
+        "画饼",
+        "画大饼",
+        "上市",
+        "期权",
+        "股份",
+        "股权",
+        "分红",
+        "年终",
+        "加薪",
+        "涨薪",
+        "涨工资",
+        "升职",
+        "晋升",
+        "奖金",
+        "融资",
+        "估值",
+        "亏待",
+        "功劳",
+        "苦劳",
+        "不会亏待",
+        "做大做强"
+      ],
+      "吹牛": [
+        "吹牛",
+        "吹个牛",
+        "吹牛逼",
+        "吹嘘",
+        "说大话",
+        "大话",
+        "当年",
+        "人脉",
+        "搞得定",
+        "包在我身上",
+        "小意思",
+        "轻而易举",
+        "不在话下"
+      ]
+    },
     "fallback": {
       "text": "你老板又开始整活儿了，装没看见。",
       "audio": "audio/14-fallback.mp3"
     },
-    "state": "reaction"
+    "state": "reaction",
+    "keywordStates": {
+      "吹牛": "slipper"
+    }
   }
 }

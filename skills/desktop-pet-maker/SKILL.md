@@ -12,15 +12,18 @@ Create one validated `.petpack` for the universal Desktop Pet Player. Keep image
 1. Locate 1–8 photos of the same pet. Prefer a clear face, side view, and full body. Do not mix animals.
 2. Record the pet name and personality. Derive a lowercase ASCII package id; use hyphens only.
 3. Inspect every reference image. Summarize stable identity traits: species, body shape, coat colors and markings, face, ears, eyes, muzzle, legs, and tail.
-4. Read [references/image-prompts.md](references/image-prompts.md). Use the built-in image generation tool, with the reference photos or approved master image, to generate the standard green-screen strips:
+4. Read [references/image-prompts.md](references/image-prompts.md). Use the built-in image generation tool, with the reference photos or approved master image, to generate the green-screen strips. Always produce the five standard actions. When this skill runs in the Desktop Pet Player repository (or the user asks for current-branch feature parity), also produce the window-interaction and crawl strips from that file:
    - `idle`: 4 frames
    - `walk`: 6 frames facing right
    - `sit`: 4 frames
    - `sleep`: 4 frames
    - `reaction`: 4 frames matching the personality
+   - `drag`: 6, `climb`: 6, `perch`: 4, `hang`: 4, `fall`: 4, `impact`: 4, `recover`: 6
+   - `crawl`: 6 kneeling-crawl frames so the player's crawl-mode toggle has an animation
+   - optional `kowtow` / `kowtow-crawl` if the petpack menu includes a bow
 5. Save generated strips as `<action>-chroma.png`. Preserve generated originals.
 6. Remove the chroma background with the installed imagegen helper. Use `--auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`.
-7. Run `scripts/process_animation_strips.py` on the five transparent strips. The script must reject any source cell that enters its safety gutter, has a suspicious flat side cut, or contains a significant detached component. Treat these failures as sprite-sheet cell bleeding or body/ear/tail clipping: regenerate the strip with wider gutters. Never erase a leaked fragment and continue, because the missing pixels cannot be recovered.
+7. Run `scripts/process_animation_strips.py` on every transparent strip (standard, interaction, and crawl). The script must reject any source cell that enters its safety gutter, has a suspicious flat side cut, or contains a significant detached component. Treat these failures as sprite-sheet cell bleeding or body/ear/tail clipping: regenerate the strip with wider gutters. Never erase a leaked fragment and continue, because the missing pixels cannot be recovered.
 8. The processor must normalize every frame to one shared canvas and foot baseline, use opaque visual mass for scale, and align the alpha centroid so tail motion cannot shift the torso. Inspect the contact sheet for identity drift, green fringe, duplicate or empty frames, incomplete or flat-cut tail tips, unstable baselines, and apparent zoom/pan within or between actions.
 9. Run `scripts/create_pet_manifest.py` with the pet id, name, personality, preview, and frames directory.
 10. Read [references/petpack-schema.md](references/petpack-schema.md) when changing fields or animation behavior.

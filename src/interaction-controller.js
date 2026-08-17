@@ -49,6 +49,22 @@ function shouldRestoreWindowBounds(options) {
   return options?.preserveBounds !== true;
 }
 
+function perchedIdleWaitMs(choices, delayMs, rng = Math.random) {
+  const mins = [];
+  const maxs = [];
+  for (const item of Array.isArray(choices) ? choices : []) {
+    if (Number.isFinite(Number(item?.idleMinMs))) mins.push(Number(item.idleMinMs));
+    if (Number.isFinite(Number(item?.idleMaxMs))) maxs.push(Number(item.idleMaxMs));
+  }
+  if (mins.length || maxs.length) {
+    const lo = Math.max(400, mins.length ? Math.min(...mins) : 18000);
+    const hi = Math.max(lo, maxs.length ? Math.max(...maxs) : lo);
+    return lo + rng() * (hi - lo);
+  }
+  if (Number.isFinite(delayMs)) return Math.max(400, delayMs);
+  return 1800 + rng() * 2200;
+}
+
 function createInteractionController(dependencies) {
   const petWindow = dependencies.window || dependencies.petWindow;
   const discovery = dependencies.discovery;
@@ -97,6 +113,7 @@ function createInteractionController(dependencies) {
   let frameTimer;
   let animationTimer;
   let perchedIdleTimer;
+  let perchedIdleSuspended = false;
   let climbUpTimer;
   let generation = 0;
   let disposed = false;
@@ -181,16 +198,14 @@ function createInteractionController(dependencies) {
 
   function schedulePerchedIdle(delayMs) {
     clearPerchedIdle();
-    if (disposed || currentState !== 'perched') return;
+    if (disposed || perchedIdleSuspended || currentState !== 'perched') return;
     const choices = getManifest()?.behavior?.perched;
     if (!Array.isArray(choices) || !choices.length) return;
-    const wait = Number.isFinite(delayMs)
-      ? Math.max(400, delayMs)
-      : 1800 + Math.random() * 2200;
+    const wait = perchedIdleWaitMs(choices, delayMs);
     const token = generation;
     perchedIdleTimer = setTimeoutFn(() => {
       perchedIdleTimer = undefined;
-      if (disposed || generation !== token || currentState !== 'perched') return;
+      if (disposed || perchedIdleSuspended || generation !== token || currentState !== 'perched') return;
       const choice = pickWeighted(choices);
       if (!choice) return;
       const playMs = Math.max(
@@ -205,11 +220,23 @@ function createInteractionController(dependencies) {
       });
       perchedIdleTimer = setTimeoutFn(() => {
         perchedIdleTimer = undefined;
-        if (disposed || generation !== token || currentState !== 'perched') return;
+        if (disposed || perchedIdleSuspended || generation !== token || currentState !== 'perched') return;
         emitRole('perch');
         schedulePerchedIdle();
       }, playMs);
     }, wait);
+  }
+
+  function suspendPerchedIdle() {
+    perchedIdleSuspended = true;
+    clearPerchedIdle();
+  }
+
+  function resumePerchedIdle() {
+    perchedIdleSuspended = false;
+    if (disposed || currentState !== 'perched') return;
+    emitRole('perch');
+    schedulePerchedIdle();
   }
 
   function displayForPoint(point) {
@@ -242,9 +269,10 @@ function createInteractionController(dependencies) {
     const base = getManifest()?.interactionActions?.[role]?.anchor
       || DEFAULT_ANCHORS[role]
       || { x: 0.5, y: 0.5 };
-    // Side-profile climb art reaches a vertical wall on the facing side.
-    if (role === 'climb' && edge === 'left') return { x: 0.84, y: base.y };
-    if (role === 'climb' && edge === 'right') return { x: 0.16, y: base.y };
+    // Side-profile climb art faces right. CSS flips climb-left, so hands
+    // land on the left of the window; unflipped climb-right keeps hands on the right.
+    if (role === 'climb' && edge === 'left') return { x: 0.16, y: base.y };
+    if (role === 'climb' && edge === 'right') return { x: 0.84, y: base.y };
     return base;
   }
 
@@ -601,12 +629,15 @@ function createInteractionController(dependencies) {
     updateVisibleInsets,
     detachAndFall,
     dispose,
-    state: () => currentState
+    state: () => currentState,
+    suspendPerchedIdle,
+    resumePerchedIdle
   };
 }
 
 module.exports = {
   createInteractionController,
   INTERACTIVE_STATES,
-  shouldRestoreWindowBounds
+  shouldRestoreWindowBounds,
+  perchedIdleWaitMs
 };

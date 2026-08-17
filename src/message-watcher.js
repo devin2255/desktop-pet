@@ -2,6 +2,13 @@
 const { createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine } = require('./watch-rules');
 const { execFile } = require('child_process');
 
+const DEBUG_LOG = 'C:/Users/Thinkpad/.qwenworkcn/workspace/msr5talezbqs189b/watcher-debug.log';
+const DEBUG_ON = process.env.PET_WATCH_DEBUG === '1';
+function dbg(msg) {
+  if (!DEBUG_ON) return;
+  try { require('fs').appendFileSync(DEBUG_LOG, new Date().toISOString() + ' ' + msg + '\n'); } catch (_) {}
+}
+
 function parseEventLine(line) {
   if (typeof line !== 'string' || !line.trim()) return null;
   let raw;
@@ -15,9 +22,60 @@ function parseEventLine(line) {
     event_id, sender_id,
     chat_id: typeof raw.chat_id === 'string' ? raw.chat_id : '',
     chat_type: typeof raw.chat_type === 'string' ? raw.chat_type : '',
-    content,
+    content: unwrapMessageText(content),
     timestamp: typeof raw.timestamp === 'string' ? raw.timestamp : ''
   };
+}
+
+function unwrapMessageText(content) {
+  if (typeof content !== 'string' || !content) return '';
+  const trimmed = content.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed.text === 'string' && parsed.text) return parsed.text;
+      if (parsed && typeof parsed.content === 'string' && parsed.content) return parsed.content;
+    } catch (_) { /* keep original */ }
+  }
+  return content;
+}
+
+function isAtAllMention(mention) {
+  if (!mention || typeof mention !== 'object') return false;
+  const key = String(mention.key || mention.mention_key || '');
+  const id = String(mention.id || mention.user_id || '');
+  const name = String(mention.name || '');
+  return key === '@_all' || key === 'all'
+    || id === '@_all' || id === 'all'
+    || name === '所有人' || name === 'Everyone' || name === 'All';
+}
+
+function isAtAllMessage(msg, content) {
+  const mentions = [];
+  if (msg && Array.isArray(msg.mentions)) mentions.push(...msg.mentions);
+  if (msg && Array.isArray(msg.mention_list)) mentions.push(...msg.mention_list);
+  if (mentions.some(isAtAllMention)) return true;
+  const text = typeof content === 'string' ? content : '';
+  return /@_all\b|<at\b[^>]*user_id\s*=\s*["']all["'][^>]*>|@所有人/.test(text);
+}
+
+function extractPolledMessage(msg) {
+  if (!msg || typeof msg !== 'object') return null;
+  let senderId = '';
+  if (msg.sender && typeof msg.sender === 'object') {
+    senderId = typeof msg.sender.id === 'string' ? msg.sender.id : '';
+  }
+  if (!senderId && typeof msg.sender_id === 'string') senderId = msg.sender_id;
+  const rawContent = (typeof msg.text === 'string' && msg.text)
+    || (typeof msg.content === 'string' && msg.content)
+    || (msg.body && typeof msg.body === 'object' && typeof msg.body.content === 'string' && msg.body.content)
+    || '';
+  const content = unwrapMessageText(rawContent);
+  const messageId = (typeof msg.message_id === 'string' && msg.message_id)
+    || (typeof msg.id === 'string' && msg.id)
+    || '';
+  if (!senderId || !content || !messageId) return null;
+  return { senderId, content, messageId };
 }
 
 function resolveCoreExe(larkCliPath) {
@@ -48,21 +106,21 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
 
   async function processLine(line) {
     const ev = parseEventLine(line);
-    if (!ev) return;
-    if (dedupe.has(ev.event_id)) return;
+    if (!ev) { dbg('processLine: parse null'); return; }
+    if (dedupe.has(ev.event_id)) { dbg('processLine: dedupe skip ' + ev.event_id); return; }
     dedupe.add(ev.event_id);
-    if (!isBoss(ev.sender_id, rules.ids)) return;
-    if (inQuietHours(new Date(), rules.quietHours)) return;
+    if (!isBoss(ev.sender_id, rules.ids)) { dbg('processLine: not boss sender=' + ev.sender_id + ' ids=' + JSON.stringify(rules.ids)); return; }
+    if (inQuietHours(new Date(), rules.quietHours)) { dbg('processLine: quiet hours'); return; }
     const last = cooldown.get(ev.sender_id) || 0;
-    if (Date.now() - last < rules.cooldownSec * 1000) return;
-    const category = matchKeyword(ev.content, rules.keywords);
+    if (Date.now() - last < rules.cooldownSec * 1000) { dbg('processLine: cooldown'); return; }
+    const category = matchKeyword(ev.content, rules.keywords, rules.triggers);
+    dbg('processLine: TRIGGER category=' + category + ' content=' + (ev.content || '').slice(0, 40));
     const pool = category ? rules.keywords[category] : [rules.fallback];
     const entry = pool[Math.floor((rng || Math.random)() * pool.length)];
     const text = entry.text || (typeof entry === 'string' ? entry : '');
     const preAudio = entry.audio || '';
     let audioUrl = '';
     if (preAudio) {
-      // Pre-recorded audio path; sendState will convert relative paths to pet-asset URL
       audioUrl = preAudio;
     } else {
       try {
@@ -70,7 +128,10 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
         if (audio) audioUrl = audio.url;
       } catch (_) { audioUrl = ''; }
     }
-    sendState(rules.state, text, text, { speechAudio: audioUrl });
+    const mapped = category && rules.keywordStates && rules.keywordStates[category];
+    const state = (typeof mapped === 'string' && mapped.trim()) ? mapped.trim() : rules.state;
+    dbg('processLine: sendState state=' + state + ' text=' + (text || '').slice(0, 30) + ' audio=' + (audioUrl ? 'yes' : 'no'));
+    sendState(state, text, text, { speechAudio: audioUrl });
     cooldown.set(ev.sender_id, Date.now());
   }
 
@@ -101,16 +162,26 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   }
 
   async function discoverGroupChats() {
-    const result = await runCli(['im', '+chat-list', '--as', 'bot', '--types', 'group']);
-    if (!result || !result.ok || !result.data || !Array.isArray(result.data.chats)) return;
-    groupChatIds = result.data.chats.map((c) => c.chat_id).filter(Boolean);
+    const seen = new Set();
+    const ids = [];
+    for (const identity of ['user', 'bot']) {
+      const result = await runCli(['im', '+chat-list', '--as', identity, '--types', 'group']);
+      if (!result || !result.ok || !result.data || !Array.isArray(result.data.chats)) continue;
+      for (const chat of result.data.chats) {
+        if (!chat || !chat.chat_id || seen.has(chat.chat_id)) continue;
+        seen.add(chat.chat_id);
+        ids.push(chat.chat_id);
+      }
+    }
+    groupChatIds = ids;
+    dbg('discoverGroupChats: found ' + groupChatIds.length + ' groups: ' + groupChatIds.join(','));
     if (groupChatIds.length) {
       onStatus && onStatus({ level: 'info', message: `画饼雷达监控 ${groupChatIds.length} 个群的@所有人消息。` });
     }
   }
 
   async function pollGroupMessages() {
-    if (stopRequested || !running) return;
+    if (stopRequested) return;
     const now = Date.now();
     const startTime = new Date(lastPollTime - 5000).toISOString();
     lastPollTime = now;
@@ -123,26 +194,27 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
         '--sort', 'asc',
         '--page-size', '50'
       ]);
-      if (!result || !result.ok || !result.data || !Array.isArray(result.data.items)) continue;
+      if (!result || !result.ok || !result.data) { dbg('poll: no result for ' + chatId); continue; }
+      const msgs = result.data.items || result.data.messages;
+      if (!Array.isArray(msgs)) { dbg('poll: msgs not array'); continue; }
+      dbg('poll: ' + chatId + ' got ' + msgs.length + ' msgs');
 
-      for (const msg of result.data.items) {
-        // Only process @all messages
-        const mentions = msg.mentions || msg.mention_list || [];
-        const isAtAll = mentions.some((m) => m && (m.key === '@_all' || m.id === '@_all' || m.name === '所有人'));
-        if (!isAtAll) continue;
+      for (const msg of msgs) {
+        const extracted = extractPolledMessage(msg);
+        if (!extracted) { dbg('poll: extract null'); continue; }
+        const atAll = isAtAllMessage(msg, extracted.content);
+        if (!atAll) { dbg('poll: not @all: ' + (extracted.content || '').slice(0, 30)); continue; }
+        if (dedupe.has(extracted.messageId)) { dbg('poll: dedupe ' + extracted.messageId); continue; }
+        dbg('poll: @all msg from ' + extracted.senderId + ': ' + (extracted.content || '').slice(0, 30));
 
-        const senderId = msg.sender && msg.sender.id ? msg.sender.id : (msg.sender_id || '');
-        const content = typeof msg.body && msg.body.content === 'string'
-          ? msg.body.content
-          : (typeof msg.text === 'string' ? msg.text : '');
-        const messageId = msg.message_id || msg.id || '';
-
-        if (!senderId || !content || !messageId) continue;
-        if (dedupe.has(messageId)) continue;
-        dedupe.add(messageId);
-
-        // Process like an event line
-        const fakeEv = { event_id: messageId, sender_id: senderId, content, chat_id: chatId, chat_type: 'group', timestamp: String(msg.create_time || now) };
+        const fakeEv = {
+          event_id: extracted.messageId,
+          sender_id: extracted.senderId,
+          content: extracted.content,
+          chat_id: chatId,
+          chat_type: 'group',
+          timestamp: String((msg && msg.create_time) || now)
+        };
         await processLine(JSON.stringify(fakeEv));
       }
     }
@@ -162,11 +234,13 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   }
 
   function start() {
+    dbg('start() called larkCliPath=' + larkCliPath + ' coreExe=' + coreExe);
     if (stopRequested) return;
     if (running) return;
-    if (!larkCliPath) { onStatus && onStatus({ level: 'warn', message: '未配置 lark-cli 路径，画饼雷达未启动。' }); return; }
+    if (!larkCliPath) { dbg('start: no larkCliPath'); onStatus && onStatus({ level: 'warn', message: '未配置 lark-cli 路径，画饼雷达未启动。' }); return; }
     running = true;
     stopRequested = false;
+    dbg('start: spawning event consume + polling');
     const spawn = spawnExec || require('child_process').spawn;
     let stderrBuf = '';
     try {
@@ -175,6 +249,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     } catch (e) {
       running = false;
       onStatus && onStatus({ level: 'error', message: '启动画饼雷达失败：' + (e.message || 'unknown') });
+      if (!pollTimer) startPolling();
       return;
     }
     child.stdout && child.stdout.on('data', (chunk) => {
@@ -196,8 +271,8 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
       running = false;
       if (!stopRequested) scheduleRestart();
     });
-    // Start group message polling for @all messages
-    startPolling();
+    // Keep group polling even if the event stream later disconnects.
+    if (!pollTimer) startPolling();
     onStatus && onStatus({ level: 'info', message: '画饼雷达已连接。' });
   }
 
@@ -212,4 +287,4 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   return { start, stop, processLine, isRunning: () => running };
 }
 
-module.exports = { parseEventLine, createMessageWatcher };
+module.exports = { parseEventLine, createMessageWatcher, isAtAllMessage, extractPolledMessage };
