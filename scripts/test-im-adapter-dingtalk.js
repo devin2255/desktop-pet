@@ -2,7 +2,8 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { createDingtalkAdapter, resolveHangupAction } = require('../src/im-adapter-dingtalk');
+const { insetRect, petPositionForAnchor, nearestVerticalEdge } = require('../src/approach-target');
+const { createDingtalkAdapter, resolveHangupAction, shouldInvokeReject } = require('../src/im-adapter-dingtalk');
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -222,6 +223,49 @@ function testResolveHangupSkipsInvokeWhenAnchorsMiss() {
   assert.strictEqual(decision.state, 'call-mom-kick');
 }
 
+function petPlacedByHangupApproach(rejectBounds, hangupAnchor, petSize) {
+  const inset = insetRect(rejectBounds, 0.25);
+  const target = { x: inset.x + inset.width / 2, y: inset.y + inset.height / 2 };
+  const pos = petPositionForAnchor(petSize, hangupAnchor, target);
+  return { x: pos.x, y: pos.y, width: petSize.width, height: petSize.height };
+}
+
+function testShouldInvokeRejectWhenFootOnInsetButton() {
+  const rejectBounds = { x: 140, y: 90, width: 80, height: 40 };
+  const hangupAnchor = { x: 0.72, y: 0.96 };
+  const petBounds = petPlacedByHangupApproach(rejectBounds, hangupAnchor, { width: 200, height: 100 });
+  assert.strictEqual(shouldInvokeReject({ petBounds, hangupAnchor, rejectBounds }), true);
+}
+
+function testShouldInvokeRejectWhenPetOnRightOfCallWindow() {
+  const windowBounds = { x: 1000, y: 100, width: 280, height: 160 };
+  const rejectBounds = { x: 1180, y: 200, width: 80, height: 40 };
+  const hangupAnchor = { x: 0.72, y: 0.96 };
+  const petBounds = petPlacedByHangupApproach(rejectBounds, hangupAnchor, { width: 200, height: 100 });
+  const edge = nearestVerticalEdge(petBounds, windowBounds);
+  assert.strictEqual(edge.side, 'right', 'failure mode: pet nearer the call window right edge');
+  assert.strictEqual(
+    shouldInvokeReject({ petBounds, hangupAnchor, rejectBounds }),
+    true,
+    'unmirrored foot on inset reject button must invoke'
+  );
+  const decision = resolveHangupAction({
+    located: { windowBounds, rejectBounds, title: 'x', displayName: '张总' },
+    petBounds,
+    hangup: { action: 'call-mom-kick', anchor: hangupAnchor },
+    stage: { action: 'call-mom-kick' }
+  });
+  assert.strictEqual(decision.invoke, true);
+}
+
+function testShouldInvokeRejectWhenFarAway() {
+  assert.strictEqual(shouldInvokeReject({
+    petBounds: { x: 0, y: 0, width: 200, height: 100 },
+    hangupAnchor: { x: 0.72, y: 0.96 },
+    rejectBounds: { x: 1180, y: 200, width: 80, height: 40 }
+  }), false);
+}
+
 function testPackWhitelistIncludesDingtalkAdapter() {
   const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
   const builder = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build-customer.js'), 'utf8');
@@ -241,6 +285,9 @@ const tasks = [
   testGetLastLocatedTracksCurrentCall,
   testResolveHangupSkipsInvokeWhenRejectBoundsMissing,
   testResolveHangupSkipsInvokeWhenAnchorsMiss,
+  testShouldInvokeRejectWhenFootOnInsetButton,
+  testShouldInvokeRejectWhenPetOnRightOfCallWindow,
+  testShouldInvokeRejectWhenFarAway,
   testPackWhitelistIncludesDingtalkAdapter
 ];
 

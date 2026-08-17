@@ -1,12 +1,7 @@
 'use strict';
 
 const { matchBoss } = require('./im-match');
-const {
-  insetRect,
-  nearestVerticalEdge,
-  anchorsOverlap,
-  mirrorAnchorX
-} = require('./approach-target');
+const { insetRect, anchorsOverlap } = require('./approach-target');
 
 async function defaultLocateIncomingCall() {
   return null;
@@ -20,18 +15,24 @@ function eventIdFromLocated(located) {
   return `${located.title || ''}\n${located.displayName || ''}`;
 }
 
+function shouldInvokeReject({ petBounds, hangupAnchor, rejectBounds }) {
+  if (!petBounds || !hangupAnchor || !rejectBounds) return false;
+  return anchorsOverlap(petBounds, hangupAnchor, insetRect(rejectBounds, 0.25));
+}
+
 function resolveHangupAction({ located, petBounds, hangup, stage }) {
   if (!located?.rejectBounds) {
     return { invoke: false, state: 'idle', message: '这次没挂上', logicalRole: 'idle' };
   }
   const action = stage?.action || 'idle';
-  if (!located.windowBounds || !petBounds || !hangup?.anchor) {
+  if (!petBounds || !hangup?.anchor) {
     return { invoke: false, state: action, message: '这次没挂上', logicalRole: action };
   }
-  const edge = nearestVerticalEdge(petBounds, located.windowBounds);
-  const mirrored = edge.side === 'right';
-  const rejectInset = insetRect(located.rejectBounds, 0.25);
-  if (!anchorsOverlap(petBounds, mirrorAnchorX(hangup.anchor, mirrored), rejectInset)) {
+  if (!shouldInvokeReject({
+    petBounds,
+    hangupAnchor: hangup.anchor,
+    rejectBounds: located.rejectBounds
+  })) {
     return { invoke: false, state: action, message: '这次没挂上', logicalRole: action };
   }
   return { invoke: true, rejectBounds: located.rejectBounds };
@@ -119,5 +120,6 @@ function createDingtalkAdapter({
 
 module.exports = {
   createDingtalkAdapter,
-  resolveHangupAction
+  resolveHangupAction,
+  shouldInvokeReject
 };
