@@ -36,6 +36,7 @@ tmp/
 /pets/work/
 /pets/library/*
 !/pets/library/brother-judge/
+!/pets/library/niulai/
 *.docx
 
 # Private interaction orchestration state and likeness previews
@@ -56,6 +57,8 @@ tmp/
 # Allow reviewed brother-judge library directory
 !/pets/library/brother-judge/
 !/pets/library/brother-judge/**
+!/pets/library/niulai/
+!/pets/library/niulai/**
 
 # Historical player snapshots are kept locally but not shipped as source.
 /src/index.html
