@@ -121,4 +121,39 @@ function testApproachWaitsUntilArrivedOrTimeout() {
 
 testApproachWaitsUntilArrivedOrTimeout();
 
+function testHangupContactFiresWhenKickOverlaps() {
+  const calls = { states: [], contact: undefined, timer: null };
+  const seq3 = createSequenceController({
+    getManifest: () => ({
+      animations: { idle: {}, 'call-mom-kick': {} },
+      sequences: {
+        'boss-call': {
+          contacts: {
+            hangup: { action: 'call-mom-kick', anchor: { x: 0.72, y: 0.96 } }
+          },
+          stages: [
+            { action: 'call-mom-kick', duration: 1000 },
+            { action: 'idle', duration: 0 }
+          ]
+        }
+      }
+    }),
+    sendState: (action) => { calls.states.push(action); },
+    pauseBehavior: () => {},
+    scheduleBehavior: () => {},
+    setTimer: (fn, ms) => { calls.timer = { fn, ms }; return 1; },
+    clearTimer: () => { calls.timer = null; },
+    getPetBounds: () => ({ x: 10, y: 10, width: 200, height: 100 }),
+    getApproachRect: (name) => name === 'incoming-call-reject'
+      ? { x: 140, y: 90, width: 40, height: 20 }
+      : null,
+    onContact: (stage) => { calls.contact = stage.action; }
+  });
+  assert.strictEqual(seq3.start('boss-call'), true);
+  assert.strictEqual(calls.states.at(-1), 'call-mom-kick');
+  assert.strictEqual(calls.contact, 'call-mom-kick');
+}
+
+testHangupContactFiresWhenKickOverlaps();
+
 console.log('test-sequence-controller: ok');

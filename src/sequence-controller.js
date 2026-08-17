@@ -219,6 +219,7 @@ function createSequenceController(deps) {
       : (stage.messages && stage.messages[0]) || '';
     const extras = buildExtras(stage);
     sendState(stage.action, message, '', extras);
+    maybeContact(stage);
 
     if (stage.restorePosition === true && restoreFrom && movePetWindow) {
       movePetWindow(restoreFrom.x, restoreFrom.y);
@@ -233,7 +234,6 @@ function createSequenceController(deps) {
 
     if (stage.approachTarget) {
       moveToward(stage);
-      maybeContact(stage);
       scheduleApproachPoll(stage);
       scheduleAdvance(resolveApproachDelay(stage));
       return;
