@@ -256,6 +256,67 @@ function testCrawlKeywordStateAllowed() {
   });
 }
 
+function testParallelDispatchStampsCooldownBeforeSynth() {
+  const sent = [];
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const cooldownMap = new Map();
+  const ctx = {
+    rules: {
+      ids: ['ou_1'], cooldownSec: 30, quietHours: [],
+      keywords: { '画饼': ['文案A'] }, fallback: '兜底', state: 'reaction'
+    },
+    voice: { synthesize: () => pending.then(() => ({ url: 'slow.mp3' })) },
+    sendState: (state, message) => sent.push({ state, message }),
+    rng: () => 0,
+    now: 1_000_000,
+    cooldownMap
+  };
+  const event = {
+    platform: 'lark', kind: 'message', eventId: 'e-slow',
+    senderId: 'ou_1', senderName: '', text: '画饼', chatType: 'p2p'
+  };
+  const first = dispatchBossMessage(event, ctx);
+  const second = dispatchBossMessage(event, ctx);
+  release();
+  return Promise.all([first, second]).then(() => {
+    assert.strictEqual(sent.length, 1, '并行慢 TTS 只应 sendState 一次');
+  });
+}
+
+function testCooldownKeyUsesSenderNameWhenSenderIdEmpty() {
+  const sent = [];
+  const cooldownMap = new Map();
+  const ctx = {
+    rules: {
+      cooldownSec: 30, quietHours: [],
+      keywords: { '画饼': ['文案A'] }, fallback: '兜底', state: 'reaction'
+    },
+    voice: { synthesize: async () => null },
+    sendState: (state, message) => sent.push(message),
+    rng: () => 0,
+    now: 1_000_000,
+    cooldownMap
+  };
+  const boss = {
+    platform: 'dingtalk', kind: 'message', eventId: 'e-zhang',
+    senderId: '', senderName: '张总', text: '画饼', chatType: 'p2p'
+  };
+  const nameless = {
+    platform: 'dingtalk', kind: 'message', eventId: 'e-anon',
+    senderId: '', senderName: '', text: '画饼', chatType: 'p2p'
+  };
+  return dispatchBossMessage(boss, ctx).then(() => {
+    assert.strictEqual(sent.length, 1);
+    return dispatchBossMessage(nameless, ctx);
+  }).then(() => {
+    assert.strictEqual(sent.length, 2, '空 senderId 的张总不应与无名事件共用冷却桶');
+    return dispatchBossMessage({ ...boss, eventId: 'e-zhang-2' }, ctx);
+  }).then(() => {
+    assert.strictEqual(sent.length, 2, '同一张总空 senderId 应共用冷却');
+  });
+}
+
 function testDispatchBossMessageInjectedNow() {
   const sent = [];
   const cooldownMap = new Map();
@@ -294,7 +355,9 @@ const tasks = [
   testExtractFeishuBodyJsonAtAll, testListingPhraseTriggersHuabingAudio,
   testKeywordStateOverridesDefault,
   testWindowRoleKeywordStateFallsBack, testCrawlKeywordStateAllowed,
-  testDispatchBossMessageInjectedNow
+  testDispatchBossMessageInjectedNow,
+  testParallelDispatchStampsCooldownBeforeSynth,
+  testCooldownKeyUsesSenderNameWhenSenderIdEmpty
 ];
 Promise.all(tasks.map((t) => t())).then(
   () => { console.log('message-watcher: all tests passed'); },

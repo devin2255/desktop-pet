@@ -182,6 +182,10 @@ function buildCustomer(options) {
         'src/event-hold.js',
         'src/roam-motion.js',
         'src/edge-voice.js',
+        'src/approach-target.js',
+        'src/im-match.js',
+        'src/im-bus.js',
+        'src/im-adapter-lark.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

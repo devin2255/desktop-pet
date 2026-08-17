@@ -947,16 +947,18 @@ if (!gotLock) {
     if (watchConfig.names.length > 0) {
       sendState('reaction', '画饼雷达：老板名单中的姓名待解析，请使用 open_id 或扫码授权后自动解析。');
     }
-    const voice = createVoiceSynthesizer({
-      cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
-      voice: watchConfig.voice.voice,
-      rate: watchConfig.voice.rate
-    });
     const watchSendState = (state, message, speech, opts) => {
       eventHold.beginForSpeech(message || speech);
       sendState(state, message, speech, state, opts || {});
     };
     const cooldownMap = new Map();
+    const voice = watchConfig.enabled
+      ? createVoiceSynthesizer({
+        cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
+        voice: watchConfig.voice.voice,
+        rate: watchConfig.voice.rate
+      })
+      : null;
     imBus = createImBus({
       getRules: () => watchConfig,
       adapters: [createLarkAdapter({
@@ -969,17 +971,19 @@ if (!gotLock) {
         },
         larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
       })],
-      dispatchMessage: (event, rules) => dispatchBossMessage(event, {
-        rules,
-        voice,
-        sendState: watchSendState,
-        rng: Math.random,
-        now: Date.now,
-        cooldownMap
-      }),
+      dispatchMessage: watchConfig.enabled
+        ? (event, rules) => dispatchBossMessage(event, {
+          rules,
+          voice,
+          sendState: watchSendState,
+          rng: Math.random,
+          now: Date.now,
+          cooldownMap
+        })
+        : () => {},
       onVoiceCall: () => {}
     });
-    imBus.start();
+    void imBus.start().catch(() => {});
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);
     app.quit();

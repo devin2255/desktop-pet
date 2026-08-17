@@ -1,5 +1,7 @@
 'use strict';
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const { createImBus } = require('../src/im-bus');
 
 function makeFakeAdapter(platform = 'dingtalk') {
@@ -108,6 +110,54 @@ async function testCallHangupEnabledCallsOnVoiceCall() {
   assert.strictEqual(calls.length, 1, 'callHangup.enabled 且 matchBoss 时应调用 onVoiceCall');
 }
 
+async function testVoiceCallCooldownSkipsSecondCall() {
+  const calls = [];
+  const adapter = makeFakeAdapter();
+  const bus = createImBus({
+    getRules: () => baseRules({ callHangup: { enabled: true, cooldownSec: 60 } }),
+    adapters: [adapter],
+    dispatchMessage: () => {},
+    onVoiceCall: (event) => calls.push(event)
+  });
+  await bus.start();
+  adapter.emit.onVoiceCall(bossCall);
+  adapter.emit.onVoiceCall(bossCall);
+  assert.strictEqual(calls.length, 1, '冷却期内第二次相同来电不调用 onVoiceCall');
+}
+
+async function testNonBossVoiceCallSkipped() {
+  const calls = [];
+  const adapter = makeFakeAdapter();
+  const bus = createImBus({
+    getRules: () => baseRules({ callHangup: { enabled: true, cooldownSec: 60 } }),
+    adapters: [adapter],
+    dispatchMessage: () => {},
+    onVoiceCall: (event) => calls.push(event)
+  });
+  await bus.start();
+  adapter.emit.onVoiceCall({
+    ...bossCall,
+    eventId: 'c-other',
+    senderName: '同事甲',
+    text: '同事甲邀请你语音通话'
+  });
+  assert.strictEqual(calls.length, 0, '非老板来电不调用 onVoiceCall');
+}
+
+function testPackWhitelistIncludesImModules() {
+  const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const builder = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build-customer.js'), 'utf8');
+  for (const file of [
+    'src/im-bus.js',
+    'src/im-adapter-lark.js',
+    'src/im-match.js',
+    'src/approach-target.js'
+  ]) {
+    assert.ok(packageJson.build.files.includes(file), `default package includes ${file}`);
+    assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
+  }
+}
+
 async function testQuietHoursSkipVoiceCall() {
   const calls = [];
   const adapter = makeFakeAdapter();
@@ -176,10 +226,13 @@ const tasks = [
   testNonBossDoesNotDispatch,
   testCallHangupDisabledSkipsVoiceCall,
   testCallHangupEnabledCallsOnVoiceCall,
+  testVoiceCallCooldownSkipsSecondCall,
+  testNonBossVoiceCallSkipped,
   testQuietHoursSkipVoiceCall,
   testPlatformsSkipAdapter,
   testEnabledFalseDoesNotStart,
-  testAdapterStartErrorIsSwallowed
+  testAdapterStartErrorIsSwallowed,
+  testPackWhitelistIncludesImModules
 ];
 
 Promise.all(tasks.map((t) => t())).then(

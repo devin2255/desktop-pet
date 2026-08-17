@@ -1,5 +1,5 @@
 'use strict';
-const { createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine } = require('./watch-rules');
+const { createDedupeSet, isBoss, matchKeyword, inQuietHours } = require('./watch-rules');
 const { execFile } = require('child_process');
 
 const DEBUG_LOG = 'C:/Users/Thinkpad/.qwenworkcn/workspace/msr5talezbqs189b/watcher-debug.log';
@@ -109,14 +109,19 @@ function resolveKeywordState(rules, category) {
   return state;
 }
 
+function messageCooldownKey(event) {
+  return String(event.senderId || event.senderName || event.eventId || '');
+}
+
 async function dispatchBossMessage(event, ctx) {
   const { rules, voice, sendState, rng, cooldownMap } = ctx || {};
   if (!event || !rules || typeof sendState !== 'function') return;
   const map = cooldownMap || new Map();
-  const senderId = event.senderId || '';
+  const key = messageCooldownKey(event);
   const now = resolveNow(ctx.now);
-  const last = map.get(senderId) || 0;
+  const last = map.get(key) || 0;
   if (now - last < (rules.cooldownSec || 0) * 1000) { dbg('processLine: cooldown'); return; }
+  map.set(key, now);
   const category = matchKeyword(event.text, rules.keywords, rules.triggers);
   dbg('processLine: TRIGGER category=' + category + ' content=' + (event.text || '').slice(0, 40));
   const pool = category ? rules.keywords[category] : [rules.fallback];
@@ -135,7 +140,6 @@ async function dispatchBossMessage(event, ctx) {
   const state = resolveKeywordState(rules, category);
   dbg('processLine: sendState state=' + state + ' text=' + (text || '').slice(0, 30) + ' audio=' + (audioUrl ? 'yes' : 'no'));
   sendState(state, text, text, { speechAudio: audioUrl });
-  map.set(senderId, now);
 }
 
 function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, larkCliPath, rng }) {
