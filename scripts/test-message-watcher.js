@@ -1,6 +1,9 @@
 'use strict';
 const assert = require('assert');
-const { parseEventLine, createMessageWatcher, isAtAllMessage, extractPolledMessage } = require('../src/message-watcher');
+const {
+  parseEventLine, createMessageWatcher, isAtAllMessage, extractPolledMessage,
+  dispatchBossMessage
+} = require('../src/message-watcher');
 
 function testParseValid() {
   const ev = parseEventLine(JSON.stringify({
@@ -211,12 +214,87 @@ function testListingPhraseTriggersHuabingAudio() {
   });
 }
 
+function testWindowRoleKeywordStateFallsBack() {
+  const sent = [];
+  const watcher = createMessageWatcher({
+    rules: {
+      ids: ['ou_1'], cooldownSec: 0, quietHours: [],
+      keywords: { '加班': ['去加班'] },
+      fallback: '兜底',
+      state: 'reaction',
+      keywordStates: { '加班': 'climb' }
+    },
+    voice: { synthesize: async () => null },
+    sendState: (state, message, speech, opts) => sent.push({ state, message, speech, opts })
+  });
+  return watcher.processLine(JSON.stringify({
+    event_id: 'e-ot-climb', sender_id: 'ou_1', content: '今晚加班'
+  })).then(() => {
+    assert.strictEqual(sent.length, 1, '加班句应触发');
+    assert.strictEqual(sent[0].state, 'reaction', 'climb 是窗口角色，必须回退到 rules.state');
+  });
+}
+
+function testCrawlKeywordStateAllowed() {
+  const sent = [];
+  const watcher = createMessageWatcher({
+    rules: {
+      ids: ['ou_1'], cooldownSec: 0, quietHours: [],
+      keywords: { '加班': ['去加班'] },
+      fallback: '兜底',
+      state: 'reaction',
+      keywordStates: { '加班': 'crawl' }
+    },
+    voice: { synthesize: async () => null },
+    sendState: (state, message, speech, opts) => sent.push({ state, message, speech, opts })
+  });
+  return watcher.processLine(JSON.stringify({
+    event_id: 'e-ot-crawl', sender_id: 'ou_1', content: '今晚加班'
+  })).then(() => {
+    assert.strictEqual(sent.length, 1, '加班句应触发');
+    assert.strictEqual(sent[0].state, 'crawl', 'crawl 允许作为 keywordStates');
+  });
+}
+
+function testDispatchBossMessageInjectedNow() {
+  const sent = [];
+  const cooldownMap = new Map();
+  const ctx = {
+    rules: {
+      ids: ['ou_1'], cooldownSec: 30, quietHours: [],
+      keywords: { '画饼': ['文案A'] }, fallback: '兜底', state: 'reaction'
+    },
+    voice: { synthesize: async () => null },
+    sendState: (state, message) => sent.push({ state, message }),
+    rng: () => 0,
+    now: 1_000_000,
+    cooldownMap
+  };
+  const event = {
+    platform: 'lark', kind: 'message', eventId: 'e-now',
+    senderId: 'ou_1', senderName: '', text: '画饼', chatType: 'p2p'
+  };
+  return dispatchBossMessage(event, ctx).then(() => {
+    assert.strictEqual(sent.length, 1);
+    ctx.now = 1_000_000 + 10_000;
+    return dispatchBossMessage(event, ctx);
+  }).then(() => {
+    assert.strictEqual(sent.length, 1, '注入 now 后冷却期内不重复');
+    ctx.now = 1_000_000 + 31_000;
+    return dispatchBossMessage(event, ctx);
+  }).then(() => {
+    assert.strictEqual(sent.length, 2, '冷却结束后可再次触发');
+  });
+}
+
 const tasks = [
   testParseValid, testParseInvalid, testPipelineTriggers, testNonBossSkipped,
   testFallbackAndVoiceNull, testDedupe, testLifecycleReconnect,
   testExtractFlattenedAtAll, testExtractWithoutBodyDoesNotThrow,
   testExtractFeishuBodyJsonAtAll, testListingPhraseTriggersHuabingAudio,
-  testKeywordStateOverridesDefault
+  testKeywordStateOverridesDefault,
+  testWindowRoleKeywordStateFallsBack, testCrawlKeywordStateAllowed,
+  testDispatchBossMessageInjectedNow
 ];
 Promise.all(tasks.map((t) => t())).then(
   () => { console.log('message-watcher: all tests passed'); },

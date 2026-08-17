@@ -18,7 +18,9 @@ const { createTopmostGuard } = require('./topmost-guard');
 const { createMouseThroughGuard } = require('./mouse-through-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
 const { createSequenceController } = require('./sequence-controller');
-const { createMessageWatcher } = require('./message-watcher');
+const { dispatchBossMessage } = require('./message-watcher');
+const { createImBus } = require('./im-bus');
+const { createLarkAdapter } = require('./im-adapter-lark');
 const { loadWatchConfig, ensureBossWatchDefaults } = require('./watch-config');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const { createEventHold } = require('./event-hold');
@@ -75,7 +77,7 @@ let mouseThroughGuard;
 let quitting = false;
 let deliveryConfig;
 let sequence;
-let messageWatcher;
+let imBus;
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');
@@ -945,28 +947,39 @@ if (!gotLock) {
     if (watchConfig.names.length > 0) {
       sendState('reaction', '画饼雷达：老板名单中的姓名待解析，请使用 open_id 或扫码授权后自动解析。');
     }
-    if (watchConfig.enabled) {
-      const voice = createVoiceSynthesizer({
-        cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
-        voice: watchConfig.voice.voice,
-        rate: watchConfig.voice.rate
-      });
-      messageWatcher = createMessageWatcher({
-        rules: watchConfig,
+    const voice = createVoiceSynthesizer({
+      cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
+      voice: watchConfig.voice.voice,
+      rate: watchConfig.voice.rate
+    });
+    const watchSendState = (state, message, speech, opts) => {
+      eventHold.beginForSpeech(message || speech);
+      sendState(state, message, speech, state, opts || {});
+    };
+    const cooldownMap = new Map();
+    imBus = createImBus({
+      getRules: () => watchConfig,
+      adapters: [createLarkAdapter({
         voice,
-        sendState: (state, message, speech, opts) => {
-          eventHold.beginForSpeech(message || speech);
-          sendState(state, message, speech, state, opts || {});
-        },
+        sendState: watchSendState,
         onStatus: (status) => {
           if (status.level === 'warn' || status.level === 'error') {
             sendState('reaction', status.message);
           }
         },
         larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
-      });
-      messageWatcher.start();
-    }
+      })],
+      dispatchMessage: (event, rules) => dispatchBossMessage(event, {
+        rules,
+        voice,
+        sendState: watchSendState,
+        rng: Math.random,
+        now: Date.now,
+        cooldownMap
+      }),
+      onVoiceCall: () => {}
+    });
+    imBus.start();
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);
     app.quit();
@@ -977,7 +990,7 @@ app.on('before-quit', () => {
   quitting = true;
   interaction?.dispose();
   sequence?.dispose();
-  messageWatcher?.stop();
+  imBus?.stop();
   if (petTaskPollTimer) { clearInterval(petTaskPollTimer); petTaskPollTimer = null; }
   pauseBehavior();
 });
