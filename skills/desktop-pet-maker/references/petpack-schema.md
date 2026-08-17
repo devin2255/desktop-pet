@@ -70,7 +70,16 @@ The archive must contain only the manifest, preview, and referenced assets. Ever
 
 `sequences` is optional. When present it must be an object with at most 8 entries. Keys must match `^[a-z0-9][a-z0-9-]{1,31}$`.
 
-Each sequence contains a required `stages` array with 2 to 16 stage objects. Every stage requires an `action` that names an animation in `animations`. Optional fields:
+Each sequence contains a required `stages` array with 2 to 16 stage objects. Every stage requires an `action` that names an animation in `animations`. Optional sequence-level `contacts` maps attachment roles used during scripted approach stages:
+
+| Contact | Purpose |
+| --- | --- |
+| `climb` | Pet attachment while moving toward an incoming-call window edge |
+| `hangup` | Pet attachment while moving toward the reject/hangup control |
+
+Each contact entry has the same shape as one `interactionActions` item: required `action` naming an animation in `animations`, plus optional normalized `anchor` with `x` and `y` in `0..1`.
+
+Optional stage fields:
 
 | Field | Type | Constraints |
 | --- | --- | --- |
@@ -79,6 +88,13 @@ Each sequence contains a required `stages` array with 2 to 16 stage objects. Eve
 | `messageGapMs` | integer | 0 to 5000 |
 | `duration` | integer | 0 to 10000 milliseconds; may be omitted when `waitForClick` is true |
 | `waitForClick` | boolean | pause until the user clicks before advancing |
+| `speechAudio` | string | relative mp3/wav/ogg path; included in `referencedFiles` |
+| `speechGender` | string | `male` or `female` |
+| `messageLoop` | boolean | loop `messages` until the stage ends |
+| `speechLoop` | boolean | loop stage `speechAudio` until the stage ends |
+| `approachTarget` | string | `incoming-call-edge` or `incoming-call-reject` |
+| `timeoutMs` | integer | 0 to 10000 milliseconds for approach stages |
+| `restorePosition` | boolean | when true, restore the pet window to the pre-sequence position after this stage |
 
 Stages may omit both `message` and `messages`. Referenced stage actions receive the same structural animation validation as other manifest actions.
 
@@ -92,6 +108,32 @@ Example:
         { "action": "relax-a", "message": "先弄好看一点～", "duration": 2800 },
         { "action": "relax-b", "messages": ["我要这个", "我要这个"], "messageGapMs": 700, "waitForClick": true },
         { "action": "idle", "duration": 0 }
+      ]
+    },
+    "boss-call": {
+      "contacts": {
+        "climb": { "action": "call-climb", "anchor": { "x": 0.08, "y": 0.38 } },
+        "hangup": { "action": "call-mom-kick", "anchor": { "x": 0.72, "y": 0.96 } }
+      },
+      "stages": [
+        {
+          "action": "call-climb",
+          "approachTarget": "incoming-call-edge",
+          "messages": ["妈妈！"],
+          "messageLoop": true,
+          "messageGapMs": 1200,
+          "timeoutMs": 4000,
+          "speechAudio": "audio/call-mom.mp3",
+          "speechLoop": true,
+          "speechGender": "male"
+        },
+        {
+          "action": "call-mom-kick",
+          "approachTarget": "incoming-call-reject",
+          "timeoutMs": 1200,
+          "speechGender": "female"
+        },
+        { "action": "idle", "duration": 0, "restorePosition": true }
       ]
     }
   }

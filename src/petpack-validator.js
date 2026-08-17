@@ -6,6 +6,7 @@ const AdmZip = require('adm-zip');
 
 const REQUIRED_ACTIONS = Object.freeze({ idle: 4, walk: 6, sit: 4, sleep: 4, reaction: 4 });
 const INTERACTION_ROLES = new Set(['drag', 'climb', 'perch', 'hang', 'fall', 'impact', 'recover']);
+const APPROACH_TARGETS = new Set(['incoming-call-edge', 'incoming-call-reject']);
 const PET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const SEQUENCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,31}$/;
 const MAX_SEQUENCES = 8;
@@ -106,6 +107,12 @@ function referencedFiles(manifest) {
     if (!Array.isArray(list)) continue;
     for (const item of list) {
       if (item && typeof item === 'object') addAudioRef(referenced, item.speechAudio);
+    }
+  }
+  for (const sequence of Object.values(manifest.sequences || {})) {
+    if (!sequence || typeof sequence !== 'object' || Array.isArray(sequence)) continue;
+    for (const stage of sequence.stages || []) {
+      if (stage && typeof stage === 'object') addAudioRef(referenced, stage.speechAudio);
     }
   }
   addAudioRef(referenced, manifest.startupGreetingAudio);
@@ -280,6 +287,32 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       if (!sequence || typeof sequence !== 'object' || Array.isArray(sequence)) {
         throw new Error(`sequences.${sequenceId} 配置格式不正确`);
       }
+      function validateSequenceContact(contact, label) {
+        if (contact === undefined) return;
+        if (!contact || typeof contact !== 'object' || Array.isArray(contact)) {
+          throw new Error(`${label} 配置格式不正确`);
+        }
+        if (typeof contact.action !== 'string' || !Object.hasOwn(manifest.animations, contact.action)) {
+          throw new Error(`${label} 引用了不存在的动画：${contact.action}`);
+        }
+        if (!validatedAnimations.has(contact.action)) {
+          validateAnimation(contact.action);
+          validatedAnimations.add(contact.action);
+        }
+        if (contact.anchor !== undefined) {
+          const { x, y } = contact.anchor || {};
+          if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) {
+            throw new Error(`${label} 的 anchor 必须位于 0..1`);
+          }
+        }
+      }
+      if (sequence.contacts !== undefined) {
+        if (!sequence.contacts || typeof sequence.contacts !== 'object' || Array.isArray(sequence.contacts)) {
+          throw new Error(`sequences.${sequenceId}.contacts 必须是对象`);
+        }
+        validateSequenceContact(sequence.contacts.climb, `sequences.${sequenceId}.contacts.climb`);
+        validateSequenceContact(sequence.contacts.hangup, `sequences.${sequenceId}.contacts.hangup`);
+      }
       const { stages } = sequence;
       if (!Array.isArray(stages) || stages.length < 2 || stages.length > 16) {
         throw new Error(`sequences.${sequenceId}.stages 必须包含 2 到 16 个阶段`);
@@ -315,6 +348,29 @@ function validateManifest(manifest, root = '', requireFiles = false) {
         }
         if (stage.waitForClick !== undefined && typeof stage.waitForClick !== 'boolean') {
           throw new Error(`sequences.${sequenceId}.stages[${index}].waitForClick 必须是布尔值`);
+        }
+        if (stage.speechAudio !== undefined) {
+          assertAudioField(stage.speechAudio, `sequences.${sequenceId}.stages[${index}].speechAudio`);
+        }
+        if (stage.speechGender !== undefined
+          && stage.speechGender !== 'male'
+          && stage.speechGender !== 'female') {
+          throw new Error(`sequences.${sequenceId}.stages[${index}].speechGender 只能是 male 或 female`);
+        }
+        if (stage.messageLoop !== undefined && typeof stage.messageLoop !== 'boolean') {
+          throw new Error(`sequences.${sequenceId}.stages[${index}].messageLoop 必须是布尔值`);
+        }
+        if (stage.speechLoop !== undefined && typeof stage.speechLoop !== 'boolean') {
+          throw new Error(`sequences.${sequenceId}.stages[${index}].speechLoop 必须是布尔值`);
+        }
+        if (stage.approachTarget !== undefined && !APPROACH_TARGETS.has(stage.approachTarget)) {
+          throw new Error(`sequences.${sequenceId}.stages[${index}].approachTarget 不合法`);
+        }
+        if (stage.timeoutMs !== undefined && (!Number.isInteger(stage.timeoutMs) || stage.timeoutMs < 0 || stage.timeoutMs > 10000)) {
+          throw new Error(`sequences.${sequenceId}.stages[${index}].timeoutMs 必须为 0 到 10000 毫秒`);
+        }
+        if (stage.restorePosition !== undefined && typeof stage.restorePosition !== 'boolean') {
+          throw new Error(`sequences.${sequenceId}.stages[${index}].restorePosition 必须是布尔值`);
         }
       }
     }

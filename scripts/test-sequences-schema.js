@@ -180,4 +180,97 @@ assert.throws(
   }), '', false)
 );
 
+function bossCallManifest(overrides = {}) {
+  return baseManifest({
+    animations: {
+      ...baseManifest().animations,
+      'call-climb': makeAnimation('call-climb', 6, false),
+      'call-mom-kick': makeAnimation('call-mom-kick', 4, false)
+    },
+    sequences: {
+      'boss-call': {
+        contacts: {
+          climb: { action: 'call-climb', anchor: { x: 0.08, y: 0.38 } },
+          hangup: { action: 'call-mom-kick', anchor: { x: 0.72, y: 0.96 } }
+        },
+        stages: [
+          {
+            action: 'call-climb',
+            approachTarget: 'incoming-call-edge',
+            messages: ['妈妈！'],
+            messageLoop: true,
+            messageGapMs: 1200,
+            timeoutMs: 4000,
+            speechAudio: 'audio/call-mom.mp3',
+            speechLoop: true,
+            speechGender: 'male'
+          },
+          {
+            action: 'call-mom-kick',
+            approachTarget: 'incoming-call-reject',
+            timeoutMs: 1200,
+            speechGender: 'female'
+          },
+          { action: 'idle', duration: 0, restorePosition: true }
+        ]
+      }
+    },
+    contextMenuActions: [
+      { id: 'boss-call', label: '演一出来电', sequence: 'boss-call' }
+    ],
+    ...overrides
+  });
+}
+
+assert.doesNotThrow(() => validateManifest(bossCallManifest(), '', false));
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        stages: [
+          { action: 'call-climb', approachTarget: 'window-top', timeoutMs: 4000 },
+          { action: 'call-mom-kick', timeoutMs: 1200 },
+          { action: 'idle', duration: 0 }
+        ]
+      }
+    }
+  }), '', false)
+);
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        stages: [
+          {
+            action: 'call-climb',
+            approachTarget: 'incoming-call-edge',
+            speechGender: 'kid',
+            timeoutMs: 4000
+          },
+          { action: 'call-mom-kick', timeoutMs: 1200 },
+          { action: 'idle', duration: 0 }
+        ]
+      }
+    }
+  }), '', false)
+);
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        contacts: {
+          climb: { action: 'call-climb', anchor: { x: 0.08, y: 0.38 } },
+          hangup: { action: 'missing-kick', anchor: { x: 0.72, y: 0.96 } }
+        }
+      }
+    }
+  }), '', false)
+);
+
 console.log('test-sequences-schema: ok');
