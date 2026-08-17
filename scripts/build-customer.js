@@ -89,6 +89,15 @@ function safeFileBase(value) {
   return cleaned.slice(0, 80);
 }
 
+function deliveryDisclaimer(manifest) {
+  const description = String(manifest && manifest.description || '').trim();
+  if (!description) return '';
+  const parts = description.split(/[。！？.!?]/).map((part) => part.trim()).filter(Boolean);
+  const copyrightish = parts.filter((part) => /致敬|非官方|版权|授权/.test(part));
+  if (!copyrightish.length) return description;
+  return copyrightish.join('。') + '。';
+}
+
 function ensureInside(base, target) {
   const resolvedBase = path.resolve(base);
   const resolvedTarget = path.resolve(target);
@@ -231,10 +240,29 @@ function buildCustomer(options) {
         throw error;
       }
     }
+    const disclaimer = deliveryDisclaimer(manifest);
     const report = {
       schemaVersion: 1, builtAt: new Date().toISOString(), appName, deliveryId, petId: manifest.id,
       petName: manifest.name, petpack: path.basename(petPath), petpackSha256: packageHash,
-      executable: path.basename(destination), executableSha256: sha256(destination), version: deliveryVersion
+      executable: path.basename(destination), executableSha256: sha256(destination), version: deliveryVersion,
+      copyright: disclaimer, disclaimer,
+      codeSigning: '未做',
+      dingtalkLiveCall: '未验证',
+      allowPetManagement: options.allowManagement === true,
+      verified: [
+        'petpack validated',
+        'portable exe built',
+        'allowPetManagement defaults to false unless --allow-management'
+      ],
+      unverified: [
+        'codeSigning',
+        'dingtalkLiveCall',
+        '50-click interaction stability',
+        'mouse-through',
+        'tray radar/hangup toggles',
+        'window climb/perch/hang/fall',
+        'call-mom live sequence'
+      ]
     };
     fs.writeFileSync(path.join(destinationRoot, 'build-report.json'), JSON.stringify(report, null, 2) + '\n', 'utf8');
     console.log('\n客户交付构建完成：\n' + destination);

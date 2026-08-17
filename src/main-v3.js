@@ -654,7 +654,7 @@ function refreshTrayMenu() {
 
 function persistWatchFlags(flags) {
   if (!watchConfigPath) return;
-  patchWatchFlags(watchConfigPath, flags, { customer: Boolean(deliveryConfig) });
+  patchWatchFlags(watchConfigPath, flags, { customer: deliveryConfig?.mode === 'customer' });
   applyLoadedWatchConfig(loadWatchConfig({
     configPath: watchConfigPath,
     manifestWatch: activeManifest?.watch,
@@ -983,7 +983,7 @@ if (!gotLock) {
     });
     createTray();
     watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
-    ensureBossWatchDefaults(watchConfigPath, { customer: Boolean(deliveryConfig) });
+    ensureBossWatchDefaults(watchConfigPath, { customer: deliveryConfig?.mode === 'customer' });
     applyLoadedWatchConfig(loadWatchConfig({
       configPath: watchConfigPath,
       manifestWatch: activeManifest?.watch,

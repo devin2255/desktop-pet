@@ -53,6 +53,7 @@ tmp/
 /pets/packages/*
 !/pets/packages/laopo.petpack
 !/pets/packages/brother-judge.petpack
+!/pets/packages/niulai.petpack
 
 # Allow reviewed brother-judge library directory
 !/pets/library/brother-judge/
