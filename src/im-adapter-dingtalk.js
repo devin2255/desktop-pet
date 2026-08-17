@@ -109,10 +109,16 @@ function createDingtalkAdapter({
     }
   }
 
+  // Spike: no locally runnable official Stream / 企业内部应用 event source
+  // (SDK needs enterprise AppKey/AppSecret; not a desktop-client consumer).
+  // Do not call from start(); voice-call polling stays independent.
+  function startMessages() {}
+
   return {
     platform: 'dingtalk',
     start,
     stop,
+    startMessages,
     getLastLocated: () => lastLocated,
     invokeReject: (rejectBounds) => invoke(rejectBounds)
   };
