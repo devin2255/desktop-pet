@@ -3,7 +3,9 @@ const assert = require('assert');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG } = require('../src/watch-config');
+const {
+  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, SELF_USE_DEFAULT_CONFIG
+} = require('../src/watch-config');
 const { DEFAULT_KEYWORDS } = require('../src/watch-rules');
 
 function tmpJson(obj) {
@@ -87,10 +89,66 @@ function testSplitBosses() {
   assert.deepStrictEqual(names, ['王总', '李总']);
 }
 
+function testCallHangupDefaultOff() {
+  const cfg = loadWatchConfig({ configPath: path.join(os.tmpdir(), 'nope-xxx.json'), larkCliPath: 'lark' });
+  assert.strictEqual(cfg.callHangup.enabled, false);
+  assert.deepStrictEqual(cfg.platforms, ['lark']);
+}
+
+function testCallHangupFromFile() {
+  const p = tmpJson({ enabled: true, bosses: ['张总'], platforms: ['lark', 'dingtalk'], callHangup: { enabled: true, cooldownSec: 90 } });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.strictEqual(cfg.callHangup.enabled, true);
+  assert.strictEqual(cfg.callHangup.cooldownSec, 90);
+  assert.deepStrictEqual(cfg.platforms, ['lark', 'dingtalk']);
+}
+
+function testEnsureDefaultsCustomer() {
+  const p = path.join(os.tmpdir(), `boss-watch-customer-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    ensureBossWatchDefaults(p, { customer: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.strictEqual(raw.enabled, false);
+    assert.deepStrictEqual(raw.bosses, []);
+    assert.strictEqual(raw.callHangup.enabled, false);
+    assert.ok(!JSON.stringify(raw).includes('ou_'));
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testEnsureDefaultsSelfUse() {
+  const p = path.join(os.tmpdir(), `boss-watch-self-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    ensureBossWatchDefaults(p);
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.deepStrictEqual(raw.platforms, ['lark', 'dingtalk']);
+    assert.strictEqual(raw.callHangup.enabled, true);
+    assert.deepStrictEqual(raw.bosses, SELF_USE_DEFAULT_CONFIG.bosses);
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testEnsureDefaultsNoOverwrite() {
+  const p = path.join(os.tmpdir(), `boss-watch-existing-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  const original = { enabled: false, bosses: ['王总'], platforms: ['lark'] };
+  try {
+    fs.writeFileSync(p, JSON.stringify(original));
+    ensureBossWatchDefaults(p, { customer: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.deepStrictEqual(raw, original);
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
 const tests = {
   testDefaultsWhenMissing, testCorruptFileFallsBack, testMergeManifest,
   testKeywordStatesFromManifest, testKeywordStatesDefaultEmpty,
-  testManifestTriggersOverride, testSplitBosses
+  testManifestTriggersOverride, testSplitBosses,
+  testCallHangupDefaultOff, testCallHangupFromFile,
+  testEnsureDefaultsCustomer, testEnsureDefaultsSelfUse, testEnsureDefaultsNoOverwrite
 };
 let failed = 0;
 for (const [name, fn] of Object.entries(tests)) {

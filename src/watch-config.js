@@ -16,21 +16,52 @@ const SELF_USE_DEFAULT_CONFIG = {
   enabled: true,
   larkCliPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd',
   bosses: ['ou_c213c1a364e0818e671eb4823b4b9e2f'],
+  platforms: ['lark', 'dingtalk'],
   cooldownSec: 30,
   quietHours: [],
+  callHangup: { enabled: true, platforms: ['dingtalk'], cooldownSec: 60 },
   voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
 };
+
+const CUSTOMER_DEFAULT_CONFIG = {
+  enabled: false,
+  bosses: [],
+  platforms: ['lark', 'dingtalk'],
+  cooldownSec: 30,
+  quietHours: [],
+  callHangup: { enabled: false, platforms: ['dingtalk'], cooldownSec: 60 },
+  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
+};
+
+function normalizePlatforms(raw) {
+  const allowed = new Set(['lark', 'dingtalk']);
+  const list = Array.isArray(raw) ? raw.filter((x) => allowed.has(x)) : [];
+  return list.length ? [...new Set(list)] : ['lark'];
+}
+
+function normalizeCallHangup(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const platforms = Array.isArray(src.platforms)
+    ? src.platforms.filter((x) => x === 'dingtalk')
+    : ['dingtalk'];
+  return {
+    enabled: src.enabled === true,
+    platforms: platforms.length ? platforms : ['dingtalk'],
+    cooldownSec: Number.isFinite(Number(src.cooldownSec)) ? Math.max(0, Number(src.cooldownSec)) : 60
+  };
+}
 
 // Writes the self-use default boss-watch.json when the file is missing, so the
 // portable EXE works out of the box on the developer's machine. Returns the
 // config path for convenience. Existing files are never overwritten.
-function ensureBossWatchDefaults(configPath) {
+function ensureBossWatchDefaults(configPath, { customer } = {}) {
   if (!configPath) return configPath;
   try {
     if (fs.existsSync(configPath)) return configPath;
     const dir = require('path').dirname(configPath);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(configPath, JSON.stringify(SELF_USE_DEFAULT_CONFIG, null, 2) + '\n', 'utf8');
+    const payload = customer === true ? CUSTOMER_DEFAULT_CONFIG : SELF_USE_DEFAULT_CONFIG;
+    fs.writeFileSync(configPath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
   } catch (_) { /* best-effort; loadWatchConfig falls back to safe defaults */ }
   return configPath;
 }
@@ -141,8 +172,13 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
     triggers,
     fallback,
     state,
-    keywordStates
+    keywordStates,
+    platforms: normalizePlatforms(fileCfg.platforms),
+    callHangup: normalizeCallHangup(fileCfg.callHangup)
   };
 }
 
-module.exports = { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, SELF_USE_DEFAULT_CONFIG };
+module.exports = {
+  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults,
+  SELF_USE_DEFAULT_CONFIG, CUSTOMER_DEFAULT_CONFIG, normalizePlatforms, normalizeCallHangup
+};
