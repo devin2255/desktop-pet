@@ -18,11 +18,16 @@ function testPetPositionForAnchor() {
 
 function testNearestVerticalEdge() {
   const call = { x: 1000, y: 100, width: 280, height: 160 };
-  const pet = { x: 200, y: 400, width: 200, height: 100 };
-  const edge = nearestVerticalEdge(pet, call);
-  assert.strictEqual(edge.side, 'left');
-  assert.strictEqual(edge.x, 1000);
-  assert.ok(edge.y >= 100 && edge.y <= 260);
+  const petLeft = { x: 200, y: 400, width: 200, height: 100 };
+  const edgeLeft = nearestVerticalEdge(petLeft, call);
+  assert.strictEqual(edgeLeft.side, 'left');
+  assert.strictEqual(edgeLeft.x, 1000);
+  assert.strictEqual(edgeLeft.y, 260);
+
+  const petRight = { x: 1400, y: 400, width: 200, height: 100 };
+  const edgeRight = nearestVerticalEdge(petRight, call);
+  assert.strictEqual(edgeRight.side, 'right');
+  assert.strictEqual(edgeRight.x, call.x + call.width);
 }
 
 function testInsetReject() {
@@ -48,8 +53,13 @@ function testOverlap() {
 }
 
 function testMirror() {
-  assert.strictEqual(mirrorAnchorX({ x: 0.08, y: 0.38 }).x, 0.92);
-  assert.strictEqual(mirrorAnchorX({ x: 0.08, y: 0.38 }).y, 0.38);
+  const anchor = { x: 0.08, y: 0.38 };
+  assert.strictEqual(mirrorAnchorX(anchor).x, 0.08);
+  assert.strictEqual(mirrorAnchorX(anchor).y, 0.38);
+  assert.strictEqual(mirrorAnchorX(anchor, false).x, 0.08);
+  assert.strictEqual(mirrorAnchorX(anchor, false).y, 0.38);
+  assert.strictEqual(mirrorAnchorX(anchor, true).x, 0.92);
+  assert.strictEqual(mirrorAnchorX(anchor, true).y, 0.38);
 }
 
 const tests = { testPetPositionForAnchor, testNearestVerticalEdge, testInsetReject, testOverlap, testMirror };

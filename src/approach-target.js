@@ -49,7 +49,7 @@ function anchorsOverlap(petBounds, anchor, targetRect) {
 }
 
 function mirrorAnchorX(anchor, mirrored) {
-  if (mirrored === false) return { x: Number(anchor.x), y: Number(anchor.y) };
+  if (!mirrored) return { x: Number(anchor.x), y: Number(anchor.y) };
   return { x: 1 - Number(anchor.x), y: Number(anchor.y) };
 }
 
