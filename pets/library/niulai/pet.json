@@ -1,0 +1,553 @@
+{
+  "schemaVersion": 1,
+  "packageVersion": "1.0.0",
+  "id": "niulai",
+  "name": "牛来",
+  "description": "办公嘴替小黄牛。致敬电影《牛来》人设，非官方周边。致敬电影人设，非官方授权周边。",
+  "personality": [
+    "胆小",
+    "躺平",
+    "嘴碎",
+    "被点到突然燃"
+  ],
+  "speechGender": "male",
+  "startupGreeting": "打工人，牛来了。",
+  "defaultSize": "small",
+  "preview": "preview.png",
+  "normalizationMetric": "alpha-area-v1",
+  "animations": {
+    "idle": {
+      "frames": [
+        "animations/idle/01.png",
+        "animations/idle/02.png",
+        "animations/idle/03.png",
+        "animations/idle/04.png"
+      ],
+      "durations": [
+        480,
+        360,
+        320,
+        480
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "walk": {
+      "frames": [
+        "animations/walk/01.png",
+        "animations/walk/02.png",
+        "animations/walk/03.png",
+        "animations/walk/04.png",
+        "animations/walk/05.png",
+        "animations/walk/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "sit": {
+      "frames": [
+        "animations/sit/01.png",
+        "animations/sit/02.png",
+        "animations/sit/03.png",
+        "animations/sit/04.png"
+      ],
+      "durations": [
+        220,
+        240,
+        280,
+        1800
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "sleep": {
+      "frames": [
+        "animations/sleep/01.png",
+        "animations/sleep/02.png",
+        "animations/sleep/03.png",
+        "animations/sleep/04.png"
+      ],
+      "durations": [
+        700,
+        700,
+        500,
+        1800
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "reaction": {
+      "frames": [
+        "animations/reaction/01.png",
+        "animations/reaction/02.png",
+        "animations/reaction/03.png",
+        "animations/reaction/04.png"
+      ],
+      "durations": [
+        180,
+        220,
+        280,
+        1600
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "crawl": {
+      "frames": [
+        "animations/crawl/01.png",
+        "animations/crawl/02.png",
+        "animations/crawl/03.png",
+        "animations/crawl/04.png",
+        "animations/crawl/05.png",
+        "animations/crawl/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "drag": {
+      "frames": [
+        "animations/drag/01.png",
+        "animations/drag/02.png",
+        "animations/drag/03.png",
+        "animations/drag/04.png",
+        "animations/drag/05.png",
+        "animations/drag/06.png"
+      ],
+      "durations": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "climb": {
+      "frames": [
+        "animations/climb/01.png",
+        "animations/climb/02.png",
+        "animations/climb/03.png",
+        "animations/climb/04.png",
+        "animations/climb/05.png",
+        "animations/climb/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "perch": {
+      "frames": [
+        "animations/perch/01.png",
+        "animations/perch/02.png",
+        "animations/perch/03.png",
+        "animations/perch/04.png"
+      ],
+      "durations": [
+        420,
+        420,
+        420,
+        420
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "hang": {
+      "frames": [
+        "animations/hang/01.png",
+        "animations/hang/02.png",
+        "animations/hang/03.png",
+        "animations/hang/04.png"
+      ],
+      "durations": [
+        220,
+        220,
+        220,
+        1600
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "fall": {
+      "frames": [
+        "animations/fall/01.png",
+        "animations/fall/02.png",
+        "animations/fall/03.png",
+        "animations/fall/04.png"
+      ],
+      "durations": [
+        120,
+        120,
+        120,
+        120
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "impact": {
+      "frames": [
+        "animations/impact/01.png",
+        "animations/impact/02.png",
+        "animations/impact/03.png",
+        "animations/impact/04.png"
+      ],
+      "durations": [
+        140,
+        180,
+        220,
+        900
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "recover": {
+      "frames": [
+        "animations/recover/01.png",
+        "animations/recover/02.png",
+        "animations/recover/03.png",
+        "animations/recover/04.png",
+        "animations/recover/05.png",
+        "animations/recover/06.png"
+      ],
+      "durations": [
+        160,
+        160,
+        180,
+        200,
+        260,
+        700
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "call-climb": {
+      "frames": [
+        "animations/call-climb/01.png",
+        "animations/call-climb/02.png",
+        "animations/call-climb/03.png",
+        "animations/call-climb/04.png",
+        "animations/call-climb/05.png",
+        "animations/call-climb/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "call-mom-enter": {
+      "frames": [
+        "animations/call-mom-enter/01.png",
+        "animations/call-mom-enter/02.png",
+        "animations/call-mom-enter/03.png",
+        "animations/call-mom-enter/04.png"
+      ],
+      "durations": [
+        200,
+        240,
+        280,
+        800
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "call-mom-walk": {
+      "frames": [
+        "animations/call-mom-walk/01.png",
+        "animations/call-mom-walk/02.png",
+        "animations/call-mom-walk/03.png",
+        "animations/call-mom-walk/04.png",
+        "animations/call-mom-walk/05.png",
+        "animations/call-mom-walk/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "call-mom-kick": {
+      "frames": [
+        "animations/call-mom-kick/01.png",
+        "animations/call-mom-kick/02.png",
+        "animations/call-mom-kick/03.png",
+        "animations/call-mom-kick/04.png"
+      ],
+      "durations": [
+        180,
+        220,
+        280,
+        900
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    }
+  },
+  "interactionActions": {
+    "drag": {
+      "action": "drag"
+    },
+    "climb": {
+      "action": "climb",
+      "anchor": {
+        "x": 0.52,
+        "y": 0.48
+      }
+    },
+    "perch": {
+      "action": "perch",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.55
+      }
+    },
+    "hang": {
+      "action": "hang",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.08
+      }
+    },
+    "fall": {
+      "action": "fall"
+    },
+    "impact": {
+      "action": "impact"
+    },
+    "recover": {
+      "action": "recover"
+    }
+  },
+  "sequences": {
+    "boss-call": {
+      "contacts": {
+        "climb": {
+          "action": "call-climb",
+          "anchor": {
+            "x": 0.08,
+            "y": 0.38
+          }
+        },
+        "hangup": {
+          "action": "call-mom-kick",
+          "anchor": {
+            "x": 0.72,
+            "y": 0.96
+          }
+        }
+      },
+      "stages": [
+        {
+          "action": "call-climb",
+          "approachTarget": "incoming-call-edge",
+          "messages": [
+            "妈妈！"
+          ],
+          "messageLoop": true,
+          "messageGapMs": 1200,
+          "timeoutMs": 4000,
+          "speechGender": "male"
+        },
+        {
+          "action": "call-mom-enter",
+          "message": "牛来？",
+          "duration": 1000,
+          "speechGender": "female"
+        },
+        {
+          "action": "call-mom-walk",
+          "approachTarget": "incoming-call-reject",
+          "timeoutMs": 4000,
+          "speechGender": "female"
+        },
+        {
+          "action": "call-mom-kick",
+          "duration": 1000,
+          "speechGender": "female"
+        },
+        {
+          "action": "idle",
+          "duration": 0,
+          "restorePosition": true
+        }
+      ]
+    }
+  },
+  "behavior": {
+    "random": [
+      {
+        "state": "walk",
+        "weight": 30,
+        "minDuration": 1600,
+        "maxDuration": 4000
+      },
+      {
+        "state": "sit",
+        "weight": 25,
+        "minDuration": 4500,
+        "maxDuration": 7000,
+        "message": "先趴着。筐还没到。"
+      },
+      {
+        "state": "reaction",
+        "weight": 25,
+        "minDuration": 2400,
+        "maxDuration": 3600,
+        "message": "点到我了？那我站一下。"
+      },
+      {
+        "state": "sleep",
+        "weight": 20,
+        "minDuration": 5000,
+        "maxDuration": 8000
+      }
+    ],
+    "perched": [
+      {
+        "state": "perch",
+        "weight": 100,
+        "minDuration": 5200,
+        "maxDuration": 8000,
+        "idleMinMs": 25000,
+        "idleMaxMs": 50000,
+        "message": "不敢跳。溪还没过。"
+      }
+    ]
+  },
+  "contextMenuActions": [
+    {
+      "id": "stand-up",
+      "label": "站起来",
+      "action": "reaction",
+      "message": "我来了。",
+      "duration": 2400
+    },
+    {
+      "id": "dream-sleep",
+      "label": "睡会儿做梦",
+      "action": "sleep",
+      "message": "眼前一黑。做梦去。",
+      "duration": 5000
+    },
+    {
+      "id": "boss-call",
+      "label": "演一出来电",
+      "sequence": "boss-call"
+    }
+  ],
+  "watch": {
+    "state": "reaction",
+    "keywordStates": {
+      "加班": "crawl"
+    },
+    "keywords": {
+      "画饼": [
+        "这饼我梦里见过。醒来还是饼。",
+        "又画饼。我梦里那张还圆一点。"
+      ],
+      "吹牛": [
+        "你这牛，还不如我豹拉哥。",
+        "这牛吹的，云雀都懒得记。"
+      ],
+      "加班": [
+        "又迁徙是吧。筐还越走越小。",
+        "今晚再走一截，我还不会站。"
+      ],
+      "甩锅": [
+        "狼来了？先把我推出去是吧。",
+        "这锅狗都不碰。"
+      ]
+    },
+    "triggers": {
+      "画饼": [
+        "画饼",
+        "上市",
+        "期权",
+        "年终奖",
+        "分红",
+        "升职",
+        "加薪",
+        "亏待",
+        "功劳",
+        "融资",
+        "不会亏待"
+      ],
+      "吹牛": [
+        "吹牛",
+        "人脉",
+        "搞得定",
+        "包在我身上",
+        "小意思",
+        "当年"
+      ],
+      "加班": [
+        "今晚加班",
+        "周末来一趟",
+        "线上对齐",
+        "EOD",
+        "加班"
+      ],
+      "甩锅": [
+        "你看一下",
+        "协同一下",
+        "同步一下",
+        "帮忙看下",
+        "背锅"
+      ]
+    },
+    "fallback": {
+      "text": "云雀又来报信了。我躺着听。"
+    }
+  }
+}
