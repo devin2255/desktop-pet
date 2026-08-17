@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-const { validateManifest } = require('../src/petpack-validator');
+const { referencedFiles, validateManifest } = require('../src/petpack-validator');
 
 function makeAnimation(action, frameCount, loop = false) {
   const frames = [];
@@ -272,5 +272,47 @@ assert.throws(
     }
   }), '', false)
 );
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        stages: [
+          {
+            action: 'call-climb',
+            approachTarget: 'incoming-call-edge',
+            timeoutMs: 4000,
+            speechAudio: ''
+          },
+          { action: 'call-mom-kick', timeoutMs: 1200 },
+          { action: 'idle', duration: 0 }
+        ]
+      }
+    }
+  }), '', false),
+  /speechAudio 路径不合法/
+);
+
+for (const timeoutMs of [10001, -1, 1.5]) {
+  assert.throws(
+    () => validateManifest(bossCallManifest({
+      sequences: {
+        'boss-call': {
+          ...bossCallManifest().sequences['boss-call'],
+          stages: [
+            { action: 'call-climb', approachTarget: 'incoming-call-edge', timeoutMs },
+            { action: 'call-mom-kick', timeoutMs: 1200 },
+            { action: 'idle', duration: 0 }
+          ]
+        }
+      }
+    }), '', false),
+    /timeoutMs/,
+    `timeoutMs ${timeoutMs} must throw`
+  );
+}
+
+assert(referencedFiles(bossCallManifest()).has('audio/call-mom.mp3'));
 
 console.log('test-sequences-schema: ok');

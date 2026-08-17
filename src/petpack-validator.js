@@ -350,7 +350,14 @@ function validateManifest(manifest, root = '', requireFiles = false) {
           throw new Error(`sequences.${sequenceId}.stages[${index}].waitForClick 必须是布尔值`);
         }
         if (stage.speechAudio !== undefined) {
-          assertAudioField(stage.speechAudio, `sequences.${sequenceId}.stages[${index}].speechAudio`);
+          const speechAudioLabel = `sequences.${sequenceId}.stages[${index}].speechAudio`;
+          if (typeof stage.speechAudio !== 'string' || !stage.speechAudio) {
+            throw new Error(`${speechAudioLabel} 路径不合法`);
+          }
+          safeRelative(stage.speechAudio);
+          if (!AUDIO_EXTENSIONS.has(path.posix.extname(stage.speechAudio).toLowerCase())) {
+            throw new Error(`${speechAudioLabel} 只支持 mp3/wav/ogg`);
+          }
         }
         if (stage.speechGender !== undefined
           && stage.speechGender !== 'male'
