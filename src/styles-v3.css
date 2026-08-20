@@ -24,7 +24,8 @@ body { -webkit-app-region: no-drag; }
 .state-walk-left .pet-image,
 .state-crawl-left .pet-image,
 .state-drag-left .pet-image,
-.state-climb-left .pet-image {
+.state-climb-left .pet-image,
+.state-call-mom-walk-left .pet-image {
   transform: scaleX(-1) scale(var(--action-scale, 1));
 }
 .ground {

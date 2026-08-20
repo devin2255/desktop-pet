@@ -1,105 +1,64 @@
-# Task 3 Report: edge-voice.js — edge-tts 语音合成
+# Task 3 Report: 窗口互动 + 跪爬绿幕条
 
-## What I Implemented
+**Date:** 2026-08-12  
+**Branch:** `feature/brother-judge-bubble-copy`  
+**Status:** DONE  
+**Commits:** none（未改 `pet.json` / library / `main-v3.js`；未提交）
 
-- **`src/edge-voice.js`**: Module exporting `createVoiceSynthesizer({ cacheDir, voice = 'zh-CN-YunxiNeural', rate = '+0%', loader })`.
-  - Hash key = `sha256(text + voice + rate)` first 32 hex chars → filename `<hash>.mp3`.
-  - Cache hit (file exists) returns `Promise<{ url: 'voice-cache://<hash>.mp3' }>` immediately.
-  - Cache miss: loads tts via `loader` (or default `require('edge-tts').tts`), writes Buffer to `cacheDir/<hash>.mp3`, returns `{ url }`.
-  - Any exception inside synthesize returns `null` (never throws).
-  - Module-level mutual-exclusion chain (`chain`) serializes synthesis calls per synthesizer instance to prevent thundering-herd on the edge-tts network endpoint.
-  - `dispose()` resets the chain.
-- **`scripts/test-edge-voice.js`**: Two async tests (`testCacheHit`, `testNetworkFailureReturnsNull`) using a `loader` injection so tests never hit the network.
-- **`package.json`**: Added `"edge-tts": "^1.0.1"` to dependencies; appended `&& node scripts/test-edge-voice.js` to `test:js` after `test-watch-config.js`.
-- **`package-lock.json`**: Updated by `npm install --save edge-tts@^1.0.1` (added 3 packages: edge-tts + transitive deps).
+## Inputs
 
-## TDD Evidence
+- PRIMARY: `pets/work/brother-judge/source/refs/master-realistic.png`（USER-CONFIRMED）
+- Face: `pets/work/brother-judge/source/refs/ref-face-closeup.png`
+- Portrait: `pets/work/brother-judge/source/refs/ref-portrait.png`
+- Identity: `pets/work/brother-judge/IDENTITY.md`
+- Style anchor: Task 2 已通过标准条 + Task 2 FIX 流程（逐帧生成，禁止整条一次出多格）
 
-### RED (Step 3)
+## Method (Task 2 lesson applied)
 
-Command: `node scripts/test-edge-voice.js`
+1. **每帧单独** `GenerateImage`（共 40 帧），`reference_image_paths` = master + face-closeup + portrait。
+2. Python 色键合成等宽横条：cell `400×500`，侧边约 12% gutter，脚底基线对齐，背景强制纯 `#00FF00`。
+3. **格间 pairwise MSE** 校验：任一近克隆对（≈0）则重生该帧；本批全部 `min_mse >> 0`。
+4. 产出：`pets/work/brother-judge/source/realistic/{drag,climb,perch,hang,fall,impact,recover,crawl}-chroma.png`
+5. 原件归档：
+   - 逐帧：`.../generated-originals/task3-frames-20260812-153510/`
+   - 条带：`.../generated-originals/{name}-chroma-20260812-153510.png`
+   - MSE JSON：`.../generated-originals/task3-mse-20260812-153510.json`
 
-```
-node:internal/modules/cjs/loader:1404
-  throw err;
-  ^
-Error: Cannot find module '../src/edge-voice'
-Require stack:
-- D:\Vibe_Coding\desktop-pet\scripts\test-edge-voice.js
-    ...
-    at Object.<anonymous> (D:\Vibe_Coding\desktop-pet\scripts\test-edge-voice.js:6:36)
-    ...
-  code: 'MODULE_NOT_FOUND',
-EXIT=1
-```
+## Per-strip results
 
-### GREEN (Step 5)
+| Strip | Path | Frames | Visual check | MSE / differ-check |
+| --- | --- | --- | --- | --- |
+| drag | `pets/work/brother-judge/source/realistic/drag-chroma.png` | 6 | YES — 悬空挣扎循环；抬臂/踢腿/蜷身/张肢相位可辨；帽翅在格内 | min_mse≈**3585**（pair 1–6）；全对 > 3500；非克隆 |
+| climb | `pets/work/brother-judge/source/realistic/climb-chroma.png` | 6 | YES — 侧边攀爬循环；手脚交替上提；无窗框线 | min_mse≈**2069**（pair 4–5）；全对 > 2000 |
+| perch | `pets/work/brother-judge/source/realistic/perch-chroma.png` | 4 | YES — 坐姿上边框感；倚靠/眨眼/hold 可辨 | min_mse≈**3289**（pair 3–4）；全对 > 3200 |
+| hang | `pets/work/brother-judge/source/realistic/hang-chroma.png` | 4 | YES — 双手上举吊挂；左右摆动与回中 | min_mse≈**2339**（pair 1–4）；全对 > 2300 |
+| fall | `pets/work/brother-judge/source/realistic/fall-chroma.png` | 4 | YES — 坠落循环；张臂/举手/翻滚/回正 | min_mse≈**2469**（pair 1–4）；全对 > 2400 |
+| impact | `pets/work/brother-judge/source/realistic/impact-chroma.png` | 4 | YES — 落地冲击；深蹲撑地→反弹→跪稳 | min_mse≈**4492**（pair 1–4）；全对 > 4400 |
+| recover | `pets/work/brother-judge/source/realistic/recover-chroma.png` | 6 | YES — 坐地→四点→半跪→深蹲→站起 | min_mse≈**3000**（pair 5–6）；全对 > 3000 |
+| crawl | `pets/work/brother-judge/source/realistic/crawl-chroma.png` | 6 | YES — 跪爬朝右；手脚交替推进；非克隆 | min_mse≈**1791**（pair 2–4）；全对 > 1700（仍远高于克隆≈0） |
 
-Command: `node scripts/test-edge-voice.js`
+## Cross-strip identity check
 
-```
-edge-voice: all tests passed
-EXIT=0
-```
+- 写实东亚男性、短黑发、细银圆框眼镜、白背心、深色短裤、人字拖：八条一致。
+- 黑判官帽 + 长白珠边帽翅：普遍可见且在格内。
+- 无动漫大眼、无工装衬衫、无文字/地面阴影底板/运动线。
+- 绿幕：合成后实心 `#00FF00`。
 
-Both async tests pass: `testCacheHit` (verifies 2nd call hits cache — loader wrapped counter stays at 1) and `testNetworkFailureReturnsNull` (loader throws → synthesize returns null).
+## Concerns / follow-ups
 
-## npm run test:js Result
+1. **perch**：合成后更像“地面坐姿”而非明显“双腿悬垂在上边框外”；若切帧后窗边坐感弱，可整条重生并强调悬空腿。
+2. **climb / crawl**：部分帧偏正面而非纯侧面；循环可读，但侧边攀爬/朝右跪爬的剪影纯度一般。
+3. **crawl min_mse 最低（≈1791）**：仍非克隆，但姿态相位不如 walk 教科书级；切帧后若跪爬“跳步”，整条重生勿擦碎片。
+4. **人字拖配色** 条间仍有白带/黑带漂移（同 Task 2）。
+5. **帽翅白珠边** 部分帧偏弱/偏细黑翅。
 
-Command: `npm run test:js`
+## Out of scope (not touched)
 
-Full chain (24 node steps including the new `test-edge-voice.js`) passed cleanly:
+- `pets/library/brother-judge/pet.json`
+- library 动画帧目录
+- `src/main-v3.js`
+- 切帧 / 安全门禁 / petpack / EXE（后续任务）
 
-```
-renderer interaction regression checks passed
-petpack archive security checks passed
-test-sequences-schema: ok
-window interaction geometry checks passed
-window discovery checks passed
-interaction controller checks passed
-topmost guard checks passed
-runtime CDP contract tests passed
-laopo petpack regression checks passed
-startup greeting checks passed
-test-sequence-controller: ok
-ok - testDedupe
-... (watch-rules all tests passed)
-watch-rules: all tests passed
-... (watch-config all tests passed)
-watch-config: all tests passed
-edge-voice: all tests passed
-EXIT=0
-```
+## Ready for next task
 
-Output is pristine — no stray logs, no warnings, no `console.error` from any test.
-
-## Tests Did NOT Hit the Network (Confirmed)
-
-Both tests inject a `loader` option into `createVoiceSynthesizer`:
-
-- `testCacheHit`: `loader: () => fakeTts` (wraps with counter). First call uses fakeTts returning `Buffer.from('fake-mp3:你好')`; second call short-circuits via `fs.existsSync(filePath)` cache check before any loader is invoked. The wrapped counter asserts `count === 1` confirming the network was not hit twice.
-- `testNetworkFailureReturnsNull`: `loader: () => { throw new Error('net down'); }` — the loader itself throws synchronously, simulating a network failure. The synthesize catch returns `null`. No HTTP/WS connection to edge-tts is attempted.
-
-The default `loadTts = loader || (() => require('edge-tts').tts)` only requires `edge-tts` when no loader is injected — tests always inject, so the `edge-tts` package is never invoked at runtime during tests. (It is installed so `require` resolves at module-eval time only if `loader` is absent, which the tests don't trigger.)
-
-## Files Changed
-
-- `D:/Vibe_Coding/desktop-pet/src/edge-voice.js` (new, 29 lines)
-- `D:/Vibe_Coding/desktop-pet/scripts/test-edge-voice.js` (new, 39 lines)
-- `D:/Vibe_Coding/desktop-pet/package.json` (dependencies + test:js chain)
-- `D:/Vibe_Coding/desktop-pet/package-lock.json` (npm install regeneration)
-
-## Self-Review Findings
-
-- **Completeness**: Implements the exact interface from the brief — `synthesize` returns `Promise<{url}|null>`, `dispose` resets chain, `loader` injection supported. Matches brief code character-for-character (modulo whitespace).
-- **Never throws**: The try/catch inside the chain task swallows any error (loader throw, tts rejection, write failure) and returns `null`. Verified by `testNetworkFailureReturnsNull`.
-- **Hash filename**: `sha256(text+voice+rate).slice(0,32)` produces 32 hex chars → `^[a-f0-9]{32}\.mp3$` matches. URL format `voice-cache://<hash>.mp3` matches test assertion `a.url.startsWith('voice-cache://')`.
-- **Mutual exclusion**: `chain = task.catch(() => {})` keeps the chain alive even when a task returns null, so subsequent calls still serialize. Correct.
-- **YAGNI**: No extra features — no rate-limit config, no TTL, no background prewarm. Brief specified the surface and nothing more was added.
-- **Test hygiene**: Tests use `os.tmpdir()` + `mkdtempSync` for isolation (no cross-test contamination), inject `loader`, exit 1 on failure, log only the single success line on pass. Pristine output confirmed.
-- **edge-tts version**: installed resolved version is within `^1.0.1` range; package.json declares `^1.0.1` as required.
-- **No concerns** identified. Implementation is minimal, correct, and faithful to the brief.
-
-## Commits
-
-- `246aa6b` feat: add edge-tts voice synthesizer with cache
+八条互动/跪爬 chroma 已落盘，逐帧差异校验通过，可进入切帧与 `interactionActions` 接线。

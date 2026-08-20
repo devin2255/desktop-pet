@@ -42,7 +42,12 @@ function baseActionName(value) {
 function resolveAction(state, logicalRole) {
   const role = logicalRole || state;
   const action = resolveLogicalRole(baseActionName(role));
-  const normalized = baseActionName(action);
+  let normalized = baseActionName(action);
+  // Directional suffixed states (e.g. call-mom-walk-left) fall back to the
+  // base animation; the -left part only drives CSS mirroring.
+  if (normalized.endsWith('-left') && !manifest.animations[normalized]) {
+    normalized = normalized.slice(0, -5);
+  }
   if (normalized === 'walk-left' || normalized === 'walk-right') return 'walk';
   if (normalized === 'crawl-left' || normalized === 'crawl-right') return 'crawl';
   if (normalized === 'clingy' || normalized === 'shy') return 'reaction';

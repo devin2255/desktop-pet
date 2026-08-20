@@ -1,119 +1,67 @@
-### Task 5: main-v3.js 集成 — 协议、sendState 修正、启动/停止
+### Task 5: 去背、切帧、入库、打包
 
 **Files:**
-- Modify: `src/main-v3.js`
+- Create: `pets/work/brother-judge/source/realistic/transparent/*.png`
+- Create: `pets/work/brother-judge/source/realistic/processed/<action>/*.png`
+- Replace: `pets/library/brother-judge/animations/**`
+- Replace: `pets/library/brother-judge/preview.png`（用 idle/01）
+- Replace: `pets/packages/brother-judge.petpack`
 
-**Changes:**
+**Interfaces:**
+- Consumes: 全部 `*-chroma.png`
+- Produces: 通过安全门禁的库内帧 + 校验通过的 petpack
 
-- [ ] **Step 1: 注册 voice-cache 协议**
+- [ ] **Step 1: chroma 去背**
 
-`protocol.registerSchemesAsPrivileged` 数组（33-44 行）追加：
+对 `source/realistic/` 下每条 `*-chroma.png` 使用项目既定参数：
 
-```js
-  {
-    scheme: 'voice-cache',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
-  }
+```text
+--auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill
 ```
 
-- [ ] **Step 2: 修正 sendState 的 speechAudio 改写逻辑（281-287 行）**
+输出到 `source/realistic/transparent/<action>.png`（工具名以本机已安装的 `imagegen`/既有 chroma helper 为准；与 laopo/boss 历史制作命令一致）。
 
-把：
+- [ ] **Step 2: 安全切帧**
 
-```js
-  let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
-  if (speechAudio && !speechAudio.startsWith('pet-asset:') && activeManifest) {
-    speechAudio = petAssetUrl(activeManifest.id, speechAudio);
-  }
+```powershell
+python skills/desktop-pet-maker/scripts/process_animation_strips.py `
+  --input-dir pets/work/brother-judge/source/realistic/transparent `
+  --output-dir pets/work/brother-judge/source/realistic/processed `
+  --action idle:4 --action walk:6 --action sit:4 --action sleep:4 --action reaction:4 `
+  --action drag:6 --action climb:6 --action perch:4 --action hang:4 --action fall:4 `
+  --action impact:4 --action recover:6 --action crawl:6 --action kowtow:6
 ```
 
-改为：
+Expected: 全部 action 通过；任一条失败则回到对应 Task 重生成该条，禁止擦碎片放行。
 
-```js
-  let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
-  // 带协议前缀（pet-asset:/voice-cache:/data:/file: 等）视为完整 URL，否则按资源包相对路径改写
-  if (speechAudio && !/^[a-z][a-z0-9+.-]*:/i.test(speechAudio) && activeManifest) {
-    speechAudio = petAssetUrl(activeManifest.id, speechAudio);
-  }
+- [ ] **Step 3: 复制入库并更新 preview**
+
+```powershell
+$actions = 'idle','walk','sit','sleep','reaction','drag','climb','perch','hang','fall','impact','recover','crawl','kowtow'
+foreach ($a in $actions) {
+  New-Item -ItemType Directory -Force -Path "pets/library/brother-judge/animations/$a" | Out-Null
+  Copy-Item "pets/work/brother-judge/source/realistic/processed/$a/*" "pets/library/brother-judge/animations/$a/" -Force
+}
+Copy-Item "pets/library/brother-judge/animations/idle/01.png" "pets/library/brother-judge/preview.png" -Force
 ```
 
-- [ ] **Step 3: 文件顶部 require 新模块（19 行后）**
+- [ ] **Step 4: 校验与打包**
 
-```js
-const { createMessageWatcher, parseEventLine } = require('./message-watcher');
-const { loadWatchConfig } = require('./watch-config');
-const { createVoiceSynthesizer } = require('./edge-voice');
+```powershell
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/library/brother-judge
+python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/brother-judge pets/packages/brother-judge.petpack
+python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/brother-judge.petpack
+python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v
+node scripts/test-renderer-interaction.js
 ```
 
-并声明模块级变量（66 行 `let sequence;` 后）：
+Expected: 全部通过。
 
-```js
-let messageWatcher;
-```
+- [ ] **Step 5: Commit**
 
-- [ ] **Step 4: 在 `protocol.handle('pet-asset', ...)` 之后（752 行后）注册 voice-cache 处理器**
-
-```js
-    const voiceCacheRoot = path.join(app.getPath('userData'), 'voice-cache');
-    fs.mkdirSync(voiceCacheRoot, { recursive: true });
-    protocol.handle('voice-cache', async (request) => {
-      const name = decodeURIComponent(new URL(request.url).hostname + new URL(request.url).pathname.replace(/^\//, ''));
-      if (!/^[a-f0-9]{32}\.mp3$/.test(name)) throw new Error('拒绝访问非语音缓存文件');
-      const filePath = resolveInside(voiceCacheRoot, name);
-      const data = await fs.promises.readFile(filePath);
-      return new Response(data, {
-        headers: { 'content-type': 'audio/mpeg', 'access-control-allow-origin': '*' }
-      });
-    });
-```
-
-注意：`voice-cache://<hash>.mp3` 在标准 scheme 下 hostname 与 pathname 的拆分——实现时以实际 `new URL('voice-cache://abc.mp3')` 输出为准（hostname 可能为 `abc.mp3`、pathname 为空或 `/`），用上面拼接逻辑兜底；若解析异常，回退为仅取 hostname。提交前用 `node -e` 实际验证一次并固定写法。
-
-- [ ] **Step 5: 启动集成（whenReady 内 `createTray()` 之后，770 行后）**
-
-```js
-    const watchConfig = loadWatchConfig({
-      configPath: path.join(app.getPath('userData'), 'boss-watch.json'),
-      manifestWatch: activeManifest?.watch,
-      larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
-    });
-    if (watchConfig.enabled) {
-      const voice = createVoiceSynthesizer({
-        cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
-        voice: watchConfig.voice.voice,
-        rate: watchConfig.voice.rate
-      });
-      messageWatcher = createMessageWatcher({
-        rules: watchConfig,
-        voice,
-        sendState: (state, message, speech, opts) => {
-          sendState(state, message, speech, state, opts || {});
-        },
-        larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
-      });
-      messageWatcher.start();
-    }
-```
-
-同时把 `activeManifest?.watch` 传给 publicManifest 不需要——renderer 不读 watch；仅主进程消费。若用户希望开发版也能开，确保 `boss-watch.json` 存在即 enabled——本机开发调试时手动在 userData 放该文件即可（userData 路径为 `%APPDATA%/desktop-pet` 或按 app name，实际以运行日志为准）。
-
-- [ ] **Step 6: 退出清理（before-quit，780 行）**
-
-```js
-  messageWatcher?.stop();
-```
-
-- [ ] **Step 7: 语法检查 + 回归**
-
-Run: `node --check src/main-v3.js && npm run test:js`
-Expected: 全绿（含新增 test-watch-rules / test-watch-config / test-message-watcher）
-
-- [ ] **Step 8: 提交**
-
-```bash
-git add src/main-v3.js
-git commit -m "feat: integrate boss watch radar into player main process"
+```powershell
+git add pets/library/brother-judge pets/packages/brother-judge.petpack
+git commit -m "feat: photoreal brother-judge frames with kowtow"
 ```
 
 ---
-

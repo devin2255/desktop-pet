@@ -30,6 +30,7 @@ function createSequenceController(deps) {
   const defaultMovePetWindow = asFn(deps.movePetWindow);
   const defaultGetApproachRect = asFn(deps.getApproachRect);
   const defaultOnContact = asFn(deps.onContact);
+  const defaultOnWalkFacing = asFn(deps.onWalkFacing);
 
   let active = false;
   let stageIndex = 0;
@@ -40,16 +41,19 @@ function createSequenceController(deps) {
   let pollTimerId = null;
   let restoreFrom = null;
   let contacted = false;
+  const finishCallbacks = [];
   let getPetBounds = defaultGetPetBounds;
   let movePetWindow = defaultMovePetWindow;
   let getApproachRect = defaultGetApproachRect;
   let onContact = defaultOnContact;
+  let onWalkFacing = defaultOnWalkFacing;
 
   function resetRunCallbacks() {
     getPetBounds = defaultGetPetBounds;
     movePetWindow = defaultMovePetWindow;
     getApproachRect = defaultGetApproachRect;
     onContact = defaultOnContact;
+    onWalkFacing = defaultOnWalkFacing;
     restoreFrom = null;
   }
 
@@ -58,6 +62,7 @@ function createSequenceController(deps) {
     movePetWindow = asFn(session?.movePetWindow) || defaultMovePetWindow;
     getApproachRect = asFn(session?.getApproachRect) || defaultGetApproachRect;
     onContact = asFn(session?.onContact) || defaultOnContact;
+    onWalkFacing = asFn(session?.onWalkFacing) || defaultOnWalkFacing;
     restoreFrom = snapshotPoint(session?.restoreFrom);
     if (!restoreFrom && getPetBounds) {
       restoreFrom = snapshotPoint(getPetBounds());
@@ -101,6 +106,9 @@ function createSequenceController(deps) {
   function resolveDuration(stage) {
     if (stage.duration != null) {
       return stage.duration;
+    }
+    if (stage.timeoutMs != null) {
+      return stage.timeoutMs;
     }
     return 3000;
   }
@@ -182,7 +190,25 @@ function createSequenceController(deps) {
         y: rect.y + rect.height / 2
       };
       const pos = petPositionForAnchor(petSize, contact.anchor, target);
-      movePetWindow(pos.x, pos.y);
+      // Walk instead of teleport: each poll tick moves at most walkMaxStepPx
+      // toward the target so mom visibly strolls over to the hangup button.
+      const stepPx = Number(stage.walkMaxStepPx);
+      const maxStep = Number.isFinite(stepPx) && stepPx > 0 ? stepPx : 5;
+      const dx = pos.x - pet.x;
+      const dy = pos.y - pet.y;
+      const dist = Math.hypot(dx, dy);
+      let nextX;
+      let nextY;
+      if (dist <= maxStep) {
+        nextX = pos.x;
+        nextY = pos.y;
+      } else {
+        nextX = Math.round(pet.x + (dx / dist) * maxStep);
+        nextY = Math.round(pet.y + (dy / dist) * maxStep);
+      }
+      // Face the direction of travel: mirror the walk animation when moving left.
+      if (typeof onWalkFacing === 'function') onWalkFacing(nextX < pet.x - 1 ? 'left' : nextX > pet.x + 1 ? 'right' : null);
+      movePetWindow(nextX, nextY);
     }
   }
 
@@ -228,6 +254,13 @@ function createSequenceController(deps) {
     stageIndex = 0;
     contacted = false;
     resetRunCallbacks();
+    // sendState after active=false so main-process restorePetWindowSize can run.
+    // The last cinematic stage is sent while the sequence is still active and skips that restore.
+    sendState('idle');
+    const cbs = finishCallbacks.splice(0);
+    for (const cb of cbs) {
+      try { cb(); } catch (_) { /* callback errors must not break the sequence */ }
+    }
     scheduleBehavior(900);
   }
 
@@ -353,7 +386,8 @@ function createSequenceController(deps) {
     dispose,
     continueFromClick,
     isWaitingForClick: () => waitingForClick,
-    isActive: () => active
+    isActive: () => active,
+    onceFinished: (cb) => { finishCallbacks.push(typeof cb === 'function' ? cb : () => {}); }
   };
 }
 

@@ -257,43 +257,40 @@
       "holdLastFrame": true,
       "scale": 1
     },
-    "call-climb": {
+    "call-shout": {
       "frames": [
-        "animations/call-climb/01.png",
-        "animations/call-climb/02.png",
-        "animations/call-climb/03.png",
-        "animations/call-climb/04.png",
-        "animations/call-climb/05.png",
-        "animations/call-climb/06.png"
+        "animations/call-shout/01.png",
+        "animations/call-shout/02.png",
+        "animations/call-shout/03.png",
+        "animations/call-shout/04.png"
       ],
       "durations": [
-        140,
-        140,
-        140,
-        140,
-        140,
-        140
-      ],
-      "loop": true,
-      "holdLastFrame": false,
-      "scale": 1
-    },
-    "call-mom-enter": {
-      "frames": [
-        "animations/call-mom-enter/01.png",
-        "animations/call-mom-enter/02.png",
-        "animations/call-mom-enter/03.png",
-        "animations/call-mom-enter/04.png"
-      ],
-      "durations": [
-        200,
-        240,
-        280,
-        800
+        800,
+        1000,
+        1200,
+        2600
       ],
       "loop": false,
       "holdLastFrame": true,
       "scale": 1
+    },
+    "call-mom-approach": {
+      "frames": [
+        "animations/call-mom-approach/01.png",
+        "animations/call-mom-approach/02.png",
+        "animations/call-mom-approach/03.png",
+        "animations/call-mom-approach/04.png"
+      ],
+      "durations": [
+        150,
+        175,
+        200,
+        400
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1,
+      "skipScaleCheck": true
     },
     "call-mom-walk": {
       "frames": [
@@ -305,12 +302,12 @@
         "animations/call-mom-walk/06.png"
       ],
       "durations": [
-        140,
-        140,
-        140,
-        140,
-        140,
-        140
+        47,
+        47,
+        47,
+        47,
+        47,
+        47
       ],
       "loop": true,
       "holdLastFrame": false,
@@ -372,44 +369,40 @@
   "sequences": {
     "boss-call": {
       "contacts": {
-        "climb": {
-          "action": "call-climb",
-          "anchor": {
-            "x": 0.08,
-            "y": 0.38
-          }
-        },
         "hangup": {
           "action": "call-mom-kick",
           "anchor": {
-            "x": 0.72,
+            "x": 0.53,
             "y": 0.96
           }
         }
       },
       "stages": [
         {
-          "action": "call-climb",
-          "approachTarget": "incoming-call-edge",
+          "action": "call-shout",
           "messages": [
             "妈妈！"
           ],
           "messageLoop": true,
+          "speechLoop": false,
+          "speechAudio": "audio/call-mom.mp3",
           "messageGapMs": 1200,
-          "timeoutMs": 4000,
+          "duration": 5600,
           "speechGender": "male"
         },
         {
-          "action": "call-mom-enter",
+          "action": "call-mom-approach",
           "message": "牛来？",
-          "duration": 1000,
+          "speechAudio": "audio/mom-niulai.mp3",
+          "duration": 1500,
           "speechGender": "female"
         },
         {
           "action": "call-mom-walk",
           "approachTarget": "incoming-call-reject",
-          "timeoutMs": 4000,
-          "speechGender": "female"
+          "timeoutMs": 10000,
+          "speechGender": "female",
+          "walkMaxStepPx": 6
         },
         {
           "action": "call-mom-kick",
@@ -489,24 +482,49 @@
   "watch": {
     "state": "reaction",
     "keywordStates": {
-      "加班": "crawl"
+      "画饼": "perch",
+      "吹牛": "reaction",
+      "加班": "crawl",
+      "甩锅": "reaction",
+      "开会": "sit",
+      "PUA": "sleep"
     },
     "keywords": {
       "画饼": [
-        "这饼我梦里见过。醒来还是饼。",
-        "又画饼。我梦里那张还圆一点。"
+        "未来可期，我的现在先没了。",
+        "不会亏待，通常是先亏我。",
+        "功劳先记着，锅先背着，是这个流程吧。",
+        "饼越画越圆，我饭还是没吃上。"
       ],
       "吹牛": [
-        "你这牛，还不如我豹拉哥。",
-        "这牛吹的，云雀都懒得记。"
+        "这牛吹的，我都想认你当亲戚。",
+        "包在你身上？那锅也在我身上吧。",
+        "你这人脉听着挺广，怎么最后总连到我。",
+        "小意思是吧，那你自己上啊。"
       ],
       "加班": [
-        "又迁徙是吧。筐还越走越小。",
-        "今晚再走一截，我还不会站。"
+        "辛苦大家，通常只辛苦我们。",
+        "EOD之前做完？你不如让我原地迁徙。",
+        "周末来一趟，我这辈子是回不了溪边了。",
+        "临时处理一下，意思就是今晚别睡了。"
       ],
       "甩锅": [
-        "狼来了？先把我推出去是吧。",
-        "这锅狗都不碰。"
+        "你一说'看一下'，我就知道锅要飞过来了。",
+        "协同一下，翻译过来就是别问先干。",
+        "让我兜底？我自己还在坑底。",
+        "又支援，我像公司共享牛是吧。"
+      ],
+      "开会": [
+        "又对齐？我腿都没站稳，先把词对齐了。",
+        "闭环之前，先把我这口气闭上。",
+        "颗粒度这么细，怎么不把饼也切开分我一口。",
+        "复盘完记得复活我，我刚刚已经死过一次了。"
+      ],
+      "PUA": [
+        "一说成长，我就知道又要白干。",
+        "这机会你留着吧，我上次接完差点进筐。",
+        "信任我？那怎么总让我先试错。",
+        "你说我能扛，我听着像你想让我自己扛。"
       ]
     },
     "triggers": {
@@ -518,6 +536,7 @@
         "分红",
         "升职",
         "加薪",
+        "未来可期",
         "亏待",
         "功劳",
         "融资",
@@ -529,21 +548,49 @@
         "搞得定",
         "包在我身上",
         "小意思",
-        "当年"
+        "当年",
+        "资源很多",
+        "我来摆平"
       ],
       "加班": [
         "今晚加班",
         "周末来一趟",
         "线上对齐",
         "EOD",
-        "加班"
+        "加班",
+        "今晚处理下",
+        "临时改一下",
+        "先别下班"
       ],
       "甩锅": [
         "你看一下",
         "协同一下",
         "同步一下",
         "帮忙看下",
-        "背锅"
+        "背锅",
+        "你来跟一下",
+        "兜一下",
+        "支援一下"
+      ],
+      "开会": [
+        "对齐",
+        "复盘",
+        "闭环",
+        "抓手",
+        "颗粒度",
+        "汇报一下",
+        "方案再想想",
+        "开个会"
+      ],
+      "PUA": [
+        "成长",
+        "机会",
+        "年轻人",
+        "扛事",
+        "信任你",
+        "有挑战",
+        "锻炼你",
+        "结果导向"
       ]
     },
     "fallback": {

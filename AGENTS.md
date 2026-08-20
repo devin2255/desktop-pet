@@ -70,10 +70,16 @@ npm run build:customer -- --pet pets/packages/<pet-id>.petpack --name "<宠物�
 
 回答中必须给出下面这段可直接复制到新会话的 Prompt，并提醒用户先附上宠物照片再发送：
 
-完整当前分支提示词以 `docs/prompts/make-current-branch-pet.txt` 为准。回答中必须完整给出该文件正文（可复制块），并提醒用户先附照片再发送。摘要如下，不得用只含 idle/walk/sit/sleep/reaction 的旧短提示词代替：
+完整当前分支提示词以 `docs/prompts/make-current-branch-pet.txt` 为准（可配发同目录 PNG）。回答中必须完整给出该文件正文（可复制块），并提醒用户：先让新会话把 `feature/son-mode` 拉到本地，再附照片发送。摘要如下，不得用只含 idle/walk/sit/sleep/reaction 的旧短提示词代替：
 
 ```text
-请根据我附上的照片，使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
+先把当前分支代码拉到本地，再根据我附上的照片制作桌宠。没拉到最新代码前不要画帧、不要改播放器。
+仓库：https://github.com/devin2255/desktop-pet.git
+分支：feature/son-mode
+已有仓库：git fetch origin && git checkout feature/son-mode && git pull origin feature/son-mode
+没有仓库：git clone -b feature/son-mode https://github.com/devin2255/desktop-pet.git
+
+请使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
 不要修改播放器去写死这只宠物；身份、动画、文案、语音全部进 .petpack。
 
 宠物名字：<填写>
@@ -83,14 +89,14 @@ delivery-id：<小写英文或拼音>
 风格：<柔和写实 2D / 像素风；不填则默认>
 称呼：<爸 / 老公 / 主人 等>
 重点特征：<脸、毛色/发型、衣服、体型等>
-语音：<有 mp3 则接到 speechAudio；否则用文案+系统中文语音>
+语音：<有 mp3 则接到 speechAudio；没有预录音则写好文案+speechGender，用电脑自带中文语音合成，不要静音>
 特殊要求：<可不填>
 
-必须做出与当前分支同等能力：标准五动作；窗口互动 drag/climb/perch/hang/fall/impact/recover（手贴墙、坐窗屁股贴边、不要把窗框画进图）；crawl 跪爬；右键至少 2 项；startupGreeting；behavior.random 与坐窗特色动作；pet.json.watch 画饼/吹牛词库，triggers 含上市/功劳/期权等；有录音则 referencedFiles 收齐。
+必须做出与当前分支同等能力：标准五动作；窗口互动 drag/climb/perch/hang/fall/impact/recover（手贴墙、坐窗屁股贴边并左右腿交替晃、不要把窗框画进图）；crawl 跪爬；右键至少 2 项；startupGreeting；behavior.random 与坐窗特色动作（idleMinMs/idleMaxMs）；pet.json.watch 画饼/吹牛词库，triggers 含上市/功劳/期权等，吹牛可用 keywordStates 配专属动作；有录音则 referencedFiles 收齐，没有预录音则用电脑自带中文语音合成，不要静音。
 切帧前检查安全边距、串帧、完整肢体；失败重画，禁止只擦碎片。连播 50 次不得缩放平移；透明像素必须鼠标穿透。
 打包：python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/<id> pets/packages/<id>.petpack
 封装（不要用 npm 转发参数）：node scripts/build-customer.js --pet pets/packages/<id>.petpack --name "<程序名称>" --delivery-id <id>
-客户双击 EXE 后宠物必须直接出现。实际启动验证动画、穿透、拖动、攀爬、坐窗、吊挂、坠落、跪爬、漫游、右键、托盘、退出；有雷达则群发「@所有人 好好干，将来上市我记着大家的功劳」应触发画饼语音。交付 EXE、build-report.json 和验证结果，不要只交付 .petpack。
+客户双击 EXE 后宠物必须直接出现。实际启动验证动画、穿透、拖动、攀爬、坐窗晃腿、吊挂、坠落、跪爬、漫游、右键、托盘、退出；有雷达则群发「@所有人 好好干，将来上市我记着大家的功劳」应触发画饼语音。交付 EXE、build-report.json 和验证结果，不要只交付 .petpack。
 ```
 
 教程结尾应清楚说明整个流程：`附照片和信息 → 生成动作帧 → 透明背景与统一尺寸 → 验证 petpack → 一键封装 EXE → 实际启动检查 → 交付`。

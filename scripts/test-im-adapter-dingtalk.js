@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { insetRect, petPositionForAnchor, nearestVerticalEdge } = require('../src/approach-target');
 const { createDingtalkAdapter, resolveHangupAction, shouldInvokeReject } = require('../src/im-adapter-dingtalk');
+const { parseDwsJson, extractDingtalkMessage, formatDwsTime } = require('../src/im-adapter-dingtalk');
+const { isSystemContent } = require('../src/im-adapter-dingtalk');
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -274,6 +276,264 @@ function testPackWhitelistIncludesDingtalkAdapter() {
   assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
 }
 
+// ---------------------------------------------------------------------------
+// Message radar (dws chat message list polling)
+// ---------------------------------------------------------------------------
+
+function dtMessage(overrides = {}) {
+  return {
+    content: '好好干，将来上市我记着大家的功劳 @所有人',
+    createTime: '2026-08-19 16:42:19',
+    openConversationId: 'gid1',
+    openMessageId: 'msg-1',
+    sender: '张总',
+    senderOpenDingTalkId: 'boss01',
+    ...overrides
+  };
+}
+
+function dwsOutput(messages) {
+  return JSON.stringify({ success: true, result: { hasMore: false, messages, nextCursor: 0 } });
+}
+
+function msgRadarRules() {
+  // callHangup disabled isolates the message radar from voice-call polling.
+  return baseRules({ callHangup: { enabled: false, cooldownSec: 60 } });
+}
+
+async function testMessageRadarGroupAtAllEmits() {
+  const events = [];
+  const calls = [];
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: ['boss01'], groups: ['gid1'] }),
+    runDws: async (args) => {
+      calls.push(args);
+      return dwsOutput([dtMessage()]);
+    },
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: (event) => events.push(event)
+    });
+    await delay(450);
+    assert.strictEqual(events.length, 1, '群 @所有人 老板消息应 emit');
+    assert.strictEqual(events[0].platform, 'dingtalk');
+    assert.strictEqual(events[0].kind, 'message');
+    assert.strictEqual(events[0].senderId, 'boss01');
+    assert.strictEqual(events[0].senderName, '张总');
+    assert.strictEqual(events[0].chatType, 'group');
+    assert.ok(events[0].text.includes('上市'));
+    const firstCall = calls.find((c) => c.includes('--group'));
+    assert.ok(firstCall, '应通过 --group 拉群消息');
+    assert.ok(firstCall.includes('gid1'));
+    assert.ok(firstCall.includes('--direction'));
+    assert.ok(firstCall.includes('newer'));
+    assert.ok(firstCall.includes('--time'));
+  });
+}
+
+async function testMessageRadarGroupNonAtAllIgnored() {
+  const events = [];
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: ['boss01'], groups: ['gid1'] }),
+    runDws: async () => dwsOutput([dtMessage({ content: '今天天气不错', openMessageId: 'msg-2' })]),
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: (event) => events.push(event)
+    });
+    await delay(450);
+    assert.strictEqual(events.length, 0, '群消息不带 @所有人 不应 emit');
+  });
+}
+
+async function testMessageRadarP2PEmitsWithoutAtAll() {
+  const events = [];
+  const calls = [];
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: ['boss01'], groups: [] }),
+    runDws: async (args) => {
+      calls.push(args);
+      return dwsOutput([dtMessage({ content: '来我办公室一下', openMessageId: 'msg-3' })]);
+    },
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: (event) => events.push(event)
+    });
+    await delay(450);
+    assert.strictEqual(events.length, 1, '老板单聊消息无需 @所有人 应 emit');
+    assert.strictEqual(events[0].chatType, 'p2p');
+    const p2pCall = calls.find((c) => c.includes('--open-dingtalk-id'));
+    assert.ok(p2pCall, '应通过 --open-dingtalk-id 拉老板单聊');
+    assert.ok(p2pCall.includes('boss01'));
+  });
+}
+
+async function testMessageRadarNonBossIgnored() {
+  const events = [];
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: ['boss01'], groups: ['gid1'] }),
+    runDws: async () => dwsOutput([
+      dtMessage({ sender: '同事甲', senderOpenDingTalkId: 'colleague01', openMessageId: 'msg-4', content: '@所有人 开会' })
+    ]),
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: (event) => events.push(event)
+    });
+    await delay(450);
+    assert.strictEqual(events.length, 0, '非老板发送的消息不应 emit');
+  });
+}
+
+async function testMessageRadarDedupesAcrossPolls() {
+  const events = [];
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: ['boss01'], groups: ['gid1'] }),
+    runDws: async () => dwsOutput([dtMessage()]),
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: (event) => events.push(event)
+    });
+    await delay(650);
+    assert.strictEqual(events.length, 1, '同一 openMessageId 跨轮询只 emit 一次');
+  });
+}
+
+async function testMessageRadarDisabledConfigDoesNotPoll() {
+  let dwsCalls = 0;
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: false, pollMs: 200, bossOpenIds: ['boss01'], groups: ['gid1'] }),
+    runDws: async () => {
+      dwsCalls += 1;
+      return dwsOutput([]);
+    },
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: () => { throw new Error('disabled config 不应 emit'); }
+    });
+    await delay(450);
+    assert.strictEqual(dwsCalls, 0, 'dingtalk.enabled=false 不应调用 dws');
+  });
+}
+
+async function testMessageRadarEmptyListsDoesNotPoll() {
+  let dwsCalls = 0;
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: [], groups: [] }),
+    runDws: async () => {
+      dwsCalls += 1;
+      return dwsOutput([]);
+    },
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: () => { throw new Error('empty lists 不应 emit'); }
+    });
+    await delay(450);
+    assert.strictEqual(dwsCalls, 0, 'bossOpenIds 与 groups 均为空不应轮询');
+  });
+}
+
+async function testMessageRadarBadOutputDoesNotCrash() {
+  const events = [];
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: ['boss01'], groups: ['gid1'] }),
+    runDws: async () => 'some warning line\n{broken json',
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: (event) => events.push(event)
+    });
+    await delay(450);
+    assert.strictEqual(events.length, 0, '坏输出不应崩溃也不应 emit');
+    assert.strictEqual(adapter.getLastLocated(), null);
+  });
+}
+
+function testParseDwsJsonSkipsWarnings() {
+  assert.deepStrictEqual(parseDwsJson('warn line\n{"ok":1}'), { ok: 1 });
+  assert.strictEqual(parseDwsJson('no json here'), null);
+  assert.strictEqual(parseDwsJson('{"broken'), null);
+  assert.strictEqual(parseDwsJson(''), null);
+}
+
+function testExtractDingtalkMessage() {
+  const extracted = extractDingtalkMessage(dtMessage());
+  assert.strictEqual(extracted.messageId, 'msg-1');
+  assert.strictEqual(extracted.senderId, 'boss01');
+  assert.strictEqual(extracted.senderName, '张总');
+  assert.ok(extracted.content.includes('@所有人'));
+  assert.strictEqual(extractDingtalkMessage({ content: 'x' }), null, '缺 openMessageId 应返回 null');
+  assert.strictEqual(extractDingtalkMessage(null), null);
+}
+
+function testFormatDwsTime() {
+  const d = new Date(2026, 7, 19, 9, 5, 3);
+  assert.strictEqual(formatDwsTime(d.getTime()), '2026-08-19 09:05:03');
+}
+
+async function testMessageRadarSystemMessagesIgnored() {
+  const events = [];
+  await withAdapter({
+    locateIncomingCall: async () => null,
+    invokeReject: async () => true,
+    getMessagesConfig: () => ({ enabled: true, pollMs: 200, bossOpenIds: ['boss01'], groups: [] }),
+    runDws: async () => dwsOutput([
+      dtMessage({ content: '[语音通话] 已拒绝', openMessageId: 'sys-1' }),
+      dtMessage({ content: '[图片]', openMessageId: 'sys-2' }),
+      dtMessage({ content: '[文件] 周报.xlsx', openMessageId: 'sys-3' }),
+      dtMessage({ content: '项目要上市了', openMessageId: 'txt-1' })
+    ]),
+    pollMs: 20
+  }, async (adapter) => {
+    await adapter.start({
+      rules: msgRadarRules(),
+      onMessage: (event) => events.push(event)
+    });
+    await delay(450);
+    assert.strictEqual(events.length, 1, '系统/媒体占位消息应被过滤，真实文本保留');
+    assert.ok(events[0].text.includes('上市'));
+  });
+}
+
+function testIsSystemContent() {
+  assert.strictEqual(isSystemContent('[语音通话] 已拒绝'), true);
+  assert.strictEqual(isSystemContent(' [图片]'), true);
+  assert.strictEqual(isSystemContent('[文件] 周报.xlsx'), true);
+  assert.strictEqual(isSystemContent('大家好好干，将来上市'), false);
+  assert.strictEqual(isSystemContent('[语音通话] 已拒绝，今天开会'), true, '前缀匹配即可');
+  assert.strictEqual(isSystemContent('关于[语音通话]的说明'), false, '正文中间出现不算系统消息');
+  assert.strictEqual(isSystemContent(''), false);
+}
+
 const tasks = [
   testColleagueDoesNotEmitVoiceCall,
   testBossNameEmitsVoiceCall,
@@ -288,7 +548,20 @@ const tasks = [
   testShouldInvokeRejectWhenFootOnInsetButton,
   testShouldInvokeRejectWhenPetOnRightOfCallWindow,
   testShouldInvokeRejectWhenFarAway,
-  testPackWhitelistIncludesDingtalkAdapter
+  testPackWhitelistIncludesDingtalkAdapter,
+  testMessageRadarGroupAtAllEmits,
+  testMessageRadarGroupNonAtAllIgnored,
+  testMessageRadarP2PEmitsWithoutAtAll,
+  testMessageRadarNonBossIgnored,
+  testMessageRadarDedupesAcrossPolls,
+  testMessageRadarDisabledConfigDoesNotPoll,
+  testMessageRadarEmptyListsDoesNotPoll,
+  testMessageRadarBadOutputDoesNotCrash,
+  testParseDwsJsonSkipsWarnings,
+  testExtractDingtalkMessage,
+  testFormatDwsTime,
+  testMessageRadarSystemMessagesIgnored,
+  testIsSystemContent
 ];
 
 Promise.all(tasks.map((t) => t())).then(

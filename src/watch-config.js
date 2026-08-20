@@ -20,6 +20,13 @@ const SELF_USE_DEFAULT_CONFIG = {
   cooldownSec: 30,
   quietHours: [],
   callHangup: { enabled: true, platforms: ['dingtalk'], cooldownSec: 60 },
+  dingtalk: {
+    enabled: true,
+    dwsPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd',
+    pollMs: 10000,
+    bossOpenIds: [],
+    groups: []
+  },
   voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
 };
 
@@ -30,8 +37,35 @@ const CUSTOMER_DEFAULT_CONFIG = {
   cooldownSec: 30,
   quietHours: [],
   callHangup: { enabled: false, platforms: ['dingtalk'], cooldownSec: 60 },
+  dingtalk: {
+    enabled: false,
+    dwsPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd',
+    pollMs: 10000,
+    bossOpenIds: [],
+    groups: []
+  },
   voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
 };
+
+const DEFAULT_DWS_PATH = 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd';
+
+// dingtalk message radar: poll `dws chat message list` for boss single chats and
+// group @所有人 messages. bossOpenIds are dingtalk openDingtalkId values.
+function normalizeDingtalk(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const clean = (arr) => (Array.isArray(arr) ? arr
+    .filter((x) => typeof x === 'string' && x.trim())
+    .map((x) => x.trim()) : []);
+  const pollMs = Number.isFinite(Number(src.pollMs)) && Number(src.pollMs) >= 2000
+    ? Number(src.pollMs) : 10000;
+  return {
+    enabled: src.enabled !== false,
+    dwsPath: typeof src.dwsPath === 'string' && src.dwsPath.trim() ? src.dwsPath.trim() : DEFAULT_DWS_PATH,
+    pollMs,
+    bossOpenIds: clean(src.bossOpenIds),
+    groups: clean(src.groups)
+  };
+}
 
 function normalizePlatforms(raw) {
   const allowed = new Set(['lark', 'dingtalk']);
@@ -201,11 +235,13 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
     state,
     keywordStates,
     platforms: normalizePlatforms(fileCfg.platforms),
-    callHangup: normalizeCallHangup(fileCfg.callHangup)
+    callHangup: normalizeCallHangup(fileCfg.callHangup),
+    dingtalk: normalizeDingtalk(fileCfg.dingtalk)
   };
 }
 
 module.exports = {
   loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, patchWatchFlags,
-  SELF_USE_DEFAULT_CONFIG, CUSTOMER_DEFAULT_CONFIG, normalizePlatforms, normalizeCallHangup
+  SELF_USE_DEFAULT_CONFIG, CUSTOMER_DEFAULT_CONFIG, normalizePlatforms, normalizeCallHangup,
+  normalizeDingtalk
 };

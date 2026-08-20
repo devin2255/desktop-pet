@@ -1,160 +1,58 @@
-### Task 1: watch-rules.js — 过滤管线纯函数（TDD）
+### Task 1: 身份卡 + 定妆主图（用户确认门禁）
 
 **Files:**
-- Create: `src/watch-rules.js`
-- Test: `scripts/test-watch-rules.js`
-- Modify: `package.json`（`test:js` 链追加 `node scripts/test-watch-rules.js`）
+- Create: `pets/work/brother-judge/IDENTITY.md`
+- Create: `pets/work/brother-judge/source/refs/master-realistic.png`
+- Create: `pets/work/brother-judge/source/realistic/generated-originals/master-realistic-*.png`（归档，不覆盖）
 
 **Interfaces:**
-- Produces:
-  - `createDedupeSet(maxSize = 5000)` → `{ has(id) → boolean, add(id) → void }`（内部 LRU，超限淘汰最旧）
-  - `isBoss(senderId, bossIds)` → `boolean`（bossIds 为已解析 open_id 数组；空数组返回 false）
-  - `matchKeyword(text, keywordMap)` → `category | null`（keywordMap 如 `{ '画饼': [...], '吹牛': [...] }`；`text.toLowerCase().includes(keyword.toLowerCase())` 命中即返回该类别，按对象键顺序取首个）
-  - `inQuietHours(now, quietHours)` → `boolean`（quietHours 形如 `[['12:00','13:30']]`；跨午夜区间如 `['19:00','09:00']` 也支持；空数组返回 false；now 为 `Date`）
-  - `pickLine(pool, rng = Math.random)` → `string`（pool 非空数组；rng 注入便于测试）
-  - `DEFAULT_KEYWORDS` 常量：`{ '画饼': ['老板画的饼别吃，你啃不动！', '这饼画得真圆，可惜啃不动。'], '吹牛': ['你的老板吹了个牛逼！', '这牛吹得，我耳朵都疼了。'], }`
+- Consumes: `ref-face-closeup.png`, `ref-portrait.png`
+- Produces: 已确认的 `master-realistic.png` + `IDENTITY.md` 文本（后续 Task 全部复用）
 
-- [ ] **Step 1: 写失败测试** `scripts/test-watch-rules.js`
+- [ ] **Step 1: 写 IDENTITY.md**
 
-```js
-'use strict';
-const assert = require('assert');
-const {
-  createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine, DEFAULT_KEYWORDS
-} = require('../src/watch-rules');
+写入并保存：
 
-function testDedupe() {
-  const s = createDedupeSet(2);
-  assert.strictEqual(s.has('a'), false);
-  s.add('a');
-  assert.strictEqual(s.has('a'), true);
-  s.add('b'); s.add('c'); // 超限淘汰 a
-  assert.strictEqual(s.has('a'), false);
-  assert.strictEqual(s.has('c'), true);
-}
+```markdown
+# 兄弟判官 IDENTITY
 
-function testIsBoss() {
-  assert.strictEqual(isBoss('ou_1', ['ou_1', 'ou_2']), true);
-  assert.strictEqual(isBoss('ou_3', ['ou_1']), false);
-  assert.strictEqual(isBoss('ou_3', []), false);
-}
-
-function testMatchKeyword() {
-  const map = { '画饼': ['a'], '吹牛': ['b'] };
-  assert.strictEqual(matchKeyword('年底给你画个大饼', map), '画饼');
-  assert.strictEqual(matchKeyword('老板又开始吹牛了', map), '吹牛');
-  assert.strictEqual(matchKeyword('今天天气不错', map), null);
-  assert.strictEqual(matchKeyword('', map), null);
-}
-
-function testQuietHours() {
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T12:30:00+08:00'), [['12:00', '13:30']]), true);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T14:00:00+08:00'), [['12:00', '13:30']]), false);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T23:00:00+08:00'), [['19:00', '09:00']]), true);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T08:00:00+08:00'), [['19:00', '09:00']]), true);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T12:00:00+08:00'), []), false);
-}
-
-function testPickLine() {
-  assert.strictEqual(pickLine(['x'], () => 0.5), 'x');
-  assert.strictEqual(pickLine(['a', 'b'], () => 0.9), 'b');
-}
-
-function testDefaults() {
-  assert.ok(Array.isArray(DEFAULT_KEYWORDS['画饼']) && DEFAULT_KEYWORDS['画饼'].length >= 1);
-  assert.ok(Array.isArray(DEFAULT_KEYWORDS['吹牛']) && DEFAULT_KEYWORDS['吹牛'].length >= 1);
-}
-
-const tests = { testDedupe, testIsBoss, testMatchKeyword, testQuietHours, testPickLine, testDefaults };
-let failed = 0;
-for (const [name, fn] of Object.entries(tests)) {
-  try { fn(); console.log(`ok - ${name}`); } catch (e) { failed++; console.error(`FAIL - ${name}: ${e.message}`); }
-}
-if (failed) process.exit(1);
-console.log('watch-rules: all tests passed');
+- 人物：年轻东亚男性，短黑发，浅胡茬，银色细圆框眼镜
+- 脸：以 ref-face-closeup 为准；笑容/表情可参考 ref-portrait
+- 帽：黑色判官官帽，两侧长弯帽翅，帽翅边缘白色珠饰
+- 服：白色背心 + 深色宽松大裤衩 + 人字拖
+- 道具：可选判官笔，不挡脸
+- 风格：照片级写实，皮肤与布料纹理清晰，小尺寸仍可辨认是同一人
+- 禁止：动漫大眼、工装衬衫、黑粗框方眼镜、文字、阴影底板、地面
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [ ] **Step 2: 生成定妆主图**
 
-Run: `node scripts/test-watch-rules.js`
-Expected: `FAIL - ...`（Cannot find module '../src/watch-rules'）退出码 1
+用图像生成工具，同时附上两张原片作参考。Prompt：
 
-- [ ] **Step 3: 实现** `src/watch-rules.js`
-
-```js
-'use strict';
-
-const DEFAULT_KEYWORDS = {
-  '画饼': ['老板画的饼别吃，你啃不动！', '这饼画得真圆，可惜啃不动。'],
-  '吹牛': ['你的老板吹了个牛逼！', '这牛吹得，我耳朵都疼了。']
-};
-
-function createDedupeSet(maxSize = 5000) {
-  const seen = new Set();
-  const queue = [];
-  return {
-    has(id) { return seen.has(id); },
-    add(id) {
-      if (seen.has(id)) return;
-      seen.add(id);
-      queue.push(id);
-      while (queue.length > maxSize) seen.delete(queue.shift());
-    }
-  };
-}
-
-function isBoss(senderId, bossIds) {
-  return Array.isArray(bossIds) && bossIds.length > 0
-    && typeof senderId === 'string' && bossIds.includes(senderId);
-}
-
-function matchKeyword(text, keywordMap) {
-  if (typeof text !== 'string' || !text) return null;
-  const lower = text.toLowerCase();
-  for (const [category, pool] of Object.entries(keywordMap || {})) {
-    if (Array.isArray(pool) && lower.includes(category.toLowerCase())) return category;
-  }
-  return null;
-}
-
-function toMinutes(hm) {
-  const [h, m] = String(hm).split(':').map(Number);
-  return h * 60 + (m || 0);
-}
-
-function inQuietHours(now, quietHours) {
-  if (!Array.isArray(quietHours) || quietHours.length === 0) return false;
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  for (const [start, end] of quietHours) {
-    const s = toMinutes(start); const e = toMinutes(end);
-    if (s === e) continue;
-    if (s < e) { if (minutes >= s && minutes < e) return true; }
-    else { if (minutes >= s || minutes < e) return true; } // 跨午夜
-  }
-  return false;
-}
-
-function pickLine(pool, rng = Math.random) {
-  const arr = Array.isArray(pool) && pool.length ? pool : [''];
-  return arr[Math.floor(rng() * arr.length)];
-}
-
-module.exports = { createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine, DEFAULT_KEYWORDS };
+```text
+Photorealistic full-body three-quarter standing desktop-pet master of the SAME young East Asian man from the reference face close-up.
+Exact face match: short black hair, light stubble, thin silver round glasses, same eyes nose mouth.
+Wear a traditional Chinese judge hat (black guanmao with long curved side wings edged in white beads) like the hat reference.
+Outfit: white tank top, dark loose shorts, flip-flops. Optional judge brush in one hand, not covering face.
+Solid flat #00FF00 background, generous padding, no text, no shadow floor, no border.
+Photoreal skin and fabric detail, not anime, not cartoon.
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+保存生成原文到 `source/realistic/generated-originals/`，再复制工作文件到 `source/refs/master-realistic.png`。
 
-Run: `node scripts/test-watch-rules.js`
-Expected: 全部 `ok - ...` + `watch-rules: all tests passed`
+- [ ] **Step 3: 人工门禁 — 停下来让用户确认主图**
 
-- [ ] **Step 5: 并入测试链 + 提交**
+向用户展示 `master-realistic.png`，明确询问是否认得出是本人、帽翅与服装是否正确。  
+**未获用户确认前，禁止进入 Task 2。**
 
-在 `package.json` 的 `test:js` 末尾追加 `&& node scripts/test-watch-rules.js`。
+- [ ] **Step 4: 提交身份卡（主图若在 gitignore 的 work 目录则只提交 IDENTITY 若可跟踪；work 被 ignore 时本步可跳过 git）**
 
-```bash
-git add src/watch-rules.js scripts/test-watch-rules.js package.json
-git commit -m "feat: add watch rules filtering pipeline"
+`pets/work/` 被 `.gitignore` 忽略。若无法提交主图，在进度说明中记录本地路径即可。可提交的文档若放到 `pets/library/brother-judge/DESIGN.md`，复制 IDENTITY 摘要过去：
+
+```powershell
+Copy-Item pets/work/brother-judge/IDENTITY.md pets/library/brother-judge/DESIGN.md -Force
+git add pets/library/brother-judge/DESIGN.md
+git commit -m "docs: lock brother-judge photoreal identity for redesign"
 ```
 
 ---
-

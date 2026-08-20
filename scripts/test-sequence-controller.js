@@ -274,4 +274,64 @@ function testApproachPollTracksMovedWindow() {
 testStartSessionOverridesApproachCallbacks();
 testApproachPollTracksMovedWindow();
 
+function testNonApproachStageHonorsTimeoutMs() {
+  const calls = { states: [], timer: null };
+  const seq = createSequenceController({
+    getManifest: () => ({
+      animations: { idle: {}, 'call-shout': {}, 'call-mom-approach': {} },
+      sequences: {
+        'boss-call': {
+          stages: [
+            { action: 'call-shout', timeoutMs: 5600, speechAudio: 'audio/call-mom.mp3' },
+            { action: 'call-mom-approach', duration: 1500 }
+          ]
+        }
+      }
+    }),
+    sendState: (action) => { calls.states.push(action); },
+    pauseBehavior: () => {},
+    scheduleBehavior: () => {},
+    setTimer: (fn, ms) => { calls.timer = { fn, ms }; return 1; },
+    clearTimer: () => { calls.timer = null; }
+  });
+  assert.strictEqual(seq.start('boss-call'), true);
+  assert.strictEqual(calls.states.at(-1), 'call-shout');
+  assert.strictEqual(calls.timer.ms, 5600, 'shout stage without approachTarget must still wait timeoutMs, not default 3000');
+  calls.timer.fn();
+  assert.strictEqual(calls.states.at(-1), 'call-mom-approach');
+}
+
+testNonApproachStageHonorsTimeoutMs();
+
+function testFinishSendsIdleAfterDeactivating() {
+  let seq;
+  const events = [];
+  seq = createSequenceController({
+    getManifest: () => ({
+      animations: { idle: {}, 'call-mom-kick': {} },
+      sequences: {
+        'boss-call': {
+          stages: [
+            { action: 'call-mom-kick', duration: 100 },
+            { action: 'idle', duration: 0, restorePosition: true }
+          ]
+        }
+      }
+    }),
+    sendState: (action) => events.push({ action, active: seq.isActive() }),
+    pauseBehavior: () => {},
+    scheduleBehavior: () => {},
+    setTimer: (fn) => { events.timerFn = fn; return 1; },
+    clearTimer: () => {},
+    movePetWindow: () => {}
+  });
+  assert.strictEqual(seq.start('boss-call', { restoreFrom: { x: 10, y: 20 } }), true);
+  events.timerFn();
+  const last = events.at(-1);
+  assert.strictEqual(last.action, 'idle');
+  assert.strictEqual(last.active, false, 'idle after hangup must be sent once the sequence is inactive so the window size can restore');
+}
+
+testFinishSendsIdleAfterDeactivating();
+
 console.log('test-sequence-controller: ok');

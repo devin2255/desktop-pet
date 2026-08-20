@@ -93,6 +93,9 @@ function createInteractionController(dependencies) {
     : 100;
   const edgeGap = Number.isFinite(dependencies.edgeGap) ? dependencies.edgeGap : 14;
   const bottomOffset = Number.isFinite(dependencies.bottomOffset) ? dependencies.bottomOffset : 6;
+  // Optional suspension getter: while a cinematic sequence (boss-call) drives the
+  // pet window, attachment polling must not fight it for window control.
+  const isSuspended = typeof dependencies.isSuspended === 'function' ? dependencies.isSuspended : () => false;
   const dragFacingThresholdPx = Number.isFinite(dependencies.dragFacingThresholdPx)
     ? dependencies.dragFacingThresholdPx
     : 4;
@@ -297,6 +300,7 @@ function createInteractionController(dependencies) {
   }
 
   function applyAttachment(target) {
+    if (isSuspended()) return;
     if (!attachment || String(target.id) !== attachment.id) return;
     attachment.bounds = { ...target.bounds };
     setPosition(attachmentPosition(target, attachment.edge, attachment.offset, attachment.role));
@@ -350,6 +354,7 @@ function createInteractionController(dependencies) {
 
   function climbUpToTop() {
     climbUpTimer = undefined;
+    if (isSuspended()) return;
     if (disposed || currentState !== 'climbing' || !attachment) return;
     if (attachment.edge !== 'left' && attachment.edge !== 'right') return;
 
@@ -379,7 +384,7 @@ function createInteractionController(dependencies) {
 
     function climbStep(timestamp) {
       frameTimer = undefined;
-      if (disposed || generation !== token || currentState !== 'climbing') return;
+      if (disposed || generation !== token || currentState !== 'climbing' || isSuspended()) return;
       const frameTime = Number.isFinite(timestamp) ? timestamp : now();
       const elapsed = Math.max(0, frameTime - startTime);
       const progress = Math.min(1, elapsed / duration);

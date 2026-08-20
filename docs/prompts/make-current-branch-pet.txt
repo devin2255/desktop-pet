@@ -1,6 +1,20 @@
-请根据我附上的照片，使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
+先把当前分支代码拉到本地，再根据我附上的照片制作桌宠。没有拉到最新代码、没有核对播放器能力之前，不要开始画帧，也不要改播放器。
 
-不要修改播放器去写死这只宠物的名字、性格或动画路径。身份、动作帧、文案、语音、词库全部放进 .petpack / pet.json。播放器已具备窗口互动、跪爬模式、画饼雷达、预录音、右键「当个事儿办」、托盘和客户交付，直接复用。
+仓库：https://github.com/devin2255/desktop-pet.git
+分支：feature/son-mode
+
+已有本地仓库时执行：
+git fetch origin
+git checkout feature/son-mode
+git pull origin feature/son-mode
+
+没有本地仓库时执行：
+git clone -b feature/son-mode https://github.com/devin2255/desktop-pet.git
+cd desktop-pet
+
+拉完后确认存在 src/main-v3.js、src/event-hold.js、src/roam-motion.js、src/watch-config.js。对照 pets/library/brother-judge 看当前分支能力。然后使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
+
+不要修改播放器去写死这只宠物的名字、性格或动画路径。身份、动作帧、文案、语音、词库全部放进 .petpack / pet.json。播放器已具备窗口互动、跪爬模式、画饼雷达、预录音、右键「当个事儿办」、事件占用、托盘和客户交付，直接复用。
 
 宠物名字：<填写>
 性格：<例如：毒舌、护短、粘人>
@@ -9,7 +23,7 @@ delivery-id：<小写英文或拼音，如 xiaowang>
 风格：<柔和写实 2D / 像素风；不填则柔和 2D>
 称呼：<桌宠怎么叫用户，例如：爸 / 老公 / 主人>
 重点特征：<必须保留的脸、发型/毛色、衣服、体型、眼镜等>
-语音：<若已附 mp3 则全部接到 speechAudio；没附则用 pet.json 文案 + 系统中文语音，speechGender 与角色一致>
+语音：<若已附 mp3 则全部接到 speechAudio；没有预录音则不要留空，写好文案并设 speechGender，使用电脑自带中文语音合成>
 特殊要求：<可不填>
 
 ## 必须做出与当前分支同等的能力
@@ -20,7 +34,7 @@ delivery-id：<小写英文或拼音，如 xiaowang>
 2. 窗口互动七动作（写进 animations + interactionActions，不要只回退到 walk/sit）
    - drag 6：被拖走时的姿态（四肢离地或抓紧，不要直立走）
    - climb 6：沿看不见的窗侧往上爬，手在攀爬侧，不要把窗框画进图里
-   - perch 4：坐在看不见的窗沿上，屁股贴顶边、双腿向前垂下
+   - perch 4：坐在看不见的窗沿上，屁股贴顶边、双腿向前垂下；待机循环必须左右腿交替悠闲晃动，不要两腿同步踢、不要僵直垂着
    - hang 4：双手抓住看不见的下沿，身体悬空
    - fall 4：失去支撑向下掉
    - impact 4：落地摔坐
@@ -35,20 +49,24 @@ delivery-id：<小写英文或拼音，如 xiaowang>
    - startupGreeting：启动第一句
    - contextMenuActions 至少 2 项，例如：叫人、睡觉；可选磕头
    - behavior.random：散步/坐下/吐槽/睡觉加权，坐下和吐槽要有气泡
-   - behavior.perched：坐窗时至少 1 个符合性格的特色动作（不要画真实窗框；不要默认机枪，除非我明确要求）
+   - behavior.perched：坐窗时至少 1 个符合性格的特色动作；用 idleMinMs/idleMaxMs 拉开间隔，不要刚坐下就连放。不要画真实窗框；不要默认机枪，除非我明确要求
    - taskAcceptAudio 或接任务文案：右键「当个事儿办」时播放器会用
 
 5. 画饼雷达（pet.json.watch，不要写进播放器）
    - keywords：至少「画饼」「吹牛」两类，每类 2～3 句吐槽
-   - triggers：画饼类至少包含 画饼、上市、期权、年终奖、分红、升职、加薪、亏待、功劳、融资
+   - triggers：画饼类至少包含 画饼、上市、期权、年终、分红、升职、加薪、亏待、功劳、融资
+   - 吹牛类至少包含 吹牛、人脉、搞得定、包在我身上、小意思、当年
    - fallback：老板发了 @所有人 但没命中词时的兜底句
-   - 有预录音则每条带 audio；referencedFiles 必须收齐这些 mp3，否则运行时会被拒绝
+   - keywordStates：吹牛若有专属动作（例如拎拖鞋、挥手），写成 { "吹牛": "<动作名>" }；画饼默认可走 reaction
+   - 有预录音则每条带 audio；没有预录音则只写 text，运行时用电脑自带语音合成，不要因此去改播放器或硬编 mp3
+   - referencedFiles 必须收齐已引用的 mp3，否则运行时会被拒绝
    - 不要改 src 里的老板 open_id / lark 路径；本机雷达开关仍走 userData/boss-watch.json
 
-6. 预录音（我如果附了 mp3）
-   - 拷进 pets/library/<id>/audio/，在 pet.json 用相对路径引用
-   - 至少接到：启动问候、坐下、右键、接任务、画饼、吹牛、兜底
-   - 打包前确认 petpack_tool / referencedFiles 包含全部被引用音频
+6. 语音（没有预录音就用电脑自带语音合成，不要静音交付）
+   - 我如果附了 mp3：拷进 pets/library/<id>/audio/，在 pet.json 用相对路径接到 speechAudio；至少覆盖启动问候、坐下、右键、接任务、画饼、吹牛、兜底
+   - 我如果没附 mp3：不要编造或下载无关录音。所有要开口的地方写清 message / speech / watch 文案，speechGender 与角色一致（male/female）。播放器会用 Windows 电脑自带中文语音合成（speechSynthesis）；画饼雷达无 audio 时同样走合成，不要把 audio 填成空路径占位
+   - 旧文案旧录音若要保留：放进 watch.archivedKeywords / behavior.archivedPerched，不要放进生效池
+   - 打包前确认 petpack_tool / referencedFiles 只包含真正引用的音频；没引用就不要塞进包里
 
 ## 质量门禁
 
@@ -69,6 +87,6 @@ node scripts/build-customer.js --pet pets/packages/<id>.petpack --name "<程序�
 
 客户双击 EXE 后宠物必须直接出现，不需要安装开发环境，也不需要手动导入资源包。客户版只含这一只，隐藏导入/切换/打开宠物库。
 
-请实际启动成品，验证：启动问候、标准动画、透明背景及透明像素鼠标穿透、静止连点 50 次无放大/平移、拖动、侧边攀爬（手贴墙）、坐窗、吊挂、屏顶坠落恢复、跪爬模式、漫游与左右朝向、右键菜单、托盘、退出、独立数据目录。若接了画饼雷达，用老板账号在群里发「@所有人 好好干，将来上市我记着大家的功劳」应触发画饼吐槽语音。
+请实际启动成品，验证：启动问候、标准动画、透明背景及透明像素鼠标穿透、静止连点 50 次无放大/平移、拖动、侧边攀爬（手贴墙）、坐窗晃腿、吊挂、屏顶坠落恢复、跪爬模式、漫游与左右朝向、右键菜单、托盘、退出、独立数据目录。无预录音时，启动问候、坐下/吐槽、右键、画饼/吹牛必须能听到电脑自带中文语音，不能只有气泡没有声音。若接了画饼雷达，用老板账号在群里发「@所有人 好好干，将来上市我记着大家的功劳」应触发画饼吐槽语音。
 
 最终交付专属 EXE、build-report.json 和验证结果，不要只交付 .petpack。未做代码签名要如实说明。

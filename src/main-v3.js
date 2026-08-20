@@ -22,11 +22,13 @@ const { dispatchBossMessage } = require('./message-watcher');
 const { createImBus } = require('./im-bus');
 const { createLarkAdapter } = require('./im-adapter-lark');
 const { createDingtalkAdapter, resolveHangupAction } = require('./im-adapter-dingtalk');
+const { createDingtalkUia } = require('./dingtalk-uia');
 const { loadWatchConfig, ensureBossWatchDefaults, patchWatchFlags } = require('./watch-config');
 const { insetRect } = require('./approach-target');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const { createEventHold } = require('./event-hold');
 const { nextRoamTarget, crawlIdleState } = require('./roam-motion');
+const { schedulePetTaskMock } = require('./pet-task');
 const {
   app,
   BrowserWindow,
@@ -299,7 +301,9 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
 
 function sendState(state, message = '', speech = '', logicalRole = state, options) {
   if (!petWindow || petWindow.isDestroyed()) return;
-  if (shouldRestoreWindowBounds(options)) restorePetWindowSize();
+  // During sequence playback (e.g. boss-call mom walk) skip bounds restore:
+  // its clamp would drag the pet window away from the approach target.
+  if (shouldRestoreWindowBounds(options) && !sequence?.isActive?.()) restorePetWindowSize();
   let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
   // 带协议前缀（pet-asset:/voice-cache:/data:/file: 等）视为完整 URL，否则按资源包相对路径改写
   if (speechAudio && !/^[a-z][a-z0-9+.-]*:/i.test(speechAudio) && activeManifest) {
@@ -476,6 +480,17 @@ function restorePetWindowSize() {
   petWindow.setBounds({ x: position.x, y: position.y, width: expected.width, height: expected.height }, false);
 }
 
+function movePetKeepingSize(x, y) {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const size = currentSize();
+  petWindow.setBounds({
+    x: Math.round(x),
+    y: Math.round(y),
+    width: size.width,
+    height: size.height
+  }, false);
+}
+
 function updateTrayIcon() {
   if (!tray || !activeManifest) return;
   const icon = nativeImage.createFromPath(resolveInside(activeManifest.__root, activeManifest.preview));
@@ -568,73 +583,19 @@ function runContextMenuAction(item) {
   runDirectMenuAction(item);
 }
 
-const petTaskDir = () => path.join(app.getPath('userData'), 'pet-tasks');
-let petTaskPollTimer = null;
-
 function triggerPetTask(taskType) {
-  const dir = petTaskDir();
-  fs.mkdirSync(dir, { recursive: true });
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const taskFile = path.join(dir, `${id}.json`);
-  const task = { id, type: taskType, status: 'pending', createdAt: new Date().toISOString() };
-  fs.writeFileSync(taskFile, JSON.stringify(task, null, 2), 'utf8');
   eventHold.beginTask();
   sendState('reaction', '好的，爸！', '好的，爸', 'reaction', {
     speechAudio: typeof activeManifest?.taskAcceptAudio === 'string' ? activeManifest.taskAcceptAudio : ''
   });
-  // Notify QwenWork instantly via Feishu message to bot
-  notifyQwenWork(taskType, taskFile);
-  startPetTaskPolling();
-}
-
-function notifyQwenWork(taskType, taskFile) {
-  const { execFile } = require('child_process');
-  let exe = 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd';
-  if (process.platform === 'win32') {
-    const coreExe = 'C:/Users/Thinkpad/.qwenworkcn/bin/ext/lark-cli-core-windows-amd64.exe';
-    try { if (require('fs').existsSync(coreExe)) exe = coreExe; } catch (_) {}
-  }
-  const taskPrompts = {
-    'summarize-chat': '总结群聊重点。对群里所有消息做总结，提炼核心内容，用一句话搞笑判官风格吐槽，不超过50字',
-    'weekly-report': '写周报。用一句话搞笑总结这周群聊干了啥（或没干啥），不超过50字',
-    'collect-gossip': '搜集群聊八卦。从群里消息中挖掘八卦和趣事，用一句话搞笑爆料，不超过50字'
-  };
-  const prompt = taskPrompts[taskType] || taskType;
-  const msg = `桌宠任务请求：${prompt}。请拉取飞书群 oc_55c490880d9fd2d16ffe1e86eeb81488 的最近30条消息（用 lark-cli api GET /open-apis/im/v1/messages --as user --params {"container_id_type":"chat","container_id":"oc_55c490880d9fd2d16ffe1e86eeb81488","page_size":30,"sort_type":"ByCreateTimeDesc"}），提炼后把结果 JSON 写入文件 ${taskFile}，格式为 {"status":"done","result":"总结内容"}。风格：判官吐槽，精炼幽默，50字以内。写完后桌宠自动弹气泡汇报。`;
-  // Send as user to the bot p2p chat — QwenWork's Feishu channel receives this instantly
-  execFile(exe, ['im', '+messages-send', '--as', 'user',
-    '--chat-id', 'oc_b808a8dca7f10072c3e76b66a18477c8',
-    '--text', msg],
-    { timeout: 15000, windowsHide: true },
-    () => {}
-  );
-}
-
-function startPetTaskPolling() {
-  if (petTaskPollTimer) return;
-  petTaskPollTimer = setInterval(() => {
-    const dir = petTaskDir();
-    if (!fs.existsSync(dir)) return;
-    for (const file of fs.readdirSync(dir)) {
-      if (!file.endsWith('.json')) continue;
-      const filePath = path.join(dir, file);
-      try {
-        const task = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        if (task.status === 'done' && task.result) {
-          const summary = String(task.result).slice(0, 200);
-          eventHold.beginForSpeech(summary);
-          sendState('reaction', summary, summary, 'reaction', {});
-          fs.unlinkSync(filePath);
-        }
-      } catch (_) {}
+  schedulePetTaskMock({
+    taskType,
+    onResult: (summary) => {
+      const text = String(summary).slice(0, 200);
+      eventHold.beginForSpeech(text);
+      sendState('reaction', text, text, 'reaction', {});
     }
-    // Stop polling if no pending tasks remain
-    const remaining = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')) : [];
-    if (remaining.length === 0) {
-      clearInterval(petTaskPollTimer);
-      petTaskPollTimer = null;
-    }
-  }, 3000);
+  });
 }
 
 function applyLoadedWatchConfig(next) {
@@ -796,6 +757,7 @@ function createWindow() {
     screen,
     getCurrentSize: currentSize,
     getManifest: () => activeManifest,
+    isSuspended: () => sequence?.isActive?.() === true,
     sendState: (state, options) => sendState(
       state,
       typeof options?.message === 'string' ? options.message : '',
@@ -979,7 +941,7 @@ if (!gotLock) {
       pauseBehavior,
       scheduleBehavior,
       getPetBounds: () => petWindow.getBounds(),
-      movePetWindow: (x, y) => petWindow.setPosition(x, y)
+      movePetWindow: movePetKeepingSize
     });
     createTray();
     watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
@@ -1006,22 +968,80 @@ if (!gotLock) {
         rate: watchConfig.voice.rate
       })
       : null;
-    const dingtalk = createDingtalkAdapter({});
+    const dbgLogPath = path.join(app.getPath('userData'), 'dingtalk-uia-debug.log');
+    const dbg = (line) => {
+      if (process.env.PET_DINGTALK_DEBUG !== '1') return;
+      try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} ${line}\n`); } catch (_) {}
+    };
+    const dingtalkUia = createDingtalkUia({
+      rectToDip: (rect) => screen.screenToDipRect(null, rect),
+      debugLogPath: dbgLogPath
+    });
+    const dingtalk = createDingtalkAdapter({
+      locateIncomingCall: () => dingtalkUia.locateIncomingCall(),
+      invokeReject: () => dingtalkUia.invokeReject(),
+      getMessagesConfig: () => watchConfig?.dingtalk,
+      onStatus: (status) => {
+        if (status.level === 'warn' || status.level === 'error') {
+          sendState('reaction', status.message);
+        }
+      }
+    });
     function handleDingtalkVoiceCall() {
       if (sequence.isActive()) return;
       if (!activeManifest?.sequences?.['boss-call']) return;
+      const dbg = (line) => {
+        if (process.env.PET_DINGTALK_DEBUG !== '1') return;
+        try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} ${line}\n`); } catch (_) {}
+      };
+      dbg(`voice-call triggered located=${JSON.stringify(dingtalk.getLastLocated())} pet=${JSON.stringify(petWindow.getBounds())}`);
+      // The DingTalk VoIP popup is itself a topmost window created AFTER our window;
+      // re-assert our Z-order throughout the sequence so mom stays above the popup.
+      const topmostTicker = setInterval(() => {
+        try {
+          if (!petWindow.isDestroyed()) topmostGuard?.ensure();
+        } catch (_) {}
+      }, 400);
+      try {
+        sequence.onceFinished?.(() => clearInterval(topmostTicker));
+      } catch (_) { clearInterval(topmostTicker); }
       const restoreFrom = petWindow.getBounds();
+      const walkStage = activeManifest.sequences['boss-call']?.stages?.find((s) => s.approachTarget === 'incoming-call-reject');
+      const walkAction = walkStage?.action || 'call-mom-walk';
+      let lastWalkFacing = '';
       const started = sequence.start('boss-call', {
         restoreFrom,
         getPetBounds: () => petWindow.getBounds(),
-        movePetWindow: (x, y) => petWindow.setPosition(x, y),
+        movePetWindow: movePetKeepingSize,
+        onWalkFacing: (dir) => {
+          // Re-issue the walk state with a -left suffix so the renderer mirrors mom
+          // while she strolls toward the hangup button; only on direction change.
+          if (!dir || dir === lastWalkFacing) return;
+          lastWalkFacing = dir;
+          try {
+            sendState(dir === 'left' ? `${walkAction}-left` : walkAction, '', '', walkAction, {});
+          } catch (_) {}
+        },
         getApproachRect: (name) => {
           const located = dingtalk.getLastLocated();
           if (!located) return null;
           if (name === 'incoming-call-edge') return located.windowBounds;
           if (name === 'incoming-call-reject') {
             if (!located.rejectBounds) return null;
-            return insetRect(located.rejectBounds, 0.25);
+            const b = located.rejectBounds;
+            // Aim the foot at the middle-right of the hangup button so mom's body
+            // leans further onto the call window and the kick reads as stepping
+            // ON the button, not merely brushing its edge.
+            const rect = {
+              x: Math.round(b.x + b.width * 0.45),
+              y: b.y,
+              width: Math.max(4, Math.round(b.width * 0.4)),
+              height: b.height
+            };
+            if (process.env.PET_DINGTALK_DEBUG === '1') {
+              try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} approach ${name} rect=${JSON.stringify(rect)} reject=${JSON.stringify(b)} pet=${JSON.stringify(petWindow.getBounds())}\n`); } catch (_) {}
+            }
+            return rect;
           }
           return null;
         },
@@ -1030,6 +1050,9 @@ if (!gotLock) {
           const pet = petWindow.getBounds();
           const hangup = activeManifest.sequences['boss-call']?.contacts?.hangup;
           const decision = resolveHangupAction({ located, petBounds: pet, hangup, stage });
+          if (process.env.PET_DINGTALK_DEBUG === '1') {
+            try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} onContact stage=${stage.action} decision=${JSON.stringify(decision)} located=${JSON.stringify(located)} pet=${JSON.stringify(pet)}\n`); } catch (_) {}
+          }
           if (!decision.invoke) {
             sendState(decision.state, decision.message, '', decision.logicalRole, {});
             return;

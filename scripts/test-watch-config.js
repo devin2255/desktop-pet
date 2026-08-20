@@ -191,6 +191,58 @@ function testEnsureDefaultsNoOverwrite() {
   }
 }
 
+function testDingtalkDefaultsWhenMissing() {
+  const cfg = loadWatchConfig({ configPath: path.join(os.tmpdir(), 'nope-xxx.json'), larkCliPath: 'lark' });
+  assert.strictEqual(cfg.dingtalk.enabled, true);
+  assert.strictEqual(cfg.dingtalk.dwsPath, 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd');
+  assert.strictEqual(cfg.dingtalk.pollMs, 10000);
+  assert.deepStrictEqual(cfg.dingtalk.bossOpenIds, []);
+  assert.deepStrictEqual(cfg.dingtalk.groups, []);
+}
+
+function testDingtalkFromFile() {
+  const p = tmpJson({
+    enabled: true,
+    bosses: ['张总'],
+    dingtalk: {
+      enabled: true,
+      dwsPath: 'D:/tools/dws.cmd',
+      pollMs: 5000,
+      bossOpenIds: [' D9RqAAA ', 'D9RqBBB', 42, ''],
+      groups: ['cide32llCyLE7o4M3yzprR24w==']
+    }
+  });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.strictEqual(cfg.dingtalk.dwsPath, 'D:/tools/dws.cmd');
+  assert.strictEqual(cfg.dingtalk.pollMs, 5000);
+  assert.deepStrictEqual(cfg.dingtalk.bossOpenIds, ['D9RqAAA', 'D9RqBBB']);
+  assert.deepStrictEqual(cfg.dingtalk.groups, ['cide32llCyLE7o4M3yzprR24w==']);
+}
+
+function testDingtalkDisabledAndClamps() {
+  const p = tmpJson({ enabled: true, dingtalk: { enabled: false, pollMs: 10 } });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.strictEqual(cfg.dingtalk.enabled, false);
+  assert.strictEqual(cfg.dingtalk.pollMs, 10000); // 低于 2000ms 钳制为默认
+}
+
+function testEnsureDefaultsDingtalkSections() {
+  const selfP = path.join(os.tmpdir(), `boss-watch-dt-self-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  const custP = path.join(os.tmpdir(), `boss-watch-dt-cust-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    ensureBossWatchDefaults(selfP);
+    const selfRaw = JSON.parse(fs.readFileSync(selfP, 'utf8'));
+    assert.strictEqual(selfRaw.dingtalk.enabled, true);
+    ensureBossWatchDefaults(custP, { customer: true });
+    const custRaw = JSON.parse(fs.readFileSync(custP, 'utf8'));
+    assert.strictEqual(custRaw.dingtalk.enabled, false);
+    assert.deepStrictEqual(custRaw.dingtalk.bossOpenIds, []);
+  } finally {
+    try { fs.unlinkSync(selfP); } catch (_) { /* ignore */ }
+    try { fs.unlinkSync(custP); } catch (_) { /* ignore */ }
+  }
+}
+
 const tests = {
   testDefaultsWhenMissing, testCorruptFileFallsBack, testMergeManifest,
   testKeywordStatesFromManifest, testKeywordStatesDefaultEmpty,
@@ -198,7 +250,9 @@ const tests = {
   testCallHangupDefaultOff, testCallHangupFromFile,
   testEnsureDefaultsCustomer, testEnsureDefaultsSelfUse, testEnsureDefaultsNoOverwrite,
   testPatchWatchFlagsKeepsBosses, testPatchWatchFlagsCreatesMissingFile,
-  testPatchWatchFlagsSkipsCorruptFile
+  testPatchWatchFlagsSkipsCorruptFile,
+  testDingtalkDefaultsWhenMissing, testDingtalkFromFile, testDingtalkDisabledAndClamps,
+  testEnsureDefaultsDingtalkSections
 };
 let failed = 0;
 for (const [name, fn] of Object.entries(tests)) {

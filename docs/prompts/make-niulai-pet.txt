@@ -1,0 +1,96 @@
+先把当前分支代码拉到本地，再制作「牛来」桌宠。没有拉到最新代码、没有核对播放器能力之前，不要开始画帧，也不要改播放器。
+
+仓库：https://github.com/devin2255/desktop-pet.git
+分支：feature/son-mode
+
+已有本地仓库时执行：
+git fetch origin
+git checkout feature/son-mode
+git pull origin feature/son-mode
+
+没有本地仓库时执行：
+git clone -b feature/son-mode https://github.com/devin2255/desktop-pet.git
+cd desktop-pet
+
+拉完后确认 src/main-v3.js、src/event-hold.js、src/roam-motion.js、src/watch-config.js 存在，并对照 pets/library/niulai/pet.json 作为规格基准复刻同等能力。
+
+请使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。不要修改播放器去写死这只宠物的名字、性格或动画路径；身份、动作帧、文案、语音、词库全部放进 .petpack / pet.json。播放器已具备窗口互动、跪爬模式、画饼雷达、来电小剧场、预录音、右键菜单、事件占用、托盘和客户交付，直接复用。
+
+宠物名字：牛来
+身份：办公嘴替小黄牛（致敬电影《牛来》人设，非官方周边）
+性格：胆小、躺平、嘴碎、被点到突然燃
+程序名称：牛来桌面宠物
+delivery-id：niulai
+风格：柔和写实 2D，黄色小牛犊
+重点特征：小黄牛体型、短角、垂耳、浅色口鼻；所有动作必须是同一只小牛
+称呼：打工人
+语音：speechGender=male。若我附了 mp3 就接到 speechAudio；没有预录音就全部用电脑自带中文男声合成，不要静音交付，不要编造或下载无关录音
+defaultSize：small
+启动问候：「打工人，牛来了。」
+
+## 必须做出与基准同等的能力
+
+1. 标准动作（透明背景、统一画布/体量/重心/脚底基线）
+   - idle 4 帧、walk 6 帧（朝右，向左由播放器镜像）、sit 4 帧、sleep 4 帧、reaction 4 帧
+
+2. 窗口互动七动作（写进 animations + interactionActions，不要只回退到 walk/sit）
+   - drag 6：被拖走时的姿态，四肢离地，不要直立走
+   - climb 6：沿看不见的窗侧往上爬，手在攀爬侧；左墙与右墙都不能变成屁股贴墙
+   - perch 4：坐在看不见的窗沿上，屁股贴顶边、双腿向前垂下；待机循环必须左右腿交替悠闲晃动，不要两腿同步踢、不要僵直垂着
+   - hang 4：双手抓住看不见的下沿，身体悬空
+   - fall 4：失去支撑向下掉
+   - impact 4：落地摔坐
+   - recover 6：起身、拍拍、回到正面待机姿态
+
+3. 跪爬
+   - crawl 6 帧跪爬循环，右键「跪爬模式」可切换
+
+4. 来电小剧场（sequences.boss-call，动作帧、文案、音频全部进 petpack）
+   - call-shout 4 帧：牛来仰头大喊，气泡「妈妈！」循环播放（messageLoop），男声喊「妈妈」（有预录音接 audio/call-mom.mp3，没有就用合成）
+   - call-mom-approach 4 帧：一位妈妈入画问「牛来？」，女声（有预录音接 audio/mom-niulai.mp3，没有就用合成，speechGender=female）
+   - call-mom-walk 6 帧：妈妈走向来电弹窗的拒接键（approachTarget: incoming-call-reject，walkMaxStepPx 渐进移动不要闪现）
+   - call-mom-kick 4 帧：妈妈抬脚踩中拒接键挂断；挂断命中用整个 rejectBounds，禁 inset 缩小；动作锚点必须按新帧 alpha bbox 实测脚部位置回写 contacts，不要抄旧坐标
+   - 右键菜单「演一出来电」触发整个序列；序列期间跳过窗口尺寸恢复和贴附/攀爬轮询，防止把妈妈拽离挂断键
+   - 若接了钉钉/飞书真实来电定位能力，序列期需要 topmostGuard 保持置顶
+
+5. 文案与右键（全部来自 pet.json，口吻符合性格）
+   - contextMenuActions 至少 3 项：站起来（reaction，气泡「我来了。」）、睡会儿做梦（sleep，气泡「眼前一黑。做梦去。」）、演一出来电（sequence: boss-call）
+   - behavior.random：walk/sit/reaction/sleep 加权调度；sit 带气泡「先趴着。筐还没到。」，reaction 带「点到我了？那我站一下。」
+   - behavior.perched：坐窗特色动作「不敢跳。溪还没过。」，用 idleMinMs/idleMaxMs（约 25s～50s）拉开间隔，不要刚坐下就连放；不要画真实窗框
+
+6. 办公黑话雷达（pet.json.watch，六类，不要写进播放器）
+   - keywordStates：画饼→perch、吹牛→reaction、加班→crawl、甩锅→reaction、开会→sit、PUA→sleep
+   - triggers 至少包含：
+     画饼类：画饼、上市、期权、年终奖、分红、升职、加薪、未来可期、亏待、功劳、融资、不会亏待
+     吹牛类：吹牛、人脉、搞得定、包在我身上、小意思、当年、资源很多、我来摆平
+     加班类：今晚加班、周末来一趟、线上对齐、EOD、加班、今晚处理下、临时改一下、先别下班
+     甩锅类：你看一下、协同一下、同步一下、帮忙看下、背锅、你来跟一下、兜一下、支援一下
+     开会类：对齐、复盘、闭环、抓手、颗粒度、汇报一下、方案再想想、开个会
+     PUA类：成长、机会、年轻人、扛事、信任你、有挑战、锻炼你、结果导向
+   - 每类写 3～4 句嘴替吐槽，风格参考基准 pet.json（躺平、嘴碎、自嘲，不脏口）；fallback 兜底句：「云雀又来报信了。我躺着听。」
+   - 老板单聊任意消息、或群里 @所有人 命中触发词时，播放对应动作并念吐槽语音
+   - 有预录音则每条带 audio；没有预录音则只写 text，运行时用电脑自带语音合成；referencedFiles 必须收齐已引用的 mp3，没引用就不要塞进包里
+   - 不要改 src 里的老板 open_id / lark 路径；本机雷达开关走 userData/boss-watch.json
+
+## 质量门禁
+
+- 所有帧是同一只小牛；左右安全边距、禁止串帧、禁止平切尾巴/角/蹄子；失败就重画，禁止只擦碎片继续
+- 互动动作连播 50 次不得放大、缩小、平移；静止点击不得拖动窗口
+- 透明像素必须鼠标穿透
+- 切勿为这只宠物分叉播放器代码
+
+## 打包与交付
+
+生成并验证 pets/library/niulai/ 后打包：
+
+python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/niulai pets/packages/niulai.petpack
+
+封装客户 EXE（不要用 npm run build:customer -- 转发参数，本机 npm 会吞参数）：
+
+node scripts/build-customer.js --pet pets/packages/niulai.petpack --name "牛来桌面宠物" --delivery-id niulai
+
+客户双击 EXE 后宠物必须直接出现，不需要安装开发环境，也不需要手动导入资源包。客户版只含这一只，隐藏导入/切换/打开宠物库。
+
+请实际启动成品，验证：启动问候语音「打工人，牛来了。」、标准动画、透明背景及透明像素鼠标穿透、静止连点 50 次无放大/平移、拖动、侧边攀爬（手贴墙）、坐窗晃腿、吊挂、屏顶坠落恢复、跪爬模式、漫游与左右朝向、右键菜单三项、右键「演一出来电」完整走完喊妈妈→妈妈走近→踩挂断→回到待机、托盘、退出、独立数据目录。无预录音时，启动问候、坐下吐槽、右键、雷达吐槽必须能听到电脑自带中文语音，不能只有气泡没有声音。若接了雷达，用老板账号在群里发「@所有人 好好干，将来上市我记着大家的功劳」应触发画饼吐槽（坐窗）+ 语音。
+
+最终交付专属 EXE、build-report.json 和验证结果，不要只交付 .petpack。未做代码签名要如实说明。

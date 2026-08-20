@@ -1,109 +1,90 @@
-# Task 1 Report: watch-rules.js 过滤管线纯函数（TDD）
+# Task 1 Report: 身份卡 + 定妆主图（用户确认门禁）
 
-## What I Implemented
+## Status
 
-Created the pure-function filtering pipeline for the "飞书画饼雷达" (boss watch radar) feature:
+**DONE_WITH_CONCERNS**
 
-- **`src/watch-rules.js`** — Six exports per the brief's Step 3 implementation, transcribed verbatim:
-  - `createDedupeSet(maxSize = 5000)` — LRU set with FIFO eviction (`seen` Set + `queue` array; shifts oldest when over limit).
-  - `isBoss(senderId, bossIds)` — strict boolean; returns false for empty array or non-string senderId.
-  - `matchKeyword(text, keywordMap)` — checks `text.toLowerCase().includes(category.toLowerCase())` per category in object-key order; returns the first matching category or `null`.
-  - `inQuietHours(now, quietHours)` — minute-based comparison; supports same-day (`s < e`) and cross-midnight (`s > e`) intervals; empty array → false.
-  - `pickLine(pool, rng = Math.random)` — injectable RNG for testability; falls back to `['']` on empty/non-array.
-  - `DEFAULT_KEYWORDS` — constant with 画饼 / 吹牛 response-line pools.
-- **`scripts/test-watch-rules.js`** — Six test functions covering all exports, transcribed from the brief Step 1 with one typo fix (see below).
-- **`package.json`** — Appended ` && node scripts/test-watch-rules.js` to the `test:js` script chain.
+主图与身份卡已落地并提交可跟踪文档；**主图仍待用户确认**，确认前不得进入 Task 2。
 
-### Typo Fix (documented deviation from brief)
+## What was done
 
-The brief's `testMatchKeyword` test text `'年底给你画个大饼'` does NOT contain `'画饼'` as a contiguous substring (the characters 画 and 饼 are separated by 个大 in that string). Since the implementation checks `text.toLowerCase().includes(category.toLowerCase())` — i.e. the text must contain the category key as a substring — this test case would always return `null` and fail.
+### Step 1 — IDENTITY.md
 
-The `DEFAULT_KEYWORDS` values are clearly response *lines* (long sentences with exclamation marks), confirming that the keywordMap's array values are pickLine pools, not match keywords. The implementation correctly matches the category key against the text, consistent with the interface description (`text.toLowerCase().includes(keyword.toLowerCase())`).
+Created verbatim:
 
-Fix: changed the test text from `'年底给你画个大饼'` to `'年底给你画饼了'` (画 and 饼 are now adjacent), preserving the semantic intent (drawing a pie = making empty promises) while making the substring match succeed. No implementation code was changed.
+- `pets/work/brother-judge/IDENTITY.md`
 
-## TDD Evidence
+### Step 2 — 定妆主图
 
-### RED — Step 2 (before implementation)
+- Generated photoreal full-body master with `GenerateImage`
+- Reference images (both attached):
+  - `pets/work/brother-judge/source/refs/ref-face-closeup.png`
+  - `pets/work/brother-judge/source/refs/ref-portrait.png`
+- Prompt used exactly as specified in the task brief
+- Archive (generated original, not overwritten):
+  - `pets/work/brother-judge/source/realistic/generated-originals/master-realistic-20260812-142451.png`
+- Working master:
+  - `pets/work/brother-judge/source/refs/master-realistic.png`
 
-Command:
-```
-node scripts/test-watch-rules.js
-```
+### Visual checklist (agent self-review)
 
-Failing output excerpt:
-```
-Error: Cannot find module '../src/watch-rules'
-Require stack:
-- D:\Vibe_Coding\desktop-pet\scripts\test-watch-rules.js
-    at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
-    ...
-    code: 'MODULE_NOT_FOUND'
-EXIT_CODE=1
-```
+| Criterion | Result |
+| --- | --- |
+| Photoreal (not anime) | Pass |
+| Thin silver round glasses | Pass |
+| Black judge hat + white-beaded wings | Pass |
+| White tank top | Pass |
+| Dark loose shorts | Pass |
+| Flip-flops | Pass |
+| Solid #00FF00 background | Pass |
+| No floor shadow / no text | Pass |
+| Optional judge brush, not covering face | Pass (brush held up, clear of face) |
 
-### GREEN — Step 4 (after implementation)
+### Step 3 — 人工门禁（未完成，按 brief 移交用户）
 
-Command:
-```
-node scripts/test-watch-rules.js
-```
+**未获用户确认。** 本任务按指示不在此等待用户回复。
 
-Passing output:
-```
-ok - testDedupe
-ok - testIsBoss
-ok - testMatchKeyword
-ok - testQuietHours
-ok - testPickLine
-ok - testDefaults
-watch-rules: all tests passed
-EXIT_CODE=0
-```
+请用户查看 `pets/work/brother-judge/source/refs/master-realistic.png` 并确认：
 
-All six test functions pass.
+1. 是否认得出是本人（脸部 / 银色细圆框眼镜是否匹配 closeup）
+2. 帽翅与白色珠饰是否正确
+3. 服装是否为白背心 + 深色大裤衩 + 人字拖（非工装衬衫）
 
-## `npm run test:js` Result
+**未确认前禁止进入 Task 2。**
 
-Command:
-```
-npm run test:js
-```
+### Step 4 — Git
 
-Result: **PASSING** (exit code 0). The entire JS test chain (syntax checks + all existing test scripts + the new `test-watch-rules.js`) ran cleanly with no errors. Output was pristine — all existing tests still pass and the new test output appears at the end:
+- `pets/work/` 被 gitignore，主图仅本地保存（路径见上）
+- Copied identity summary to trackable doc and committed:
+  - `pets/library/brother-judge/DESIGN.md`
 
-```
-... (existing test output) ...
-test-sequence-controller: ok
-ok - testDedupe
-ok - testIsBoss
-ok - testMatchKeyword
-ok - testQuietHours
-ok - testPickLine
-ok - testDefaults
-watch-rules: all tests passed
-```
+## Commits
 
-## Files Changed
+- `bce21db` docs: lock brother-judge photoreal identity for redesign
 
-- `src/watch-rules.js` (created — 46 lines)
-- `scripts/test-watch-rules.js` (created — 68 lines)
-- `package.json` (modified — `test:js` script extended with `&& node scripts/test-watch-rules.js`)
+## Files produced
 
-## Self-Review Findings
+| Path | Tracked? |
+| --- | --- |
+| `pets/work/brother-judge/IDENTITY.md` | No (work/) |
+| `pets/work/brother-judge/source/refs/master-realistic.png` | No (work/) |
+| `pets/work/brother-judge/source/realistic/generated-originals/master-realistic-20260812-142451.png` | No (work/) |
+| `pets/library/brother-judge/DESIGN.md` | Yes |
 
-1. **Completeness**: All six exports from the brief are implemented and tested. The module is CommonJS (`module.exports`), uses `'use strict'`, and has zero dependencies — consistent with `src/startup-greeting.js` style.
+## Untouched (as required)
 
-2. **TDD discipline**: RED was confirmed (module-not-found, exit 1) before any implementation was written. GREEN was confirmed after implementation.
+Did not modify existing uncommitted changes in:
 
-3. **Test hygiene**: The test script follows the repo's established pattern (tests object, iterate with try/catch, `console.log` on pass / `console.error` on fail, `process.exit(1)` on any failure). No test pollution — each test function is independent. RNG is injected in `testPickLine` (deterministic). No flaky randomness.
+- `pets/library/brother-judge/pet.json`
+- `pets/packages/brother-judge.petpack`
+- `src/main-v3.js`
 
-4. **YAGNI**: No extra functions, no over-engineering. The `pickLine` fallback to `['']` is defensive but minimal. The `toMinutes` helper is private (not exported).
+## Concerns
 
-5. **Chain integrity**: The `test:js` chain was extended correctly — the new test runs last and the whole chain passes, confirming no existing test was broken.
+1. **User confirmation gate open** — master awaits explicit user OK before Task 2.
+2. Face likeness is AI-assisted from refs; final identity acceptance is the user’s call.
+3. Work-tree assets are local-only; backup/archive path above if workspace is cleaned.
 
-6. **Concern**: The brief contained a typo in the test text (see Typo Fix section above). The fix is minimal and preserves intent. The implementation was NOT modified — only the test text was corrected to contain the required substring.
+## Test summary
 
-## Commits Created
-
-- `3ed0243` — `feat: add watch rules filtering pipeline`
+Identity markdown written verbatim; master generated with both refs; archive + working copy saved; DESIGN.md committed; confirmation gate left for user.

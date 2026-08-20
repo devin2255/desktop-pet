@@ -196,6 +196,9 @@ function buildCustomer(options) {
         'src/im-bus.js',
         'src/im-adapter-lark.js',
         'src/im-adapter-dingtalk.js',
+        'src/dingtalk-uia.js',
+        'src/dingtalk-call-uia.ps1',
+        'src/pet-task.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]
