@@ -494,8 +494,26 @@ window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, messa
 window.petApi.onMarket(updateTicker);
 window.petApi.getCurrentPet().then(loadPet);
 
-// Persistent market ticker above the head. Red = up, green = down.
+// Persistent market board above the head. Red = up, green = down.
+// Shows the watched index with points/change, the other two major indices,
+// turnover and advance/decline breadth so it reads like a real quote board.
+function fmtPct(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '--';
+  return `${n > 0 ? '+' : ''}${n.toFixed(2)}%`;
+}
+function el(cls, text) {
+  const node = document.createElement('span');
+  if (cls) node.className = cls;
+  node.textContent = text;
+  return node;
+}
+function shortName(name) {
+  if (!name) return '';
+  return name.replace('上证指数', '上证').replace('深证成指', '深证').replace('创业板指', '创业板');
+}
 function updateTicker(info) {
+  ticker.textContent = '';
   if (!info || info.enabled !== true) {
     ticker.classList.remove('visible', 'up', 'down');
     pet.classList.remove('has-ticker');
@@ -506,16 +524,51 @@ function updateTicker(info) {
   const pct = Number(info.pct);
   if (!Number.isFinite(pct)) {
     ticker.classList.remove('up', 'down');
-    ticker.textContent = info.simulated ? '模拟盘待命' : '大盘雷达待命';
+    ticker.appendChild(el('', info.simulated ? '模拟盘待命' : '大盘待命'));
     return;
   }
   const up = pct > 0;
   ticker.classList.toggle('up', up);
   ticker.classList.toggle('down', !up);
+
+  // Line 1: watched index + points + change% + change amount.
+  const main = document.createElement('div');
+  main.className = 'tk-main';
   const arrow = up ? '▲' : '▼';
   const sign = up ? '+' : '';
   const points = Number(info.points);
-  const pts = Number.isFinite(points) ? ` ${points.toFixed(2)}` : '';
-  const tag = info.simulated ? '模拟 ' : '';
-  ticker.textContent = `${tag}${arrow}${pts} ${sign}${pct.toFixed(2)}%`;
+  main.appendChild(el('', `${info.simulated ? '模拟 ' : ''}${shortName(info.name) || '大盘'} `));
+  if (Number.isFinite(points)) main.appendChild(el('', `${points.toFixed(2)} `));
+  main.appendChild(el('tk-arrow', `${arrow}${sign}${pct.toFixed(2)}%`));
+  ticker.appendChild(main);
+
+  // Line 2: the other two major indices, each colored by its own direction.
+  if (Array.isArray(info.indices) && info.indices.length) {
+    const sub = document.createElement('div');
+    sub.className = 'tk-sub';
+    info.indices.forEach((idx, i) => {
+      const n = Number(idx.pct);
+      const cls = Number.isFinite(n) ? (n > 0 ? 'u' : 'd') : '';
+      if (i > 0) sub.appendChild(el('', '  '));
+      sub.appendChild(el(cls, `${shortName(idx.name)} ${fmtPct(idx.pct)}`));
+    });
+    ticker.appendChild(sub);
+  }
+
+  // Line 3: turnover + advance/decline breadth.
+  const amount = Number(info.amount);
+  const upC = Number(info.up);
+  const downC = Number(info.down);
+  if (Number.isFinite(amount) || Number.isFinite(upC)) {
+    const line = document.createElement('div');
+    line.className = 'tk-sub';
+    if (Number.isFinite(amount)) line.appendChild(el('', `成交 ${Math.round(amount / 1e8)}亿`));
+    if (Number.isFinite(upC) && Number.isFinite(downC)) {
+      if (Number.isFinite(amount)) line.appendChild(el('', '  '));
+      line.appendChild(el('u', `涨${upC}`));
+      line.appendChild(el('', ' '));
+      line.appendChild(el('d', `跌${downC}`));
+    }
+    ticker.appendChild(line);
+  }
 }

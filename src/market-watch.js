@@ -18,15 +18,17 @@ function createDebugWriter(logPath) {
   };
 }
 
-function defaultFetchQuote(secid) {
+const QUOTE_FIELDS = 'f2,f3,f4,f6,f104,f105,f106,f12,f14';
+const QUOTE_HOSTS = ['push2.eastmoney.com', 'push2delay.eastmoney.com'];
+// Extra indices shown on the ticker besides the watched one, for a real
+// "watching the board" feel (Shanghai / Shenzhen / ChiNext).
+const EXTRA_SECIDS = ['0.399001', '0.399006'];
+
+function fetchFromHost(host, secids) {
   return new Promise((resolve, reject) => {
-    const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${encodeURIComponent(secid)}&fields=f2,f3,f12,f13,f14`;
+    const url = `https://${host}/api/qt/ulist.np/get?secids=${encodeURIComponent(secids)}&fields=${QUOTE_FIELDS}`;
     const req = https.get(url, { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        reject(new Error(`HTTP ${res.statusCode}`));
-        return;
-      }
+      if (res.statusCode < 200 || res.statusCode >= 300) { res.resume(); reject(new Error(`HTTP ${res.statusCode}`)); return; }
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => { body += chunk; });
@@ -34,16 +36,47 @@ function defaultFetchQuote(secid) {
         try {
           const parsed = JSON.parse(body);
           const diff = parsed && parsed.data && Array.isArray(parsed.data.diff) ? parsed.data.diff : [];
-          const first = diff.find((item) => item && typeof item.f3 === 'number');
-          if (!first) { reject(new Error('行情数据缺失')); return; }
-          const points = typeof first.f2 === 'number' ? first.f2 / 100 : undefined;
-          resolve({ pct: first.f3 / 100, points, name: typeof first.f14 === 'string' ? first.f14 : '' });
+          if (!diff.length) { reject(new Error('行情数据缺失')); return; }
+          resolve(diff);
         } catch (err) { reject(err); }
       });
     });
     req.on('timeout', () => { req.destroy(new Error('timeout')); });
     req.on('error', (err) => reject(err));
   });
+}
+
+function toEntry(item) {
+  const num = (v) => (typeof v === 'number' ? v / 100 : undefined);
+  return {
+    code: typeof item.f12 === 'string' ? item.f12 : '',
+    name: typeof item.f14 === 'string' ? item.f14 : '',
+    points: num(item.f2),
+    pct: num(item.f3),
+    change: num(item.f4),
+    amount: typeof item.f6 === 'number' ? item.f6 : undefined,
+    up: Number.isFinite(item.f104) ? item.f104 : undefined,
+    down: Number.isFinite(item.f105) ? item.f105 : undefined,
+    flat: Number.isFinite(item.f106) ? item.f106 : undefined
+  };
+}
+
+async function defaultFetchQuote(secid) {
+  const secids = [...new Set([secid, ...EXTRA_SECIDS])].join(',');
+  let diff = null;
+  let lastErr;
+  for (const host of QUOTE_HOSTS) {
+    try { diff = await fetchFromHost(host, secids); break; } catch (err) { lastErr = err; }
+  }
+  if (!diff) throw lastErr || new Error('行情数据缺失');
+  const entries = diff.map(toEntry);
+  const primary = entries.find((e) => e.pct !== undefined && secid.endsWith(e.code)) || entries.find((e) => e.pct !== undefined);
+  if (!primary) throw new Error('行情数据缺失');
+  return {
+    ...primary,
+    indices: entries.filter((e) => e.code !== primary.code && e.pct !== undefined)
+      .map((e) => ({ name: e.name, pct: e.pct }))
+  };
 }
 
 function inTradingHours(date) {
@@ -101,7 +134,22 @@ function createMarketWatcher({
 
   function simQuote() {
     const pct = (0.2 + Math.random() * 1.3) * (simSign === 'up' ? 1 : -1);
-    return { pct: Math.round(pct * 100) / 100, name: '模拟盘' };
+    const round2 = (v) => Math.round(v * 100) / 100;
+    const base = 3900 + Math.round(Math.random() * 60);
+    const up = simSign === 'up' ? 2600 + Math.round(Math.random() * 1500) : 900 + Math.round(Math.random() * 900);
+    const down = simSign === 'up' ? 900 + Math.round(Math.random() * 900) : 2600 + Math.round(Math.random() * 1500);
+    return {
+      pct: round2(pct),
+      points: base + round2(pct * 10),
+      change: round2(pct * 10),
+      amount: (6000 + Math.random() * 5000) * 1e8,
+      up, down, flat: 90,
+      name: '模拟盘',
+      indices: [
+        { name: '深证成指', pct: round2(pct * (0.6 + Math.random() * 0.9)) },
+        { name: '创业板指', pct: round2(pct * (0.8 + Math.random() * 1.2)) }
+      ]
+    };
   }
 
   function simulatedTick(config) {

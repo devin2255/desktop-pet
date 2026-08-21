@@ -639,7 +639,12 @@ function pushMarketStatus() {
     simulated: Boolean(market?.simulated),
     name: lastMarketQuote?.name || '',
     points: lastMarketQuote?.points,
-    pct: lastMarketQuote?.pct
+    pct: lastMarketQuote?.pct,
+    change: lastMarketQuote?.change,
+    amount: lastMarketQuote?.amount,
+    up: lastMarketQuote?.up,
+    down: lastMarketQuote?.down,
+    indices: Array.isArray(lastMarketQuote?.indices) ? lastMarketQuote.indices : []
   });
 }
 
@@ -713,13 +718,13 @@ function buildTrayMenu() {
       click: (item) => persistWatchFlags({ callHangupEnabled: item.checked })
     },
     {
-      label: '大盘雷达',
+      label: '真实大盘（实时行情）',
       type: 'checkbox',
-      checked: Boolean(watchConfig?.market?.enabled),
+      checked: Boolean(watchConfig?.market?.enabled) && !watchConfig?.market?.simulated,
       visible: Boolean(activeManifest?.sequences?.['market-bull'] || activeManifest?.sequences?.['market-bear']),
       click: (item) => {
-        persistWatchFlags({ marketEnabled: item.checked });
-        if (item.checked) sendState('reaction', '大盘雷达开启，翻红翻绿我第一个知道。');
+        persistWatchFlags({ marketEnabled: item.checked, marketSimulated: false });
+        if (item.checked) sendState('reaction', '真实大盘开启，翻红翻绿我第一个知道。');
       }
     },
     {
