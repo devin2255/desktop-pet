@@ -36,7 +36,8 @@ function defaultFetchQuote(secid) {
           const diff = parsed && parsed.data && Array.isArray(parsed.data.diff) ? parsed.data.diff : [];
           const first = diff.find((item) => item && typeof item.f3 === 'number');
           if (!first) { reject(new Error('行情数据缺失')); return; }
-          resolve({ pct: first.f3 / 100, name: typeof first.f14 === 'string' ? first.f14 : '' });
+          const points = typeof first.f2 === 'number' ? first.f2 / 100 : undefined;
+          resolve({ pct: first.f3 / 100, points, name: typeof first.f14 === 'string' ? first.f14 : '' });
         } catch (err) { reject(err); }
       });
     });
@@ -75,6 +76,7 @@ function createMarketWatcher({
   getConfig,
   onEvent,
   onStatus,
+  onQuote,
   fetchQuote = defaultFetchQuote,
   now = () => Date.now(),
   debugLogPath = require('path').join(process.cwd(), 'market-watch-debug.log')
@@ -157,6 +159,8 @@ function createMarketWatcher({
       prevSimulated = config.simulated;
       const sign = signOf(quote.pct);
       dbg(`tick: ${quote.name || config.secid} pct=${quote.pct} sign=${sign} lastSign=${lastSign}`);
+      // Feed the live quote to the renderer ticker on every successful sample.
+      try { onQuote && onQuote(quote, config); } catch (err) { dbg(`onQuote error: ${err?.message || err}`); }
       if (lastSign === null) {
         lastSign = sign;
         return;

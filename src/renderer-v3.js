@@ -2,6 +2,7 @@ const pet = document.getElementById('pet');
 const petImage = document.getElementById('pet-image');
 const bubble = document.getElementById('bubble');
 const hearts = document.getElementById('hearts');
+const ticker = document.getElementById('ticker');
 
 let manifest;
 let pointerDown;
@@ -490,4 +491,31 @@ pet.addEventListener('contextmenu', (event) => {
 window.petApi.onLoad(loadPet);
 window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, messages, messageGapMs, speechGender, messageLoop, speechLoop }) =>
   setState(state, message, speech, logicalRole, speechAudio || '', messages, messageGapMs, { speechGender, messageLoop, speechLoop }));
+window.petApi.onMarket(updateTicker);
 window.petApi.getCurrentPet().then(loadPet);
+
+// Persistent market ticker above the head. Red = up, green = down.
+function updateTicker(info) {
+  if (!info || info.enabled !== true) {
+    ticker.classList.remove('visible', 'up', 'down');
+    pet.classList.remove('has-ticker');
+    return;
+  }
+  pet.classList.add('has-ticker');
+  ticker.classList.add('visible');
+  const pct = Number(info.pct);
+  if (!Number.isFinite(pct)) {
+    ticker.classList.remove('up', 'down');
+    ticker.textContent = info.simulated ? '模拟盘待命' : '大盘雷达待命';
+    return;
+  }
+  const up = pct > 0;
+  ticker.classList.toggle('up', up);
+  ticker.classList.toggle('down', !up);
+  const arrow = up ? '▲' : '▼';
+  const sign = up ? '+' : '';
+  const points = Number(info.points);
+  const pts = Number.isFinite(points) ? ` ${points.toFixed(2)}` : '';
+  const tag = info.simulated ? '模拟 ' : '';
+  ticker.textContent = `${tag}${arrow}${pts} ${sign}${pct.toFixed(2)}%`;
+}

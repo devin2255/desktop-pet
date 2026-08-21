@@ -625,6 +625,22 @@ function persistWatchFlags(flags) {
   }));
   restartOfficeBus();
   refreshTrayMenu();
+  pushMarketStatus();
+}
+
+// Push the current market radar status + last quote to the renderer so the
+// persistent ticker above the pet's head can show/hide and recolor live.
+let lastMarketQuote = null;
+function pushMarketStatus() {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const market = watchConfig?.market;
+  petWindow.webContents.send('pet:market', {
+    enabled: Boolean(market?.enabled),
+    simulated: Boolean(market?.simulated),
+    name: lastMarketQuote?.name || '',
+    points: lastMarketQuote?.points,
+    pct: lastMarketQuote?.pct
+  });
 }
 
 function buildTrayMenu() {
@@ -798,6 +814,7 @@ function createWindow() {
   petWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   petWindow.webContents.on('will-navigate', (event, url) => { if (url !== indexUrl) event.preventDefault(); });
   petWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  petWindow.webContents.on('did-finish-load', () => pushMarketStatus());
   petWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
     if (!isAlwaysOnTop && topmostGuard?.isEnabled()) setImmediate(() => topmostGuard?.ensure());
   });
@@ -1206,9 +1223,11 @@ if (!gotLock) {
       getConfig: () => watchConfig?.market,
       onEvent: handleMarketEvent,
       onStatus: (status) => { marketDbg(`status: ${JSON.stringify(status)}`); },
+      onQuote: (quote) => { lastMarketQuote = quote; pushMarketStatus(); },
       debugLogPath: marketDbgLog
     });
     marketWatcher.start();
+    pushMarketStatus();
     // ─────────────────────────────────────────────────────────────────────
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);

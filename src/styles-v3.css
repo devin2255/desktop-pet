@@ -64,6 +64,34 @@ body { -webkit-app-region: no-drag; }
   pointer-events: none;
 }
 .bubble.visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+/* Persistent market ticker pinned above the head. Red = up, green = down
+   (A-share convention). pointer-events none so it never blocks the desktop. */
+.ticker {
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, 0);
+  max-width: 96%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(92, 92, 98, 0.92);
+  box-shadow: 0 2px 8px rgba(40, 30, 20, 0.22);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 160ms ease, background 200ms ease;
+  pointer-events: none;
+}
+.ticker.visible { opacity: 1; }
+.ticker.up { background: rgba(214, 62, 52, 0.95); }
+.ticker.down { background: rgba(24, 150, 78, 0.95); }
+/* Push the speech bubble below the ticker while it is on screen. */
+.pet.has-ticker { --bubble-top: 24px; }
 .hearts { position: absolute; z-index: 4; inset: 0; pointer-events: none; }
 .heart {
   position: absolute;
