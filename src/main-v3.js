@@ -87,6 +87,7 @@ let marketWatcher = null;
 let watchConfig = null;
 let watchConfigPath = '';
 let restartOfficeBus = () => {};
+let petTaskPollTimer = null;
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');

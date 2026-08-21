@@ -62,4 +62,17 @@ function testPackWhitelistIncludesPetTask() {
 }
 
 testPackWhitelistIncludesPetTask();
+
+function testMainDeclaresPetTaskPollTimerBeforeQuitCleanup() {
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main-v3.js'), 'utf8');
+  const declare = src.search(/\blet petTaskPollTimer\b/);
+  const use = src.search(/\bif \(petTaskPollTimer\)/);
+  assert.ok(declare >= 0, 'main must declare petTaskPollTimer so before-quit does not throw ReferenceError');
+  assert.ok(use >= 0, 'before-quit must still clear petTaskPollTimer when it exists');
+  assert.ok(declare < use, 'declaration must appear before the quit cleanup use');
+}
+
+testMainDeclaresPetTaskPollTimerBeforeQuitCleanup();
 console.log('test-pet-task: ok');

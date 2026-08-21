@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "packageVersion": "1.0.1",
+  "packageVersion": "1.0.3",
   "id": "niulai",
   "name": "牛来",
   "description": "办公嘴替小黄牛。致敬电影《牛来》人设，非官方周边。致敬电影人设，非官方授权周边。",
@@ -380,8 +380,8 @@
     "climb": {
       "action": "climb",
       "anchor": {
-        "x": 0.52,
-        "y": 0.48
+        "x": 0.68,
+        "y": 0.52
       }
     },
     "perch": {
@@ -395,7 +395,7 @@
       "action": "hang",
       "anchor": {
         "x": 0.5,
-        "y": 0.08
+        "y": 0.16
       }
     },
     "fall": {
@@ -414,7 +414,7 @@
         "hangup": {
           "action": "call-mom-kick",
           "anchor": {
-            "x": 0.53,
+            "x": 0.43,
             "y": 0.96
           }
         }
