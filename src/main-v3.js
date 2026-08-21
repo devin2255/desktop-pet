@@ -696,6 +696,26 @@ function buildTrayMenu() {
       checked: Boolean(watchConfig?.callHangup?.enabled),
       click: (item) => persistWatchFlags({ callHangupEnabled: item.checked })
     },
+    {
+      label: '大盘雷达',
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.market?.enabled),
+      visible: Boolean(activeManifest?.sequences?.['market-bull'] || activeManifest?.sequences?.['market-bear']),
+      click: (item) => {
+        persistWatchFlags({ marketEnabled: item.checked });
+        if (item.checked) sendState('reaction', '大盘雷达开启，翻红翻绿我第一个知道。');
+      }
+    },
+    {
+      label: '大盘模拟盘（随机涨跌测试）',
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.market?.simulated),
+      visible: Boolean(activeManifest?.sequences?.['market-bull'] || activeManifest?.sequences?.['market-bear']),
+      click: (item) => {
+        persistWatchFlags({ marketEnabled: true, marketSimulated: item.checked });
+        sendState('reaction', item.checked ? '模拟盘开启：随机翻红翻绿，坐稳了。' : '模拟盘关闭，回归真实行情。');
+      }
+    },
     { label: '开机自动启动', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }) },
     { type: 'separator' }, {
       label: '暂时藏起来',

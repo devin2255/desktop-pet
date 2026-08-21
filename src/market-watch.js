@@ -59,6 +59,7 @@ function normalizeConfig(raw) {
   const cooldownSec = Number(src.cooldownSec);
   return {
     enabled: src.enabled === true,
+    simulated: src.simulated === true,
     secid: typeof src.secid === 'string' && src.secid.trim() ? src.secid.trim() : DEFAULT_SECID,
     pollMs: Number.isFinite(pollMs) && pollMs >= 2000 ? pollMs : 5000,
     cooldownSec: Number.isFinite(cooldownSec) && cooldownSec >= 0 ? cooldownSec : 60,
@@ -84,6 +85,36 @@ function createMarketWatcher({
   let lastSign = null; // 'up' | 'down'; null until first successful sample
   let lastTriggerAt = 0;
   let mockFired = false;
+  // Simulation state (market.simulated): alternate green<->red at random
+  // intervals so both bull and bear sequences can be exercised any time,
+  // outside trading hours included. Interval always exceeds the cooldown so
+  // no synthetic flip is ever suppressed.
+  let simSign = 'down'; // start green; the first flip fires a bull event
+  let simNextFlipAt = null;
+  let prevSimulated = false;
+
+  function simFlipDelay(config) {
+    return config.cooldownSec * 1000 + 8000 + Math.floor(Math.random() * 17000);
+  }
+
+  function simQuote() {
+    const pct = (0.2 + Math.random() * 1.3) * (simSign === 'up' ? 1 : -1);
+    return { pct: Math.round(pct * 100) / 100, name: '模拟盘' };
+  }
+
+  function simulatedTick(config) {
+    const at = now();
+    if (simNextFlipAt === null) {
+      simNextFlipAt = at + simFlipDelay(config);
+      dbg(`sim: armed first flip in ${Math.round((simNextFlipAt - at) / 1000)}s (start sign=${simSign})`);
+      return simQuote();
+    }
+    if (at < simNextFlipAt) return simQuote();
+    simSign = simSign === 'up' ? 'down' : 'up';
+    simNextFlipAt = at + simFlipDelay(config);
+    dbg(`sim: flipped to ${simSign}, next flip in ${Math.round((simNextFlipAt - at) / 1000)}s`);
+    return simQuote();
+  }
 
   function emit(kind, quote) {
     const at = now();
@@ -103,13 +134,27 @@ function createMarketWatcher({
     try {
       const config = normalizeConfig(getConfig && getConfig());
       if (!config.enabled) return;
-      if (config.tradingHoursOnly && !inTradingHours(new Date(now()))) {
-        // Outside trading hours keep the last known sign so the first flip
-        // after the open can still trigger.
-        dbg('tick: outside trading hours');
-        return;
+      let quote;
+      if (config.simulated) {
+        // Simulated mode: synthetic quotes, no trading-hours gate, no network.
+        // Re-baseline when entering simulation so the mode switch itself
+        // never fires an event.
+        if (!prevSimulated) {
+          lastSign = null;
+          simNextFlipAt = null;
+        }
+        quote = simulatedTick(config);
+      } else {
+        prevSimulated = false;
+        if (config.tradingHoursOnly && !inTradingHours(new Date(now()))) {
+          // Outside trading hours keep the last known sign so the first flip
+          // after the open can still trigger.
+          dbg('tick: outside trading hours');
+          return;
+        }
+        quote = await fetchQuote(config.secid);
       }
-      const quote = await fetchQuote(config.secid);
+      prevSimulated = config.simulated;
       const sign = signOf(quote.pct);
       dbg(`tick: ${quote.name || config.secid} pct=${quote.pct} sign=${sign} lastSign=${lastSign}`);
       if (lastSign === null) {
@@ -151,6 +196,8 @@ function createMarketWatcher({
   function stop() {
     if (timer) { clearInterval(timer); timer = null; }
     lastSign = null;
+    simNextFlipAt = null;
+    prevSimulated = false;
   }
 
   return { start, stop, tick, inTradingHours, signOf, normalizeConfig };

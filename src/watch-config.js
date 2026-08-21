@@ -59,6 +59,7 @@ function normalizeMarket(raw) {
   const cooldownSec = Number(src.cooldownSec);
   return {
     enabled: src.enabled === true,
+    simulated: src.simulated === true,
     secid: typeof src.secid === 'string' && src.secid.trim() ? src.secid.trim() : '1.000001',
     pollMs: Number.isFinite(pollMs) && pollMs >= 2000 ? pollMs : 5000,
     cooldownSec: Number.isFinite(cooldownSec) && cooldownSec >= 0 ? cooldownSec : 60,
@@ -195,6 +196,15 @@ function patchWatchFlags(configPath, flags = {}, { customer } = {}) {
       ? raw.callHangup
       : {};
     raw.callHangup = { ...prev, enabled: flags.callHangupEnabled };
+  }
+  if (typeof flags.marketSimulated === 'boolean' || typeof flags.marketEnabled === 'boolean') {
+    const prev = raw.market && typeof raw.market === 'object' && !Array.isArray(raw.market)
+      ? raw.market
+      : {};
+    const next = { ...prev };
+    if (typeof flags.marketEnabled === 'boolean') next.enabled = flags.marketEnabled;
+    if (typeof flags.marketSimulated === 'boolean') next.simulated = flags.marketSimulated;
+    raw.market = next;
   }
   try {
     const dir = require('path').dirname(configPath);
