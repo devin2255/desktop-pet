@@ -6,7 +6,7 @@ const AdmZip = require('adm-zip');
 
 const REQUIRED_ACTIONS = Object.freeze({ idle: 4, walk: 6, sit: 4, sleep: 4, reaction: 4 });
 const INTERACTION_ROLES = new Set(['drag', 'climb', 'perch', 'hang', 'fall', 'impact', 'recover']);
-const APPROACH_TARGETS = new Set(['incoming-call-edge', 'incoming-call-reject']);
+const APPROACH_TARGETS = new Set(['incoming-call-edge', 'incoming-call-reject', 'nearest-window-top', 'sequence-origin']);
 const PET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,47}$/;
 const SEQUENCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,31}$/;
 const MAX_SEQUENCES = 8;

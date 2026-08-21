@@ -186,6 +186,7 @@ function buildCustomer(options) {
         'src/mouse-through-guard.js',
         'src/sequence-controller.js',
         'src/watch-config.js',
+        'src/market-watch.js',
         'src/message-watcher.js',
         'src/watch-rules.js',
         'src/event-hold.js',

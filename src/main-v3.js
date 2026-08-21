@@ -24,6 +24,7 @@ const { createLarkAdapter } = require('./im-adapter-lark');
 const { createDingtalkAdapter, resolveHangupAction } = require('./im-adapter-dingtalk');
 const { createDingtalkUia } = require('./dingtalk-uia');
 const { loadWatchConfig, ensureBossWatchDefaults, patchWatchFlags } = require('./watch-config');
+const { createMarketWatcher } = require('./market-watch');
 const { insetRect } = require('./approach-target');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const { createEventHold } = require('./event-hold');
@@ -82,6 +83,7 @@ let quitting = false;
 let deliveryConfig;
 let sequence;
 let imBus;
+let marketWatcher = null;
 let watchConfig = null;
 let watchConfigPath = '';
 let restartOfficeBus = () => {};
@@ -1106,6 +1108,88 @@ if (!gotLock) {
       void imBus.start().catch(() => {});
     };
     restartOfficeBus();
+
+    // ── Market mood radar ────────────────────────────────────────────────
+    // Polls the index quote; the moment it flips green<->red the petpack
+    // sequences `market-bull` / `market-bear` fly the pet onto the top of the
+    // nearest window while shouting. All pet visuals/text come from the
+    // resource package; the player only provides the trigger and flight.
+    const marketDbgLog = path.join(app.getPath('userData'), 'market-watch.log');
+    const marketDbg = (line) => {
+      if (process.env.PET_MARKET_DEBUG !== '1') return;
+      try { fs.appendFileSync(marketDbgLog, `${new Date().toISOString()} ${line}\n`); } catch (_) {}
+    };
+    let marketTargetTimer = null;
+    let marketTargetRect = null;
+    const marketDiscovery = createWindowDiscovery({ screen });
+    async function refreshMarketTarget() {
+      try {
+        const windows = await marketDiscovery.list();
+        const pet = petWindow.getBounds();
+        const cx = pet.x + pet.width / 2;
+        const cy = pet.y + pet.height / 2;
+        let best = null;
+        let bestDist = Infinity;
+        for (const win of windows) {
+          if (!win?.bounds || win.bounds.width < 220) continue;
+          const tx = win.bounds.x + win.bounds.width / 2;
+          const ty = win.bounds.y;
+          const dist = Math.hypot(tx - cx, ty - cy);
+          if (dist < bestDist) { bestDist = dist; best = win; }
+        }
+        marketTargetRect = best ? { ...best.bounds } : null;
+        marketDbg(`refreshMarketTarget best=${marketTargetRect ? JSON.stringify(marketTargetRect) : 'none'}`);
+      } catch (err) {
+        marketDbg(`refreshMarketTarget error: ${err?.message || err}`);
+      }
+    }
+    function handleMarketEvent(kind, quote) {
+      marketDbg(`handleMarketEvent kind=${kind} pct=${quote?.pct} sequenceActive=${sequence.isActive()}`);
+      if (sequence.isActive()) return;
+      const seqId = kind === 'bull' ? 'market-bull' : 'market-bear';
+      const seqDef = activeManifest?.sequences?.[seqId];
+      if (!seqDef) { marketDbg(`handleMarketEvent: manifest has no ${seqId}`); return; }
+      const flyStage = (seqDef.stages || []).find((s) => s && s.approachTarget === 'nearest-window-top');
+      const flyAction = flyStage?.action || 'fly';
+      let lastFacing = '';
+      const originBounds = petWindow.getBounds();
+      if (marketTargetTimer) { clearInterval(marketTargetTimer); marketTargetTimer = null; }
+      void refreshMarketTarget();
+      marketTargetTimer = setInterval(() => { void refreshMarketTarget(); }, 1500);
+      const started = sequence.start(seqId, {
+        getPetBounds: () => petWindow.getBounds(),
+        movePetWindow: movePetKeepingSize,
+        getApproachRect: (name) => {
+          if (name === 'nearest-window-top') return marketTargetRect;
+          if (name === 'sequence-origin') return originBounds;
+          return null;
+        },
+        onWalkFacing: (dir) => {
+          if (!dir || dir === lastFacing) return;
+          lastFacing = dir;
+          try {
+            sendState(dir === 'left' ? `${flyAction}-left` : flyAction, '', '', flyAction, {});
+          } catch (err) { marketDbg(`onWalkFacing error: ${err?.message || err}`); }
+        }
+      });
+      marketDbg(`handleMarketEvent: sequence.start(${seqId}) → ${started}`);
+      if (!started) {
+        if (marketTargetTimer) { clearInterval(marketTargetTimer); marketTargetTimer = null; }
+        return;
+      }
+      sequence.onceFinished(() => {
+        if (marketTargetTimer) { clearInterval(marketTargetTimer); marketTargetTimer = null; }
+        marketDbg('market sequence finished');
+      });
+    }
+    marketWatcher = createMarketWatcher({
+      getConfig: () => watchConfig?.market,
+      onEvent: handleMarketEvent,
+      onStatus: (status) => { marketDbg(`status: ${JSON.stringify(status)}`); },
+      debugLogPath: marketDbgLog
+    });
+    marketWatcher.start();
+    // ─────────────────────────────────────────────────────────────────────
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);
     app.quit();
@@ -1117,6 +1201,7 @@ app.on('before-quit', () => {
   interaction?.dispose();
   sequence?.dispose();
   imBus?.stop();
+  marketWatcher?.stop();
   if (petTaskPollTimer) { clearInterval(petTaskPollTimer); petTaskPollTimer = null; }
   pauseBehavior();
 });

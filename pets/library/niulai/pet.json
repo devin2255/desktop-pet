@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "packageVersion": "1.0.0",
+  "packageVersion": "1.0.1",
   "id": "niulai",
   "name": "牛来",
   "description": "办公嘴替小黄牛。致敬电影《牛来》人设，非官方周边。致敬电影人设，非官方授权周边。",
@@ -329,6 +329,48 @@
       "loop": false,
       "holdLastFrame": true,
       "scale": 1
+    },
+    "fly": {
+      "frames": [
+        "animations/fly/01.png",
+        "animations/fly/02.png",
+        "animations/fly/03.png",
+        "animations/fly/04.png",
+        "animations/fly/05.png",
+        "animations/fly/06.png"
+      ],
+      "durations": [
+        160,
+        160,
+        160,
+        160,
+        160,
+        160
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "bear-fly": {
+      "frames": [
+        "animations/bear-fly/01.png",
+        "animations/bear-fly/02.png",
+        "animations/bear-fly/03.png",
+        "animations/bear-fly/04.png",
+        "animations/bear-fly/05.png",
+        "animations/bear-fly/06.png"
+      ],
+      "durations": [
+        160,
+        160,
+        160,
+        160,
+        160,
+        160
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
     }
   },
   "interactionActions": {
@@ -408,6 +450,100 @@
           "action": "call-mom-kick",
           "duration": 1000,
           "speechGender": "female"
+        },
+        {
+          "action": "idle",
+          "duration": 0,
+          "restorePosition": true
+        }
+      ]
+    },
+    "market-bull": {
+      "stages": [
+        {
+          "action": "fly",
+          "approachTarget": "nearest-window-top",
+          "anchor": {
+            "x": 0.5,
+            "y": 0.7
+          },
+          "timeoutMs": 9000,
+          "walkMaxStepPx": 14,
+          "messages": [
+            "牛来！牛来了！",
+            "红了红了！",
+            "冲冲冲！"
+          ],
+          "messageLoop": true,
+          "messageGapMs": 1400,
+          "speechGender": "male"
+        },
+        {
+          "action": "perch",
+          "duration": 9000,
+          "messages": [
+            "牛市来了，先坐会儿。"
+          ],
+          "speechGender": "male"
+        },
+        {
+          "action": "fly",
+          "approachTarget": "sequence-origin",
+          "anchor": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "targetX": 0.5,
+          "targetY": 0.5,
+          "timeoutMs": 9000,
+          "walkMaxStepPx": 14
+        },
+        {
+          "action": "idle",
+          "duration": 0,
+          "restorePosition": true
+        }
+      ]
+    },
+    "market-bear": {
+      "stages": [
+        {
+          "action": "bear-fly",
+          "approachTarget": "nearest-window-top",
+          "anchor": {
+            "x": 0.5,
+            "y": 0.7
+          },
+          "timeoutMs": 9000,
+          "walkMaxStepPx": 14,
+          "messages": [
+            "熊来！熊来了！",
+            "绿了绿了！",
+            "扛住，别看账户。"
+          ],
+          "messageLoop": true,
+          "messageGapMs": 1400,
+          "speechGender": "male"
+        },
+        {
+          "action": "bear-fly",
+          "duration": 7000,
+          "messages": [
+            "熊来了……装死。"
+          ],
+          "speechGender": "male"
+        },
+        {
+          "action": "bear-fly",
+          "approachTarget": "sequence-origin",
+          "anchor": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "targetX": 0.5,
+          "targetY": 0.5,
+          "timeoutMs": 9000,
+          "walkMaxStepPx": 14
         },
         {
           "action": "idle",

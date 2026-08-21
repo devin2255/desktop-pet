@@ -27,7 +27,8 @@ const SELF_USE_DEFAULT_CONFIG = {
     bossOpenIds: [],
     groups: []
   },
-  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
+  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' },
+  market: { enabled: true, secid: '1.000001', pollMs: 5000, cooldownSec: 60, tradingHoursOnly: true }
 };
 
 const CUSTOMER_DEFAULT_CONFIG = {
@@ -44,10 +45,26 @@ const CUSTOMER_DEFAULT_CONFIG = {
     bossOpenIds: [],
     groups: []
   },
-  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
+  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' },
+  market: { enabled: true, secid: '1.000001', pollMs: 5000, cooldownSec: 60, tradingHoursOnly: true }
 };
 
 const DEFAULT_DWS_PATH = 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd';
+
+// market mood radar: watch an index quote and fire petpack sequences when the
+// index flips between green (<=0) and red (>0).
+function normalizeMarket(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const pollMs = Number(src.pollMs);
+  const cooldownSec = Number(src.cooldownSec);
+  return {
+    enabled: src.enabled === true,
+    secid: typeof src.secid === 'string' && src.secid.trim() ? src.secid.trim() : '1.000001',
+    pollMs: Number.isFinite(pollMs) && pollMs >= 2000 ? pollMs : 5000,
+    cooldownSec: Number.isFinite(cooldownSec) && cooldownSec >= 0 ? cooldownSec : 60,
+    tradingHoursOnly: src.tradingHoursOnly !== false
+  };
+}
 
 // dingtalk message radar: poll `dws chat message list` for boss single chats and
 // group @所有人 messages. bossOpenIds are dingtalk openDingtalkId values.
@@ -236,12 +253,13 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
     keywordStates,
     platforms: normalizePlatforms(fileCfg.platforms),
     callHangup: normalizeCallHangup(fileCfg.callHangup),
-    dingtalk: normalizeDingtalk(fileCfg.dingtalk)
+    dingtalk: normalizeDingtalk(fileCfg.dingtalk),
+    market: normalizeMarket(fileCfg.market)
   };
 }
 
 module.exports = {
   loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, patchWatchFlags,
   SELF_USE_DEFAULT_CONFIG, CUSTOMER_DEFAULT_CONFIG, normalizePlatforms, normalizeCallHangup,
-  normalizeDingtalk
+  normalizeDingtalk, normalizeMarket
 };

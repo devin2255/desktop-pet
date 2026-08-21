@@ -209,6 +209,39 @@ function createSequenceController(deps) {
       // Face the direction of travel: mirror the walk animation when moving left.
       if (typeof onWalkFacing === 'function') onWalkFacing(nextX < pet.x - 1 ? 'left' : nextX > pet.x + 1 ? 'right' : null);
       movePetWindow(nextX, nextY);
+      return;
+    }
+    // Generic rect approach (e.g. nearest-window-top, sequence-origin): glide
+    // the pet so the stage anchor lands on a configurable point of the rect
+    // (default: top edge center) at up to walkMaxStepPx per poll tick. Used by
+    // market-mood sequences to fly the pet onto a window top and back.
+    {
+      const anchor = (stage.anchor && Number.isFinite(stage.anchor.x) && Number.isFinite(stage.anchor.y))
+        ? stage.anchor
+        : { x: 0.5, y: 0.7 };
+      const targetX = Number.isFinite(stage.targetX) ? stage.targetX : 0.5;
+      const targetY = Number.isFinite(stage.targetY) ? stage.targetY : 0;
+      const target = {
+        x: rect.x + rect.width * targetX,
+        y: rect.y + rect.height * targetY
+      };
+      const pos = petPositionForAnchor(petSize, anchor, target);
+      const stepPx = Number(stage.walkMaxStepPx);
+      const maxStep = Number.isFinite(stepPx) && stepPx > 0 ? stepPx : 8;
+      const dx = pos.x - pet.x;
+      const dy = pos.y - pet.y;
+      const dist = Math.hypot(dx, dy);
+      let nextX;
+      let nextY;
+      if (dist <= maxStep) {
+        nextX = pos.x;
+        nextY = pos.y;
+      } else {
+        nextX = Math.round(pet.x + (dx / dist) * maxStep);
+        nextY = Math.round(pet.y + (dy / dist) * maxStep);
+      }
+      if (typeof onWalkFacing === 'function') onWalkFacing(nextX < pet.x - 1 ? 'left' : nextX > pet.x + 1 ? 'right' : null);
+      movePetWindow(nextX, nextY);
     }
   }
 
