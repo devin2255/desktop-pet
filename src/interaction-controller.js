@@ -256,6 +256,16 @@ function createInteractionController(dependencies) {
     return manifest.interactionActions?.[role]?.action || FALLBACK_ACTIONS[role] || role;
   }
 
+  // Window-edge roles can be omitted in pet.json to disable that interaction.
+  // Legacy packs without interactionActions keep all roles enabled.
+  function interactionRoleEnabled(role) {
+    const actions = getManifest()?.interactionActions;
+    if (actions === undefined) return true;
+    const config = actions[role];
+    if (config === false || config === null) return false;
+    return config !== undefined;
+  }
+
   function animationDuration(role) {
     const animation = getManifest()?.animations?.[actionFor(role)];
     if (!Array.isArray(animation?.durations)) return 0;
@@ -543,15 +553,15 @@ function createInteractionController(dependencies) {
     const target = selectTargetWindow(pointer, candidates, excludedIds);
     if (target) {
       const edge = classifyWindowEdge(pointer, target.bounds, edgeThreshold);
-      if (edge === 'left' || edge === 'right') {
+      if ((edge === 'left' || edge === 'right') && interactionRoleEnabled('climb')) {
         restOnSide(target, pointer, edge);
         return true;
       }
-      if (edge === 'top') {
+      if (edge === 'top' && interactionRoleEnabled('perch')) {
         attach(target, 'top', pointer.x - target.bounds.x, 'perch', 'perched');
         return true;
       }
-      if (edge === 'bottom') {
+      if (edge === 'bottom' && interactionRoleEnabled('hang')) {
         attach(target, 'bottom', pointer.x - target.bounds.x, 'hang', 'hanging');
         return true;
       }
@@ -563,6 +573,10 @@ function createInteractionController(dependencies) {
       ? selectDisplayTopWindow(pointer, candidates, display.bounds, excludedIds, edgeThreshold)
       : null;
     if (displayTopTarget) {
+      if (!interactionRoleEnabled('perch')) {
+        transition('normal', 'normal');
+        return true;
+      }
       attach(
         displayTopTarget,
         'top',

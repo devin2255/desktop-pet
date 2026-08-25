@@ -123,7 +123,7 @@ def main() -> None:
         "--max-significant-components",
         type=int,
         default=1,
-        choices=range(1, 5),
+        choices=range(1, 9),
         help="Allow an intentional multi-person or multi-part subject while retaining fragment checks",
     )
     parser.add_argument(

@@ -635,15 +635,18 @@ function buildTrayMenu() {
     template.push(...customActions.map((item) => ({ label: item.label, click: () => runContextMenuAction(item) })));
     template.push({ type: 'separator' });
   }
-  template.push({
-    label: '当个事儿办',
-    submenu: [
-      { label: '写周报', click: () => triggerPetTask('weekly-report') },
-      { label: '总结群聊信息重点', click: () => triggerPetTask('summarize-chat') },
-      { label: '搜集群聊八卦', click: () => triggerPetTask('collect-gossip') }
-    ]
-  });
-  template.push({ type: 'separator' });
+  // 「当个事儿办」是自用飞书任务入口；客户交付版默认不展示。
+  if (!deliveryConfig) {
+    template.push({
+      label: '当个事儿办',
+      submenu: [
+        { label: '写周报', click: () => triggerPetTask('weekly-report') },
+        { label: '总结群聊信息重点', click: () => triggerPetTask('summarize-chat') },
+        { label: '搜集群聊八卦', click: () => triggerPetTask('collect-gossip') }
+      ]
+    });
+    template.push({ type: 'separator' });
+  }
   template.push({ label: '叫宠物回来', click: showPet });
   if (!deliveryConfig || deliveryConfig.allowPetManagement) {
     template.push({ label: '切换宠物', submenu: pets.map((pet) => ({ label: pet.name, type: 'radio', checked: activeManifest?.id === pet.id, click: () => switchPet(pet.id) })) });
@@ -931,18 +934,20 @@ if (!gotLock) {
       scheduleBehavior
     });
     createTray();
+    // 仅当资源包声明 watch 时启用画饼雷达；无 watch 的宠物（如客户版三人组）不启。
+    const petSupportsWatch = Boolean(activeManifest?.watch && typeof activeManifest.watch === 'object');
     const watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
-    ensureBossWatchDefaults(watchConfigPath);
+    if (petSupportsWatch) ensureBossWatchDefaults(watchConfigPath);
     const watchConfig = loadWatchConfig({
-      configPath: watchConfigPath,
-      manifestWatch: activeManifest?.watch,
+      configPath: petSupportsWatch ? watchConfigPath : '',
+      manifestWatch: petSupportsWatch ? activeManifest.watch : null,
       larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
     });
     if (process.env.PET_WATCH_DEBUG === '1') { try { require('fs').appendFileSync('C:/Users/Thinkpad/.qwenworkcn/workspace/msr5talezbqs189b/watcher-debug.log', new Date().toISOString() + ' MAIN watchConfigPath=' + watchConfigPath + ' enabled=' + watchConfig.enabled + ' ids=' + JSON.stringify(watchConfig.ids) + ' larkCliPath=' + watchConfig.larkCliPath + '\n'); } catch (_) {} }
-    if (watchConfig.names.length > 0) {
+    if (petSupportsWatch && watchConfig.names.length > 0) {
       sendState('reaction', '画饼雷达：老板名单中的姓名待解析，请使用 open_id 或扫码授权后自动解析。');
     }
-    if (watchConfig.enabled) {
+    if (petSupportsWatch && watchConfig.enabled) {
       const voice = createVoiceSynthesizer({
         cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
         voice: watchConfig.voice.voice,
