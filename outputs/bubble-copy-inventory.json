@@ -1,0 +1,440 @@
+[
+  {
+    "pack": "brother-judge.petpack",
+    "id": "brother-judge",
+    "name": "兄弟判官",
+    "startupGreeting": "本官到了，有冤的报冤，有饼的退下！",
+    "items": [
+      {
+        "source": "behavior.random",
+        "state": "sit",
+        "messages": [
+          "本官歇会儿，有事先候着。"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "reaction",
+        "messages": [
+          "嗯？又有画饼的？"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "sleep",
+        "messages": [
+          "……退堂。"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "hold-court",
+        "label": "升堂",
+        "messages": [
+          "升——堂——！有冤的报冤，有饼的退下！"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "adjourn",
+        "label": "退堂",
+        "messages": [
+          "退堂，本官要歇了。"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "rest",
+        "label": "歇息",
+        "messages": [
+          "本官先眯一会儿……"
+        ],
+        "speech": null
+      },
+      {
+        "source": "watch.keywords",
+        "keyword": "画饼",
+        "messages": [
+          "老板画的饼别吃，你啃不动！",
+          "这饼画得再圆，也就是个饼。",
+          "本官判你：画饼无效，驳回！"
+        ]
+      },
+      {
+        "source": "watch.keywords",
+        "keyword": "吹牛",
+        "messages": [
+          "你的老板吹了个牛逼！",
+          "这牛吹得，本官的判官笔都抖了。"
+        ]
+      },
+      {
+        "source": "watch.fallback",
+        "messages": [
+          "老板又在整活儿了，本官先记他一笔。"
+        ]
+      }
+    ]
+  },
+  {
+    "pack": "dog-and-cat.petpack",
+    "id": "dog-and-cat",
+    "name": "旺财与咪咪",
+    "startupGreeting": null,
+    "items": [
+      {
+        "source": "behavior.random",
+        "state": "sit",
+        "messages": [
+          "我们就在这儿待一会儿。"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "reaction",
+        "messages": [
+          "嗯？在叫我们吗。"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "sleep",
+        "messages": [
+          "……"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.perched",
+        "state": "perch",
+        "messages": [
+          "风景还不错。"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.perched",
+        "state": "reaction",
+        "messages": [
+          "你也看到了？"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "come-here",
+        "label": "过来一下",
+        "messages": [
+          "来了。"
+        ],
+        "speech": "来了"
+      },
+      {
+        "source": "contextMenu",
+        "id": "rest",
+        "label": "趴一会儿",
+        "messages": [
+          "好，歇一下。"
+        ],
+        "speech": "歇一下"
+      },
+      {
+        "source": "contextMenu",
+        "id": "nap",
+        "label": "去睡觉",
+        "messages": [
+          "那我们眯一会儿。"
+        ],
+        "speech": null
+      }
+    ]
+  },
+  {
+    "pack": "laopo.petpack",
+    "id": "laopo",
+    "name": "老婆",
+    "startupGreeting": "老公，我来啦~",
+    "items": [
+      {
+        "source": "behavior.random",
+        "state": "serve-tea",
+        "messages": [
+          "老公喝茶"
+        ],
+        "speech": "老公喝茶"
+      },
+      {
+        "source": "behavior.random",
+        "state": "love-you",
+        "messages": [
+          "爱你老公"
+        ],
+        "speech": "爱你老公"
+      },
+      {
+        "source": "behavior.random",
+        "state": "praise",
+        "messages": [
+          "宝贝真棒"
+        ],
+        "speech": "宝贝真棒"
+      },
+      {
+        "source": "behavior.random",
+        "state": "encourage",
+        "messages": [
+          "老公辛苦了"
+        ],
+        "speech": "老公辛苦了"
+      },
+      {
+        "source": "contextMenu",
+        "id": "call-hubby",
+        "label": "叫老公",
+        "messages": [
+          "老公!"
+        ],
+        "speech": "老公"
+      },
+      {
+        "source": "contextMenu",
+        "id": "kowtow",
+        "label": "磕头",
+        "messages": [
+          "给老公磕头了"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "talent-show",
+        "label": "上才艺",
+        "messages": [
+          "上才艺!"
+        ],
+        "speech": "上才艺"
+      }
+    ]
+  },
+  {
+    "pack": "xiaomei-xiaotian.petpack",
+    "id": "xiaomei-xiaotian",
+    "name": "小美&小甜",
+    "startupGreeting": "我们是小美和小甜～今天也要一起加油鸭。",
+    "items": [
+      {
+        "source": "behavior.random",
+        "state": "sit",
+        "messages": [
+          "歇一会儿嘛～"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "reaction",
+        "messages": [
+          "诶嘿！"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "sleep",
+        "messages": [
+          "眯一下…"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "cuddle",
+        "messages": [
+          "再靠近一点点"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.random",
+        "state": "whisper",
+        "messages": [
+          "嘘——跟你说哦"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.perched",
+        "state": "perch-milk-tea",
+        "messages": [
+          "喝杯奶茶"
+        ],
+        "speech": null
+      },
+      {
+        "source": "behavior.perched",
+        "state": "reaction",
+        "messages": [
+          "嘿嘿～"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "cuddle",
+        "label": "贴贴",
+        "messages": [
+          "再靠近一点点"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "whisper",
+        "label": "说悄悄话",
+        "messages": [
+          "嘘——跟你说哦"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "cheer",
+        "label": "加油鸭",
+        "messages": [
+          "加油鸭！"
+        ],
+        "speech": null
+      },
+      {
+        "source": "contextMenu",
+        "id": "nap",
+        "label": "去睡觉",
+        "messages": [
+          "眯一下…"
+        ],
+        "speech": null
+      },
+      {
+        "source": "sequence.relax",
+        "stage": 0,
+        "action": "relax-makeup",
+        "messages": [
+          "先弄好看一点～"
+        ]
+      },
+      {
+        "source": "sequence.relax",
+        "stage": 1,
+        "action": "relax-dress",
+        "messages": [
+          "这样…会不会太亮眼"
+        ]
+      },
+      {
+        "source": "sequence.relax",
+        "stage": 2,
+        "action": "relax-run",
+        "messages": [
+          "走！去放松！"
+        ]
+      },
+      {
+        "source": "sequence.relax",
+        "stage": 3,
+        "action": "relax-models",
+        "messages": [
+          "我要这个",
+          "我要这个"
+        ]
+      },
+      {
+        "source": "sequence.relax",
+        "stage": 5,
+        "action": "relax-shy",
+        "messages": [
+          "好害羞…",
+          "嘿嘿…腹肌耶"
+        ]
+      },
+      {
+        "source": "sequence.selfie-banter",
+        "stage": 0,
+        "action": "selfie",
+        "messages": [
+          "我站后面！"
+        ]
+      },
+      {
+        "source": "sequence.selfie-banter",
+        "stage": 1,
+        "action": "selfie",
+        "messages": [
+          "不行，后面显脸小！"
+        ]
+      },
+      {
+        "source": "sequence.selfie-banter",
+        "stage": 2,
+        "action": "selfie",
+        "messages": [
+          "那一起往后挤～"
+        ]
+      },
+      {
+        "source": "sequence.feed-lv-bag",
+        "stage": 0,
+        "action": "feed-lv-throw",
+        "messages": [
+          "哇！包包"
+        ]
+      },
+      {
+        "source": "sequence.feed-lv-bag",
+        "stage": 1,
+        "action": "feed-lv-bag",
+        "messages": [
+          "好看吗？"
+        ]
+      },
+      {
+        "source": "sequence.feed-lipstick",
+        "stage": 0,
+        "action": "feed-lipstick-throw",
+        "messages": [
+          "哇！口红"
+        ]
+      },
+      {
+        "source": "sequence.feed-lipstick",
+        "stage": 1,
+        "action": "feed-lipstick",
+        "messages": [
+          "好看吗？"
+        ]
+      },
+      {
+        "source": "sequence.feed-miniskirt",
+        "stage": 0,
+        "action": "feed-miniskirt-throw",
+        "messages": [
+          "哇！漂亮衣服"
+        ]
+      },
+      {
+        "source": "sequence.feed-miniskirt",
+        "stage": 1,
+        "action": "feed-miniskirt",
+        "messages": [
+          "好看吗？"
+        ]
+      }
+    ]
+  }
+]
