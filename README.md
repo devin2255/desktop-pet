@@ -4,6 +4,41 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支主交付：**老婆**（`laopo` / 老婆桌面宠物）。
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+设计文档：[docs/superpowers/specs/2026-08-01-laopo-pet-design.md](docs/superpowers/specs/2026-08-01-laopo-pet-design.md)
+
+### 身份
+
+- id：`laopo`；性格：俏皮、粘人、甜蜜
+- 启动问候：「老公，我来啦~」
+
+### 动作
+
+标准五动作 + drag、climb、perch、hang、fall、impact、pat-butt、perch-hair-flip、perch-blow-kiss、perch-look、call-hubby、kowtow、talent-show、serve-tea、love-you、praise、encourage
+
+### 气泡与台词
+
+- 叫老公「老公!」；磕头「给老公磕头了」；上才艺「上才艺!」
+- 漫游：「老公喝茶」「爱你老公」「宝贝真棒」「老公辛苦了」
+
+### 互动
+
+拖动、漫游、窗口边、坠落恢复、女声 TTS/预录音、透明穿透、置顶、开机启动。
+
+### 托盘与右键
+
+叫老公 / 磕头 / 上才艺 + 播放器固定项。
+
+### 交付
+
+`npm run build:laopo`。Windows 便携 EXE，未签名。macOS 未交付。
+
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
