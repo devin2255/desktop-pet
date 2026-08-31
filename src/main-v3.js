@@ -94,6 +94,7 @@ let marketWatcher = null;
 let watchConfig = null;
 let watchConfigPath = '';
 let restartOfficeBus = () => {};
+let restartMarketWatcher = () => {};
 let petTaskPollTimer = null;
 
 function readDeliveryConfig() {
@@ -515,6 +516,15 @@ function switchPet(id) {
   activeManifest = next;
   settings.petId = next.id;
   saveSettings();
+  if (watchConfigPath) {
+    applyLoadedWatchConfig(loadWatchConfig({
+      configPath: watchConfigPath,
+      manifestWatch: next.watch,
+      larkCliPath: undefined
+    }));
+    restartOfficeBus();
+    restartMarketWatcher();
+  }
   updateTrayIcon();
   tray?.setContextMenu(buildTrayMenu());
   petWindow?.webContents.send('pet:load', publicManifest(next));
@@ -596,6 +606,20 @@ function runContextMenuAction(item) {
 const petTaskDir = () => path.join(app.getPath('userData'), 'pet-tasks');
 
 function triggerPetTask(taskType) {
+  if (taskProviderFromConfig(watchConfig) === 'mock') {
+    sendState('reaction', '好的，爸！', '好的，爸', 'reaction', {
+      speechAudio: typeof activeManifest?.taskAcceptAudio === 'string' ? activeManifest.taskAcceptAudio : ''
+    });
+    schedulePetTaskMock({
+      taskType,
+      onResult: (summary) => {
+        const text = String(summary).slice(0, 200);
+        eventHold.beginForSpeech(text);
+        sendState('reaction', text, text, 'reaction', {});
+      }
+    });
+    return;
+  }
   const dir = petTaskDir();
   fs.mkdirSync(dir, { recursive: true });
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -606,16 +630,6 @@ function triggerPetTask(taskType) {
   sendState('reaction', '好的，爸！', '好的，爸', 'reaction', {
     speechAudio: typeof activeManifest?.taskAcceptAudio === 'string' ? activeManifest.taskAcceptAudio : ''
   });
-  if (taskProviderFromConfig(watchConfig) === 'mock') {
-    schedulePetTaskMock({
-      taskType,
-      onResult: (summary) => {
-        const text = String(summary).slice(0, 200);
-        sendState('reaction', text, text, 'reaction', {});
-      }
-    });
-    return;
-  }
   notifyQwenWork(taskType, taskFile);
   startPetTaskPolling();
 }
@@ -690,18 +704,30 @@ function persistWatchFlags(flags) {
     larkCliPath: undefined
   }));
   restartOfficeBus();
+  restartMarketWatcher();
   refreshTrayMenu();
-  pushMarketStatus();
 }
 
 // Push the current market radar status + last quote to the renderer so the
 // persistent ticker above the pet's head can show/hide and recolor live.
 let lastMarketQuote = null;
+function canRunOfficeBus() {
+  return Boolean(watchConfig?.enabled && hasWatch(activeManifest));
+}
+
+function canPollCallHangup() {
+  return Boolean(watchConfig?.callHangup?.enabled && hasCallHangupSequence(activeManifest));
+}
+
+function canWatchMarket() {
+  return Boolean(watchConfig?.market?.enabled && hasMarketSequences(activeManifest));
+}
+
 function pushMarketStatus() {
   if (!petWindow || petWindow.isDestroyed()) return;
   const market = watchConfig?.market;
   petWindow.webContents.send('pet:market', {
-    enabled: Boolean(market?.enabled),
+    enabled: canWatchMarket(),
     simulated: Boolean(market?.simulated),
     name: lastMarketQuote?.name || '',
     points: lastMarketQuote?.points,
@@ -1100,6 +1126,7 @@ if (!gotLock) {
       }
     });
     function handleDingtalkVoiceCall() {
+      if (!canPollCallHangup()) return;
       if (sequence.isActive()) return;
       if (!activeManifest?.sequences?.['boss-call']) return;
       const dbg = (line) => {
@@ -1177,7 +1204,14 @@ if (!gotLock) {
     }
     function createOfficeBus() {
       return createImBus({
-        getRules: () => watchConfig,
+        getRules: () => ({
+          ...watchConfig,
+          enabled: canRunOfficeBus(),
+          callHangup: {
+            ...watchConfig?.callHangup,
+            enabled: canPollCallHangup()
+          }
+        }),
         adapters: [
           createLarkAdapter({
             voice,
@@ -1192,7 +1226,7 @@ if (!gotLock) {
           dingtalk
         ],
         dispatchMessage: (event, rules) => {
-          if (!watchConfig.enabled) return;
+          if (!canRunOfficeBus()) return;
           dispatchBossMessage(event, {
             rules,
             voice,
@@ -1207,6 +1241,8 @@ if (!gotLock) {
     }
     restartOfficeBus = () => {
       imBus?.stop();
+      imBus = null;
+      if (!canRunOfficeBus()) return;
       if (watchConfig.enabled && !voice) {
         voice = createVoiceSynthesizer({
           cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
@@ -1293,14 +1329,18 @@ if (!gotLock) {
       });
     }
     marketWatcher = createMarketWatcher({
-      getConfig: () => watchConfig?.market,
+      getConfig: () => canWatchMarket() ? watchConfig?.market : { enabled: false },
       onEvent: handleMarketEvent,
       onStatus: (status) => { marketDbg(`status: ${JSON.stringify(status)}`); },
       onQuote: (quote) => { lastMarketQuote = quote; pushMarketStatus(); },
       debugLogPath: marketDbgLog
     });
-    marketWatcher.start();
-    pushMarketStatus();
+    restartMarketWatcher = () => {
+      marketWatcher?.stop();
+      if (canWatchMarket()) marketWatcher.start();
+      pushMarketStatus();
+    };
+    restartMarketWatcher();
     // ─────────────────────────────────────────────────────────────────────
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);

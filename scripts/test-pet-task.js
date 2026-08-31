@@ -56,9 +56,11 @@ function testPackWhitelistIncludesPetTask() {
   const path = require('path');
   const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
   const builder = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build-customer.js'), 'utf8');
-  const file = 'src/pet-task.js';
-  assert.ok(packageJson.build.files.includes(file), `default package includes ${file}`);
-  assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
+  for (const file of ['src/pet-task.js', 'src/market-watch.js']) {
+    assert.ok(packageJson.build.files.includes(file), `default package includes ${file}`);
+    assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
+  }
+  assert.match(packageJson.scripts['test:js'], /node scripts\/test-market-watch\.js/, 'test:js runs market watcher coverage');
 }
 
 testPackWhitelistIncludesPetTask();
@@ -75,4 +77,15 @@ function testMainDeclaresPetTaskPollTimerBeforeQuitCleanup() {
 }
 
 testMainDeclaresPetTaskPollTimerBeforeQuitCleanup();
+
+function testMockTasksDoNotCreateFileHold() {
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main-v3.js'), 'utf8');
+  const mockBranch = src.match(/if \(taskProviderFromConfig\(watchConfig\) === 'mock'\) \{([\s\S]*?)\n  \}/);
+  assert.ok(mockBranch, 'main must branch to the mock task provider');
+  assert.doesNotMatch(mockBranch[1], /fs\.writeFileSync|eventHold\.beginTask/, 'mock tasks must not leave a pending file or file-based hold');
+}
+
+testMockTasksDoNotCreateFileHold();
 console.log('test-pet-task: ok');
