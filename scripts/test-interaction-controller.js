@@ -263,6 +263,18 @@ async function run() {
     assert.strictEqual(harness.climbs.length, 0, 'right side rest never starts position animation');
   }
 
+  {
+    const harness = createHarness({ windows: [target] });
+    const baseManifest = harness.dependencies.getManifest();
+    baseManifest.interactionActions.climb = { action: 'climb-action', enabled: false };
+    harness.controller.startDrag({ x: 200, y: 150 });
+    const result = await harness.controller.endDrag({ x: 100, y: 250 });
+    assert.strictEqual(result, true);
+    assert.strictEqual(harness.controller.state(), 'normal', 'disabled climb skips side attachment');
+    assert.ok(!harness.states.includes('climb-right'));
+    assert.ok(!harness.states.includes('climb-left'));
+  }
+
   for (const lossMode of ['disappeared', 'minimized']) {
     const sideTarget = { id: `side-target-${lossMode}`, bounds: { ...target.bounds } };
     const harness = createHarness({ windows: [sideTarget] });
@@ -701,7 +713,8 @@ async function run() {
     };
     runtimePolicy.Math.random = () => 0;
     vm.runInNewContext(
-      `const activeManifest = {
+      `const settings = { crawlMode: false };
+      const activeManifest = {
         behavior: {
           random: [
             { state: 'sleep', weight: 100, minDuration: 600, maxDuration: 1000 },

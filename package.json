@@ -10,8 +10,9 @@
   },
   "scripts": {
     "test": "npm run test:js && npm run test:python && npm run validate:demo",
-    "test:js": "node --check src/main-v3.js && node --check src/preload-v3.js && node --check src/renderer-v3.js && node --check src/petpack-validator.js && node --check src/startup-greeting.js && node --check src/window-discovery.js && node --check src/interaction-controller.js && node --check src/topmost-guard.js && node --check src/sequence-controller.js && node --check scripts/build-customer.js && node scripts/test-renderer-interaction.js && node scripts/test-petpack-security.js && node scripts/test-sequences-schema.js && node scripts/test-window-interactions.js && node scripts/test-window-discovery.js && node scripts/test-interaction-controller.js && node scripts/test-topmost-guard.js && node scripts/test-runtime-cdp-contract.js && node scripts/test-laopo-petpack.js && node scripts/test-startup-greeting.js && node scripts/test-sequence-controller.js",
+    "test:js": "node --check src/main-v3.js && node --check src/preload-v3.js && node --check src/renderer-v3.js && node --check src/roam-motion.js && node --check src/mouse-through.js && node --check src/petpack-validator.js && node --check src/startup-greeting.js && node --check src/window-discovery.js && node --check src/interaction-controller.js && node --check src/topmost-guard.js && node --check src/sequence-controller.js && node --check scripts/build-customer.js && node scripts/test-renderer-interaction.js && node scripts/test-petpack-security.js && node scripts/test-sequences-schema.js && node scripts/test-window-interactions.js && node scripts/test-window-discovery.js && node scripts/test-interaction-controller.js && node scripts/test-topmost-guard.js && node scripts/test-runtime-cdp-contract.js && node scripts/test-laopo-petpack.js && node scripts/test-startup-greeting.js && node scripts/test-sequence-controller.js && node scripts/test-roam-motion.js && node scripts/test-crawl-mode-wiring.js && node scripts/test-mouse-through.js",
     "test:bestie": "node scripts/test-bestie-petpack.js",
+    "test:guimi": "node scripts/test-guimi-petpack.js",
     "test:python": "python -m unittest discover -s skills/desktop-pet-maker/scripts -p test_*.py -v",
     "test:regression": "node scripts/test-renderer-interaction.js && python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v",
     "validate:demo": "python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/laopo.petpack",
@@ -20,7 +21,8 @@
     "build": "electron-builder --win portable --publish never",
     "build:customer": "node scripts/build-customer.js",
     "build:laopo": "node scripts/build-customer.js --pet pets/packages/laopo.petpack --name \"老婆桌面宠物\" --delivery-id laopo",
-    "build:bestie": "node scripts/build-customer.js --pet pets/packages/xiaomei-xiaotian.petpack --name \"小美&小甜桌面宠物\" --delivery-id xiaomei-xiaotian"
+    "build:bestie": "node scripts/build-customer.js --pet pets/packages/xiaomei-xiaotian.petpack --name \"小美&小甜桌面宠物\" --delivery-id xiaomei-xiaotian",
+    "build:guimi": "node scripts/build-customer.js --pet pets/packages/guimi.petpack --name \"闺蜜桌宠\" --delivery-id guimi"
   },
   "devDependencies": {
     "electron": "43.2.0",
@@ -53,6 +55,8 @@
       "src/interaction-controller.js",
       "src/topmost-guard.js",
       "src/sequence-controller.js",
+      "src/roam-motion.js",
+      "src/mouse-through.js",
       "assets/generated/laopo-tray.png",
       "pets/packages/laopo.petpack",
       "package.json"

@@ -9,7 +9,12 @@ contextBridge.exposeInMainWorld('petApi', {
   drag: (position) => ipcRenderer.send('pet:drag-move', position),
   endDrag: (position) => ipcRenderer.send('pet:drag-end', position),
   interact: () => ipcRenderer.send('pet:interact'),
-  setMouseThrough: (ignore) => ipcRenderer.send('pet:set-mouse-through', Boolean(ignore)),
+  setMouseThrough: (ignore, options) => ipcRenderer.send(
+    'pet:set-mouse-through',
+    Boolean(ignore),
+    options && typeof options === 'object' ? options : {}
+  ),
   setVisibleInsets: (insets) => ipcRenderer.send('pet:visible-insets', insets),
+  onCursorHitSample: (callback) => ipcRenderer.on('pet:cursor-hit-sample', (_event, point) => callback(point)),
   openMenu: () => ipcRenderer.send('pet:context-menu')
 });

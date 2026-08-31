@@ -1,103 +1,75 @@
-# Task 1 Report: 序列引擎（纯逻辑 + 测试）
+# Task 1 Report: 通用跪爬模式 + 菜单上限 12
 
-## 实现摘要
+**Branch:** `feature/bestie-pets-design`  
+**Status:** DONE  
+**Date:** 2026-08-27
 
-实现了纯逻辑序列控制器 `createSequenceController`，供后续 Electron main 集成闺蜜宠物（小美&小甜）的多阶段动画序列。模块通过依赖注入接收 `getManifest`、`sendState`、`pauseBehavior`、`scheduleBehavior` 及可选定时器钩子（`now`、`setTimer`、`clearTimer`），无 UI、无 petpack 改动。
+## Summary
 
-### 导出 API
+Implemented generic kneel-crawl mode in the player (ported from `feature/son-mode` patterns) and raised `contextMenuActions` maximum from 8 to 12 across validator, Python tool, and schema docs. No guimi petpack was built (per task scope).
 
-| 方法 | 行为 |
-|------|------|
-| `start(id)` | 校验序列存在且 stages 非空、各 action 在 animations 中；若已在播放则先 cancel（不 schedule）；调用 `pauseBehavior`；从 stage 0 播放；返回 boolean |
-| `cancel()` | 清 timer、`sendState('idle')`、`scheduleBehavior(900)` |
-| `dispose()` | 同 cancel 但不 schedule |
-| `continueFromClick()` | 仅在 `waitForClick` 等待中 advance；返回 boolean |
-| `isWaitingForClick()` | 当前 stage 是否等待点击 |
-| `isActive()` | 序列是否进行中 |
+## Changes
 
-### 阶段播放逻辑
+### Created
 
-- 非 `waitForClick`：按 `duration`（缺省 3000ms）设 timer 后 advance；`idle` + `duration: 0` 立即 advance
-- `waitForClick`：播状态后进入等待，不设完成 timer；由 `continueFromClick` 推进
-- `sendState(action, message, '', extras)`：`messages` / `messageGapMs` 通过 extras 传递；有 `messages` 时 `message` 取 `stage.message` 或首句
+| File | Purpose |
+|------|---------|
+| `src/roam-motion.js` | `nextRoamTarget()` edge-aware roam targeting; `crawlIdleState()` facing helper |
+| `scripts/test-roam-motion.js` | Unit tests for roam-motion exports |
+| `scripts/test-crawl-mode-wiring.js` | Source-contract tests for crawl wiring + menu limit 12 |
 
-## 变更文件
+### Modified
 
-| 文件 | 操作 |
-|------|------|
-| `src/sequence-controller.js` | 新建 — 序列控制器实现 |
-| `scripts/test-sequence-controller.js` | 新建 — TDD 测试（与 brief  verbatim） |
-| `package.json` | 修改 — `test:js` 加入 `node --check src/sequence-controller.js` 与 `node scripts/test-sequence-controller.js` |
+| File | Change |
+|------|--------|
+| `src/main-v3.js` | Import roam-motion; `settings.crawlMode` (default `false`); `lastWalkFacing`; `idleState()`; crawl-aware `walkTo`/`chooseBehavior`/`runBehavior`; kowtow→kowtow-crawl remap; tray「跪爬模式」checkbox with `visible: Boolean(activeManifest?.animations?.crawl)` |
+| `src/renderer-v3.js` | `resolveAction` maps `crawl-left`/`crawl-right` → `crawl`; `isFacingLeft` includes `state-crawl-left` |
+| `src/styles-v3.css` | Mirror transform for `.state-crawl-left .pet-image` |
+| `src/petpack-validator.js` | `contextMenuActions.length > 12` error message |
+| `skills/desktop-pet-maker/scripts/petpack_tool.py` | at most 12 contextMenuActions |
+| `skills/desktop-pet-maker/references/petpack-schema.md` | Document 12-entry limit |
+| `package.json` | `test:js` adds `--check src/roam-motion.js`, `test-roam-motion.js`, `test-crawl-mode-wiring.js` |
+| `scripts/test-interaction-controller.js` | VM context for `chooseBehavior` now includes `settings = { crawlMode: false }` (required after crawl guard added) |
 
-## TDD 证据
+## Interfaces Delivered
 
-### RED — 模块不存在
+- `settings.crawlMode: boolean` — persisted via existing `loadSettings`/`saveSettings` spread
+- `crawlIdleState(facing)` → `'crawl-left' | 'crawl-right'`
+- `nextRoamTarget(bounds, workArea, rng, lastDirection)` → `{ targetX, direction }`
+- Tray item `label: '跪爬模式'`, `visible` when manifest has `animations.crawl`
+- Validator allows up to 12 `contextMenuActions`
 
-```
-$ node scripts/test-sequence-controller.js
-Error: Cannot find module '../src/sequence-controller'
-Require stack:
-- D:\Vibe_Coding\desktop-pet\scripts\test-sequence-controller.js
-  code: 'MODULE_NOT_FOUND'
-```
+## TDD Flow
 
-### GREEN — 实现后单测通过
+1. Wrote `scripts/test-roam-motion.js` and `scripts/test-crawl-mode-wiring.js` before implementation (roam-motion test would fail until module created).
+2. Implemented `src/roam-motion.js` and player wiring.
+3. Fixed regression in `test-interaction-controller.js` caused by `chooseBehavior` referencing `settings`.
 
-```
-$ node scripts/test-sequence-controller.js
-test-sequence-controller: ok
-```
+## Verification
 
-### 全量 JS 测试
+All commands from task brief — exit 0:
 
-```
-$ npm run test:js
-renderer interaction regression checks passed
-petpack archive security checks passed
-window interaction geometry checks passed
-window discovery checks passed
-interaction controller checks passed
-topmost guard checks passed
-runtime CDP contract tests passed
-laopo petpack regression checks passed
-startup greeting checks passed
-test-sequence-controller: ok
+```powershell
+node scripts/test-roam-motion.js          # roam-motion: all tests passed
+node scripts/test-crawl-mode-wiring.js    # test-crawl-mode-wiring: ok
+node --check src/main-v3.js
+node --check src/renderer-v3.js
+node --check src/roam-motion.js
+npm run test:js                           # full suite passed
 ```
 
-退出码：0。未引入新的既有测试失败。
+## Self-Review
 
-## 自检
-
-### 符合 brief 要点
-
-- [x] TDD：先写失败测试，再实现，再全绿
-- [x] 导出 `createSequenceController`，CommonJS `module.exports`
-- [x] 注入 timer 钩子，缺省回退真实 `setTimeout`/`clearTimeout`
-- [x] `start` 校验 stages 与 animations
-- [x] `waitForClick` / `continueFromClick` 分支
-- [x] `cancel` / `dispose` 差异（schedule 与否）
-- [x] 重复 `start` 先 cancel（`schedule: false`）
-- [x] `package.json` `test:js` 已更新
-- [x] 未创建 git commit（按 Global Constraints）
-
-### 代码质量
-
-- 与 `interaction-controller.js` 一致：`'use strict'`、依赖注入、可选 deps 回退
-- 无多余抽象；状态变量最小集（active、stageIndex、stages、waitingForClick、timerId）
-- 语法检查：`node --check src/sequence-controller.js` 通过（含于 `npm run test:js`）
-
-### 未覆盖（留待后续 task）
-
-- 无效 sequence id / 空 stages / 未知 action 的单元断言（brief 测试未要求）
-- `dispose` 独立测试
-- 与 main-v3 的实际接线
-
-## Concerns
-
-1. **测试覆盖面较窄**：当前仅一条 happy-path + cancel；边界错误路径无断言，后续集成前可考虑补充。
-2. **`cancel({ schedule: false })` 为内部选项**：未暴露在公开 API，重复 `start` 时由内部使用；若外部需要「静默取消」需再暴露或文档化。
-3. **无 concern 阻塞合并**：单测与全量 `test:js` 均通过，可进入 Task 2 接线。
+- **Scope:** No guimi petpack, no role-specific player branches — aligned with global constraints.
+- **Son-mode parity:** Crawl walk/idle, roam targeting, kowtow remap, tray checkbox placement after「在桌面散步」match reference branch.
+- **Persistence:** `crawlMode` merges into settings JSON automatically; no migration needed.
+- **Edge case:** `runDirectMenuAction` kowtow remap runs after initial animation existence check — requires base `kowtow` animation in manifest (same as son-mode).
+- **Extra diff:** `test-interaction-controller.js` one-line fix was not in brief but required for green `npm run test:js`.
 
 ## Commits
 
-无（按 plan Global Constraints 与用户规则，未执行 commit）。
+Skipped per global constraints (no user commit request).
+
+## Concerns
+
+None blocking. Crawl menu visibility and behavior only activate when a loaded petpack defines `animations.crawl`; laopo demo petpack unaffected.

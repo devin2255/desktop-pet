@@ -1,67 +1,75 @@
-# Task 2 Report: petpack 校验与 schema（sequences）
+# Task 2 Report: 工作区 IDENTITY 检查表
 
-## Status: Complete
+**Branch:** `feature/bestie-pets-design`  
+**Status:** DONE  
+**Date:** 2026-08-27
 
 ## Summary
 
-Implemented manifest validation for `sequences` and context-menu `sequence` references in both the JavaScript validator and Python petpack tool, with schema documentation and focused tests.
+Verified all 9 reference PNGs under `pets/work/guimi/source/refs/` and created `pets/work/guimi/IDENTITY.md` with the full identity checklist required by the brief and design spec. No animation frames generated; no git commit.
 
-## Changes
+## Step 1: 参考图确认
 
-### `src/petpack-validator.js`
+Command:
 
-- Added `SEQUENCE_ID_PATTERN` and `MAX_SEQUENCES` (8).
-- New `sequences` validation block (after required/interaction animations, before `contextMenuActions`):
-  - Optional object; keys `^[a-z0-9][a-z0-9-]{1,31}$`; max 8 entries.
-  - Each sequence requires `stages` array length 2..16.
-  - Stage rules: required `action` in `animations` (full `validateAnimation` on first use); optional `message`≤80, `messages` 1..4×≤80, `messageGapMs` 0..5000, `duration` 0..10000, `waitForClick` boolean.
-- Refactored `contextMenuActions`: exactly one of `action` or `sequence`; `sequence` must exist in `manifest.sequences`; forbids `message`/`duration` on sequence items; legacy `action` path unchanged.
+```powershell
+Get-ChildItem pets/work/guimi/source/refs | Select-Object Name
+```
 
-### `skills/desktop-pet-maker/scripts/petpack_tool.py`
+**Result:** 9/9 expected files present.
 
-- Mirrored all JS rules with equivalent Python checks and error messages.
+| File | Size (bytes) |
+|------|----------------|
+| `bestie1-face.png` | 88,731 |
+| `bestie1-walk-outfit.png` | 115,559 |
+| `bestie1-selfie-outfit.png` | 112,708 |
+| `bestie1-relax-outfit.png` | 109,274 |
+| `bestie2-face-store.png` | 166,101 |
+| `bestie2-face-red.png` | 101,929 |
+| `bestie2-walk-outfit.png` | 121,120 |
+| `bestie2-selfie-outfit.png` | 149,034 |
+| `bestie2-relax-outfit.png` | 318,268 |
 
-### `skills/desktop-pet-maker/references/petpack-schema.md`
+All names match the brief expected list exactly.
 
-- Documented `sequences`, stage fields, and context-menu `action` vs `sequence` semantics.
+## Step 2: IDENTITY.md
 
-### `scripts/test-sequences-schema.js` (new)
+**Created:** `pets/work/guimi/IDENTITY.md`
 
-- Fixtures satisfy `REQUIRED_ACTIONS` frame counts (idle 4, walk 6, sit 4, sleep 4, reaction 4).
-- Uses positional `validateManifest(manifest, '', false)`.
-- Covers valid sequence menu, dual action+sequence rejection, missing sequence, forbidden message/duration on sequence menu, short stages, unknown stage action, and legacy action menu.
+Required checklist items (from brief) — all included:
 
-### `skills/desktop-pet-maker/scripts/test_petpack_tool.py`
+| Requirement | Section in IDENTITY.md |
+|-------------|------------------------|
+| 左闺蜜一 / 右闺蜜二，禁止互换 | 「站位（全动作硬性约束）」 |
+| 脸源与「禁止贴纸脸」 | 「脸部真相源（禁止贴纸脸）」 |
+| 三套服装对照表（日常 / 合影 / 去放松） | 「三套服装对照表」 |
+| 分角色不分名字：台词用「我们」口吻 | 「台词与角色命名」 |
+| 男模仅出现在 relax | 「去放松（relax）特殊约束」 |
 
-- Added `test_sequences_and_context_menu_sequence_validation`.
+Additional content aligned with `2026-08-27-guimi-fan-pet-design.md`:
 
-### `package.json`
+- package id `guimi`、程序名「闺蜜桌宠」
+- 参考图目录与 9 文件清单表
+- 成帧前自检摘要（站位、脸源、服装、台词、男模、画布/穿透）
 
-- Wired `scripts/test-sequences-schema.js` into `test:js`.
+## Step 3: Commit
 
-## Test Results
+Skipped per global constraints and user task instruction (no commit).
 
-| Command | Result |
-|---------|--------|
-| `node scripts/test-sequences-schema.js` | PASS |
-| `npm run test:js` | PASS (all 12 JS test scripts) |
-| `npm run test:python` | New sequence test PASS; 6 pre-existing errors due to missing `pets/packages/xiaogou.petpack` fixture (unrelated to this task) |
+## Verification
 
-## Commits
+```powershell
+Get-ChildItem pets/work/guimi/source/refs | Select-Object Name   # 9 PNGs, names match brief
+Test-Path pets/work/guimi/IDENTITY.md                             # True
+```
 
-None (per instructions).
+## Out of Scope (confirmed not done)
 
-## Concerns / Notes
+- Animation frame generation
+- `guimi.petpack` build
+- Player code changes
+- Git commit
 
-1. Python archive tests still reference `xiaogou.petpack`, which is absent in this workspace; consider switching fixture to `laopo.petpack` in a follow-up.
-2. Sequence menu items still allow `speech` / `speechAudio` (brief only forbids `message`/`duration`); runtime integration is Task 3+.
-3. Stage `duration` is optional even without `waitForClick`; runtime defaults to 3000 ms — matches Task 1 behavior.
+## Concerns
 
-## Files Touched
-
-- `src/petpack-validator.js`
-- `skills/desktop-pet-maker/scripts/petpack_tool.py`
-- `skills/desktop-pet-maker/references/petpack-schema.md`
-- `scripts/test-sequences-schema.js` (created)
-- `skills/desktop-pet-maker/scripts/test_petpack_tool.py`
-- `package.json`
+None blocking. Reference assets and identity checklist are ready for downstream animation/petpack tasks.

@@ -175,6 +175,8 @@ function buildCustomer(options) {
         'src/interaction-controller.js',
         'src/topmost-guard.js',
         'src/sequence-controller.js',
+        'src/roam-motion.js',
+        'src/mouse-through.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

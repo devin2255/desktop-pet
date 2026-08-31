@@ -134,6 +134,10 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
         for role, config in interaction_actions.items():
             if role not in INTERACTION_ROLES or not isinstance(config, dict):
                 raise ValueError("interactionActions contains an unsupported role")
+            if "enabled" in config and not isinstance(config["enabled"], bool):
+                raise ValueError("interactionActions enabled must be a boolean")
+            if config.get("enabled") is False:
+                continue
             action = config.get("action")
             if not isinstance(action, str) or action not in animations:
                 raise ValueError("interactionActions references an unknown animation")
@@ -203,8 +207,8 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
 
     context_menu_actions = manifest.get("contextMenuActions")
     if context_menu_actions is not None:
-        if not isinstance(context_menu_actions, list) or len(context_menu_actions) > 8:
-            raise ValueError("contextMenuActions must be an array with at most 8 items")
+        if not isinstance(context_menu_actions, list) or len(context_menu_actions) > 12:
+            raise ValueError("contextMenuActions must be an array with at most 12 items")
         action_ids: set[str] = set()
         for item in context_menu_actions:
             if not isinstance(item, dict):

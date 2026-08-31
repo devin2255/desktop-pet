@@ -1,45 +1,42 @@
-### Task 3: Rebuild, Validate, and Runtime-Check the Delivery
+### Task 3: 生成日常五动作 + drag（散步装）
 
 **Files:**
-- Regenerate: `pets/packages/xiaomei-xiaotian.petpack`
-- Verify: `pets/library/xiaomei-xiaotian/pet.json`
-- Verify: `scripts/test-bestie-petpack.js`
+- Create under `pets/work/guimi/`：`idle-chroma.png` `walk-chroma.png` `sit-chroma.png` `sleep-chroma.png` `reaction-chroma.png` `drag-chroma.png`
+- Output frames → `pets/library/guimi/animations/{idle,walk,sit,sleep,reaction,drag}/`
 
 **Interfaces:**
-- Consumes: accepted six frames and slow timing contract from Tasks 1–2.
-- Produces: validated local `.petpack` with the new synchronized milk-tea loop.
+- Consumes: refs + IDENTITY；Cursor `GenerateImage`（`reference_image_paths` 指向脸与日常穿搭）
+- Produces: 各动作合规透明帧；双人同框；日常装
 
-- [ ] **Step 1: Rebuild the package**
+帧数：idle≥4 / walk≥6 / sit≥4 / sleep≥4 / reaction≥4 / drag≥6
 
-Run:
+- [ ] **Step 1: 按 `skills/desktop-pet-maker/references/image-prompts.md` 生成绿幕横条**
 
-```text
-python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/xiaomei-xiaotian pets/packages/xiaomei-xiaotian.petpack
+每条提示词硬性锁：
+
+- 左：长直黑发 + 藏青水手服（白领浅蓝条、白大蝴蝶结）
+- 右：齐肩黑发 + 亮粉长袖 + 藏青白边运动裤
+- 偏真人、完整双人身体、脚底同一基线、左右 ≥12% 绿边、纯 `#00ff00` 背景
+- 无文字、无贴纸脸、无道具（drag 除外可夸张被拖）
+
+参考图至少：`bestie1-face.png`、`bestie1-walk-outfit.png`、`bestie2-face-store.png`、`bestie2-walk-outfit.png`。
+
+- [ ] **Step 2: 去背**
+
+对每条 chroma 使用项目既有 imagegen/去背流程（与 desktop-pet-maker skill 一致）：`--auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`。
+
+- [ ] **Step 3: 切帧规范化**
+
+```powershell
+python skills/desktop-pet-maker/scripts/process_animation_strips.py --help
+# 按 skill 对该目录五/六条透明条执行；任一条安全门禁失败 → 整条重生成
 ```
 
-Expected: exits 0 and writes the package without changing unrelated assets.
+- [ ] **Step 4: 目检 contact sheet**
 
-- [ ] **Step 2: Validate package and automated regressions**
+检查：左右身份、脸不是贴纸、无串帧、无断肢、基线稳定、体量一致。
 
-Run:
+- [ ] **Step 5: Commit（仅当用户要求时）**
 
-```text
-npm run test:bestie
-python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/xiaomei-xiaotian.petpack
-node scripts/test-renderer-interaction.js
-python skills/desktop-pet-maker/scripts/test_process_animation_strips.py -v
-```
+---
 
-Expected: all commands exit 0; package validates as `xiaomei-xiaotian`; all strip safety tests pass.
-
-- [ ] **Step 3: Verify packed parity and unchanged unrelated assets**
-
-Parse library and packed root `pet.json` and assert deep equality. SHA-256 compare every packaged animation asset against the library, and confirm only the six `perch-milk-tea` images differ from the pre-task package snapshot.
-
-- [ ] **Step 4: Run a bounded player smoke test**
-
-Launch `npm start` and verify no startup exception. If GUI control is available, attach the pet to a window top and observe at least 10 complete loops, confirming two persistent cups, synchronized sipping, slow synchronized leg swing, stable scale/baseline, transparent background, target-window following, drag release, and unchanged side-rest behavior. If GUI control is unavailable, explicitly report these visual checks as unverified.
-
-- [ ] **Step 5: Review scope and delivery state**
-
-Run `git status --short` and scoped diffs. Do not force-add ignored customer/reference/generated assets. Commit only the tracked regression test if changed; leave the rebuilt `.petpack`, manifest, and frames as local delivery artifacts according to repository policy.

@@ -17,6 +17,8 @@ const {
 const { createTopmostGuard } = require('./topmost-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
 const { createSequenceController } = require('./sequence-controller');
+const { nextRoamTarget, crawlIdleState } = require('./roam-motion');
+const { createMouseThroughSampler } = require('./mouse-through');
 const {
   app,
   BrowserWindow,
@@ -54,14 +56,16 @@ let petWindow;
 let tray;
 let libraryRoot;
 let settingsPath;
-let settings = { petId: '', sizeKey: 'small', roaming: true };
+let settings = { petId: '', sizeKey: 'small', roaming: true, crawlMode: false };
 let activeManifest;
 let behaviorTimer;
 let walkTimer;
+let lastWalkFacing = 'right';
 let interaction;
 let topmostGuard;
 let quitting = false;
 let mouseThrough = false;
+let mouseThroughSampler;
 let deliveryConfig;
 let sequence;
 
@@ -298,10 +302,15 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
   });
 }
 
-function setMouseThrough(ignore) {
-  if (!petWindow || petWindow.isDestroyed() || mouseThrough === ignore) return;
+function setMouseThrough(ignore, options = {}) {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const force = options.force === true;
+  if (!force && mouseThrough === ignore) return;
+  const becameClickable = Boolean(mouseThrough) && !ignore;
   mouseThrough = ignore;
   petWindow.setIgnoreMouseEvents(ignore, { forward: true });
+  if (becameClickable) topmostGuard?.ensure();
+  else if (force && !ignore) petWindow.setAlwaysOnTop(true, 'screen-saver');
 }
 
 function stopWalk() {
@@ -327,10 +336,12 @@ function walkTo(targetX) {
   restorePetWindowSize();
   const startBounds = petWindow.getBounds();
   const direction = targetX >= startBounds.x ? 'right' : 'left';
+  lastWalkFacing = direction;
   const distance = Math.abs(targetX - startBounds.x);
   const duration = Math.max(1400, Math.min(4200, distance * 9));
   const startedAt = Date.now();
-  sendState(`walk-${direction}`);
+  const moveAction = settings.crawlMode && activeManifest?.animations?.crawl ? 'crawl' : 'walk';
+  sendState(`${moveAction}-${direction}`);
   walkTimer = setInterval(() => {
     if (!petWindow || petWindow.isDestroyed()) return stopWalk();
     const progress = Math.min(1, (Date.now() - startedAt) / duration);
@@ -345,13 +356,22 @@ function walkTo(targetX) {
     }, false);
     if (progress >= 1) {
       stopWalk();
-      sendState('idle');
-      scheduleBehavior();
+      sendState(idleState());
+      scheduleBehavior(settings.crawlMode ? 700 + Math.random() * 900 : undefined);
     }
   }, 16);
 }
 
+function idleState() {
+  return (settings.crawlMode && activeManifest?.animations?.crawl)
+    ? crawlIdleState(lastWalkFacing)
+    : 'idle';
+}
+
 function chooseBehavior() {
+  if (settings.crawlMode && activeManifest?.animations?.crawl) {
+    return { state: 'walk', weight: 100, minDuration: 2000, maxDuration: 5000 };
+  }
   const choices = activeManifest?.behavior?.random;
   const filteredChoices = Array.isArray(choices)
     ? choices.filter((item) => item?.state !== 'sleep')
@@ -381,8 +401,9 @@ function runBehavior() {
   if (behavior.state === 'walk') {
     const bounds = petWindow.getBounds();
     const workArea = getWorkAreaForBounds(bounds);
-    const delta = Math.round((Math.random() * 2 - 1) * Math.min(300, workArea.width * 0.22));
-    walkTo(Math.max(workArea.x, Math.min(workArea.x + workArea.width - bounds.width, bounds.x + delta)));
+    const { targetX, direction } = nextRoamTarget(bounds, workArea, Math.random, lastWalkFacing);
+    lastWalkFacing = direction;
+    walkTo(targetX);
     return;
   }
   const fallbackMessages = { sit: '我就在这里陪你。', reaction: '别走太远……', sleep: 'z Z' };
@@ -446,6 +467,7 @@ function switchPet(id) {
 function showPet() {
   petWindow?.showInactive();
   topmostGuard?.ensure();
+  mouseThroughSampler?.start();
   if (interaction && interaction.state() !== 'normal') return;
   sendState('reaction', '你回来啦！');
   scheduleBehavior(3000);
@@ -453,6 +475,7 @@ function showPet() {
 
 function hidePet() {
   sequence?.cancel();
+  mouseThroughSampler?.stop();
   petWindow?.hide();
 }
 
@@ -464,6 +487,9 @@ function pickRandomMenuChoice(item) {
 
 function runDirectMenuAction(choice) {
   if (!activeManifest || !choice || !activeManifest.animations[choice.action]) return;
+  if (choice.action === 'kowtow' && settings.crawlMode && activeManifest.animations['kowtow-crawl']) {
+    choice = { ...choice, action: 'kowtow-crawl' };
+  }
   pauseBehavior();
   sendState(choice.action, choice.message || '', choice.speech || '', choice.action, {
     speechAudio: choice.speechAudio || ''
@@ -474,7 +500,7 @@ function runDirectMenuAction(choice) {
   behaviorTimer = setTimeout(() => {
     behaviorTimer = undefined;
     if (!activeManifest || (interaction && interaction.state() !== 'normal')) return;
-    sendState('idle');
+    sendState(idleState());
     scheduleBehavior(900);
   }, duration);
 }
@@ -531,9 +557,23 @@ function buildTrayMenu() {
         saveSettings();
         if (interaction && interaction.state() !== 'normal') return;
         stopWalk();
-        sendState('idle');
+        sendState(idleState());
         scheduleBehavior(1200);
       }
+    },
+    {
+      label: '跪爬模式',
+      type: 'checkbox',
+      checked: settings.crawlMode,
+      click: (item) => {
+        settings.crawlMode = item.checked;
+        saveSettings();
+        if (interaction && interaction.state() !== 'normal') return;
+        stopWalk();
+        sendState(idleState());
+        scheduleBehavior(600);
+      },
+      visible: Boolean(activeManifest?.animations?.crawl)
     },
     {
       label: '始终置顶',
@@ -622,9 +662,18 @@ function createWindow() {
     if (!isAlwaysOnTop && topmostGuard?.isEnabled()) setImmediate(() => topmostGuard?.ensure());
   });
   petWindow.loadFile(indexPath);
+  mouseThroughSampler = createMouseThroughSampler({
+    getWindow: () => petWindow,
+    getCursor: () => screen.getCursorScreenPoint(),
+    sendSample: (point) => {
+      if (!petWindow || petWindow.isDestroyed()) return;
+      petWindow.webContents.send('pet:cursor-hit-sample', point);
+    }
+  });
   petWindow.once('ready-to-show', () => {
     petWindow.showInactive();
     topmostGuard?.ensure();
+    mouseThroughSampler?.start();
     sendState('reaction', resolveStartupGreeting(activeManifest));
     scheduleBehavior(3600);
   });
@@ -684,8 +733,10 @@ onTrusted('pet:drag-end', (pointer) => {
 onTrusted('pet:visible-insets', (insets) => {
   if (interaction && validVisibleInsets(insets)) interaction.updateVisibleInsets(insets);
 });
-onTrusted('pet:set-mouse-through', (ignore) => {
-  if (!interaction || interaction.state() !== 'dragging') setMouseThrough(Boolean(ignore));
+onTrusted('pet:set-mouse-through', (ignore, options) => {
+  if (!interaction || interaction.state() !== 'dragging') {
+    setMouseThrough(Boolean(ignore), options && typeof options === 'object' ? options : {});
+  }
 });
 onTrusted('pet:interact', () => {
   if (interaction && interaction.state() !== 'normal') return;

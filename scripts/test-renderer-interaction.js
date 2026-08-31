@@ -51,9 +51,10 @@ const bubble = element();
 bubble.offsetHeight = 24;
 const hearts = element();
 const windowListeners = new Map();
-const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], spoken: [], audio: [], insets: [] };
+const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], throughOptions: [], spoken: [], audio: [], insets: [] };
 let loadCallback;
 let stateCallback;
+let cursorSampleCallback;
 
 let alphaBounds = { left: 30, top: 60, right: 449, bottom: 479 };
 const canvasContext = {
@@ -132,8 +133,12 @@ const context = {
       drag: () => { calls.move += 1; },
       endDrag: (pointer) => { calls.end += 1; calls.endPointers.push(pointer); },
       interact: () => { calls.interact += 1; },
-      setMouseThrough: (ignore) => calls.through.push(ignore),
+      setMouseThrough: (ignore, options) => {
+        calls.through.push(ignore);
+        calls.throughOptions.push(options);
+      },
       setVisibleInsets: (insets) => calls.insets.push(insets),
+      onCursorHitSample: (callback) => { cursorSampleCallback = callback; },
       openMenu: () => {}
     }
   }
@@ -276,6 +281,25 @@ alphaBounds = { left: 30, top: 60, right: 419, bottom: 479 };
 windowListeners.get('mousemove')({ clientX: 1, clientY: 1 });
 windowListeners.get('mousemove')({ clientX: 80, clientY: 80 });
 assert.deepStrictEqual(calls.through.slice(-2), [true, false], 'transparent pixels should pass clicks through, visible pixels should not');
+
+assert.strictEqual(typeof cursorSampleCallback, 'function', 'renderer must accept main-process cursor samples when mousemove is dropped');
+cursorSampleCallback({ x: 1, y: 1 });
+cursorSampleCallback({ x: 80, y: 80 });
+assert.deepStrictEqual(
+  calls.through.slice(-2),
+  [true, false],
+  'a cursor sample over a visible pixel must restore clicks even if mousemove never fires'
+);
+assert.strictEqual(
+  calls.throughOptions.at(-2)?.force,
+  true,
+  'transparent cursor samples must force Windows to re-apply click-through after another window is maximized'
+);
+assert.strictEqual(
+  calls.throughOptions.at(-1)?.force,
+  true,
+  'visible cursor samples must force Windows to restore clicks after another window is maximized'
+);
 
 stateCallback({
   state: 'reaction',

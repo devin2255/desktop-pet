@@ -138,6 +138,12 @@ function validateManifest(manifest, root = '', requireFiles = false) {
       if (!INTERACTION_ROLES.has(role) || !config || typeof config !== 'object' || Array.isArray(config)) {
         throw new Error('interactionActions 包含不支持的角色');
       }
+      if (config.enabled !== undefined && typeof config.enabled !== 'boolean') {
+        throw new Error(`interactionActions ${role} 的 enabled 必须是布尔值`);
+      }
+      if (config.enabled === false) {
+        continue;
+      }
       if (typeof config.action !== 'string' || !Object.hasOwn(manifest.animations, config.action)) {
         throw new Error(`interactionActions 引用了不存在的动画：${config.action}`);
       }
@@ -213,8 +219,8 @@ function validateManifest(manifest, root = '', requireFiles = false) {
   }
 
   if (manifest.contextMenuActions !== undefined) {
-    if (!Array.isArray(manifest.contextMenuActions) || manifest.contextMenuActions.length > 8) {
-      throw new Error('contextMenuActions 必须是最多 8 项的数组');
+    if (!Array.isArray(manifest.contextMenuActions) || manifest.contextMenuActions.length > 12) {
+      throw new Error('contextMenuActions 必须是最多 12 项的数组');
     }
     const actionIds = new Set();
     for (const item of manifest.contextMenuActions) {

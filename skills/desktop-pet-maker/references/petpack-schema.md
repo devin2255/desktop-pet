@@ -100,7 +100,7 @@ Example:
 
 ## Context menu actions
 
-`contextMenuActions` may contain at most 8 entries. Each entry requires `id`, `label`, and exactly one trigger:
+`contextMenuActions` may contain at most 12 entries. Each entry requires `id`, `label`, and exactly one trigger:
 
 - **Single action:** `{ "id": "react", "label": "互动", "action": "reaction", "message": "你好", "duration": 2000 }`
 - **Sequence:** `{ "id": "relax", "label": "去放松", "sequence": "relax" }`

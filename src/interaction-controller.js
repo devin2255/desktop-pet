@@ -123,6 +123,14 @@ function createInteractionController(dependencies) {
     return role;
   }
 
+  function isInteractionRoleEnabled(role) {
+    const config = getManifest()?.interactionActions?.[role];
+    if (config && Object.prototype.hasOwnProperty.call(config, 'enabled')) {
+      return config.enabled !== false;
+    }
+    return true;
+  }
+
   function emitRole(role, extras = {}) {
     if (disposed) return;
     const facing = extras.facing;
@@ -449,15 +457,15 @@ function createInteractionController(dependencies) {
     const target = selectTargetWindow(pointer, candidates, excludedIds);
     if (target) {
       const edge = classifyWindowEdge(pointer, target.bounds, edgeThreshold);
-      if (edge === 'left' || edge === 'right') {
+      if ((edge === 'left' || edge === 'right') && isInteractionRoleEnabled('climb')) {
         restOnSide(target, pointer, edge);
         return true;
       }
-      if (edge === 'top') {
+      if (edge === 'top' && isInteractionRoleEnabled('perch')) {
         attach(target, 'top', pointer.x - target.bounds.x, 'perch', 'perched');
         return true;
       }
-      if (edge === 'bottom') {
+      if (edge === 'bottom' && isInteractionRoleEnabled('hang')) {
         attach(target, 'bottom', pointer.x - target.bounds.x, 'hang', 'hanging');
         return true;
       }
@@ -469,6 +477,10 @@ function createInteractionController(dependencies) {
       ? selectDisplayTopWindow(pointer, candidates, display.bounds, excludedIds, edgeThreshold)
       : null;
     if (displayTopTarget) {
+      if (!isInteractionRoleEnabled('perch')) {
+        transition('normal', 'normal');
+        return true;
+      }
       attach(
         displayTopTarget,
         'top',
