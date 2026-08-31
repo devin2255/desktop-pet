@@ -4,6 +4,44 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支目标主交付：**旺财与咪咪**（`dog-and-cat` / 一体双人柴犬+橘猫）。**petpack 尚未生成时，下列能力为计划中 / 未交付。**
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+文档：[docs/blender-free-dog-and-cat.md](docs/blender-free-dog-and-cat.md)
+
+### 身份（计划）
+
+- id：`dog-and-cat`；显示名：旺财与咪咪
+- 性格：安静陪伴、亲近、默契
+
+### 动作（计划）
+
+标准五动作 + 窗口七动作；Blender 双主体切帧
+
+### 气泡与台词（计划）
+
+- 过来一下「来了。」；趴一会儿「好，歇一下。」；去睡觉「那我们眯一会儿。」
+
+### 互动（计划）
+
+一体双人同框、窗口边、透明穿透。
+
+### 托盘与右键（计划）
+
+过来一下 / 趴一会儿 / 去睡觉 + 播放器固定项。
+
+### 交付（计划）
+
+```text
+node scripts/build-customer.js --pet pets/packages/dog-and-cat.petpack --name "桌面宠物" --delivery-id dog-and-cat
+```
+
+当前开发播放器内置演示仍是牛斯克（`boss`），不是本分支目标宠。Windows 便携 EXE，未签名。macOS 未交付。
+
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
