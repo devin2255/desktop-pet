@@ -2,6 +2,7 @@ const pet = document.getElementById('pet');
 const petImage = document.getElementById('pet-image');
 const bubble = document.getElementById('bubble');
 const hearts = document.getElementById('hearts');
+const ticker = document.getElementById('ticker');
 
 let manifest;
 let pointerDown;
@@ -9,7 +10,8 @@ let bubbleTimer;
 let bubbleStaggerTimers = [];
 let animationTimer;
 let animationToken = 0;
-let pendingState = { state: 'idle', message: '' };
+let pendingState = { state: 'idle', message: '', generation: 0 };
+let stateGeneration = 0;
 const DRAG_THRESHOLD_PX = 6;
 const HIT_ALPHA_CUTOFF = 32;
 const BUBBLE_GAP_PX = 2;
@@ -41,7 +43,12 @@ function baseActionName(value) {
 function resolveAction(state, logicalRole) {
   const role = logicalRole || state;
   const action = resolveLogicalRole(baseActionName(role));
-  const normalized = baseActionName(action);
+  let normalized = baseActionName(action);
+  // Directional suffixed states (e.g. call-mom-walk-left) fall back to the
+  // base animation; the -left part only drives CSS mirroring.
+  if (normalized.endsWith('-left') && !manifest.animations[normalized]) {
+    normalized = normalized.slice(0, -5);
+  }
   if (normalized === 'walk-left' || normalized === 'walk-right') return 'walk';
   if (normalized === 'crawl-left' || normalized === 'crawl-right') return 'crawl';
   if (normalized === 'clingy' || normalized === 'shy') return 'reaction';
@@ -115,6 +122,8 @@ function showBubble(message, duration = 2200) {
 }
 
 function showStaggeredMessages(messages, gapMs = 700, bubbleMs = 2400) {
+  const generation = pendingState.generation;
+  const looping = pendingState.messageLoop === true;
   clearBubbleTimers();
   if (!messages.length) return;
   bubble.classList.add('visible');
@@ -125,6 +134,7 @@ function showStaggeredMessages(messages, gapMs = 700, bubbleMs = 2400) {
   });
   for (let index = 1; index < messages.length; index += 1) {
     const timerId = setTimeout(() => {
+      if (pendingState.generation !== generation) return;
       bubble.textContent = messages[index];
       if (lastVisibleInsets) positionBubble(lastVisibleInsets);
       requestAnimationFrame(() => {
@@ -133,8 +143,16 @@ function showStaggeredMessages(messages, gapMs = 700, bubbleMs = 2400) {
     }, index * gapMs);
     bubbleStaggerTimers.push(timerId);
   }
-  const totalMs = (messages.length - 1) * gapMs + bubbleMs;
-  bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), totalMs);
+  if (looping) {
+    const loopMs = Math.max(messages.length, 1) * gapMs;
+    bubbleTimer = setTimeout(() => {
+      if (pendingState.generation !== generation) return;
+      showStaggeredMessages(messages, gapMs, bubbleMs);
+    }, loopMs);
+  } else {
+    const totalMs = (messages.length - 1) * gapMs + bubbleMs;
+    bubbleTimer = setTimeout(() => bubble.classList.remove('visible'), totalMs);
+  }
 }
 
 const MALE_VOICE_RE = /kang|yunyang|yunxi|yunjian|yunfeng|dongni|male|男|kangkang/i;
@@ -168,6 +186,7 @@ let activeAudio;
 function stopSpeechAudio() {
   if (!activeAudio) return;
   activeAudio.pause();
+  activeAudio.loop = false;
   activeAudio.src = '';
   activeAudio = undefined;
 }
@@ -183,9 +202,12 @@ function playSpeechAudio(url) {
   stopSpeechAudio();
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   activeAudio = new Audio(url);
+  if (pendingState.speechLoop) activeAudio.loop = true;
   activeAudio.play().catch(() => {});
   if (activeAudio.addEventListener) {
-    activeAudio.addEventListener('ended', () => { activeAudio = undefined; });
+    activeAudio.addEventListener('ended', () => {
+      if (activeAudio && !activeAudio.loop) activeAudio = undefined;
+    });
     activeAudio.addEventListener('error', () => { activeAudio = undefined; });
   }
   return true;
@@ -199,9 +221,12 @@ function speak(text, audioUrl = '') {
   const utterance = new window.SpeechSynthesisUtterance(text);
   utterance.lang = 'zh-CN';
   utterance.rate = 0.92;
-  const gender = manifest?.speechGender === 'male' || manifest?.speechGender === 'female'
-    ? manifest.speechGender
-    : '';
+  const stageGender = pendingState?.speechGender;
+  const gender = stageGender === 'male' || stageGender === 'female'
+    ? stageGender
+    : (manifest?.speechGender === 'male' || manifest?.speechGender === 'female'
+      ? manifest.speechGender
+      : '');
   const voice = pickSpeechVoice(gender);
   if (voice) {
     utterance.voice = voice;
@@ -228,8 +253,22 @@ function speak(text, audioUrl = '') {
   setTimeout(retry, 250);
 }
 
-function setState(state, message = '', speech = '', logicalRole, speechAudio = '', messages, messageGapMs) {
-  pendingState = { state, message, speech, logicalRole, speechAudio, messages, messageGapMs };
+function setState(state, message = '', speech = '', logicalRole, speechAudio = '', messages, messageGapMs, options = {}) {
+  stateGeneration += 1;
+  if (pendingState.speechLoop) stopSpeechAudio();
+  pendingState = {
+    state,
+    message,
+    speech,
+    logicalRole,
+    speechAudio,
+    messages,
+    messageGapMs,
+    speechGender: options.speechGender,
+    messageLoop: options.messageLoop === true,
+    speechLoop: options.speechLoop === true,
+    generation: stateGeneration
+  };
   pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
   if (!manifest) return;
   playAnimation(state, logicalRole);
@@ -240,8 +279,10 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
     : baseActionName(state).startsWith('perch-')
       ? 4800
       : Math.max(4000, Math.min(30000, textLen * 300));
+  let gapMs = Number.isFinite(messageGapMs) ? messageGapMs : 700;
+  if (pendingState.messageLoop) gapMs = Math.max(1200, gapMs);
   if (Array.isArray(messages) && messages.length) {
-    showStaggeredMessages(messages, Number.isFinite(messageGapMs) ? messageGapMs : 700, bubbleMs);
+    showStaggeredMessages(messages, gapMs, bubbleMs);
   } else if (message) {
     showBubble(message, bubbleMs);
   } else if (!speechAudio && !speech) {
@@ -253,7 +294,13 @@ function setState(state, message = '', speech = '', logicalRole, speechAudio = '
     }
   }
   const audio = speechAudio || resolveSpeechAudio(state);
-  if (speech || audio) speak(speech, audio);
+  if (audio) {
+    speak(speech, audio);
+  } else if (speech) {
+    speak(speech);
+  } else if (pendingState.messageLoop && message) {
+    speak(message);
+  }
 }
 
 function loadPet(nextManifest) {
@@ -270,7 +317,12 @@ function loadPet(nextManifest) {
     pendingState.logicalRole,
     pendingState.speechAudio || '',
     pendingState.messages,
-    pendingState.messageGapMs
+    pendingState.messageGapMs,
+    {
+      speechGender: pendingState.speechGender,
+      messageLoop: pendingState.messageLoop,
+      speechLoop: pendingState.speechLoop
+    }
   );
 }
 
@@ -437,6 +489,86 @@ pet.addEventListener('contextmenu', (event) => {
 });
 
 window.petApi.onLoad(loadPet);
-window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, messages, messageGapMs }) =>
-  setState(state, message, speech, logicalRole, speechAudio || '', messages, messageGapMs));
+window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, messages, messageGapMs, speechGender, messageLoop, speechLoop }) =>
+  setState(state, message, speech, logicalRole, speechAudio || '', messages, messageGapMs, { speechGender, messageLoop, speechLoop }));
+window.petApi.onMarket(updateTicker);
 window.petApi.getCurrentPet().then(loadPet);
+
+// Persistent market board above the head. Red = up, green = down.
+// Shows the watched index with points/change, the other two major indices,
+// turnover and advance/decline breadth so it reads like a real quote board.
+function fmtPct(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '--';
+  return `${n > 0 ? '+' : ''}${n.toFixed(2)}%`;
+}
+function el(cls, text) {
+  const node = document.createElement('span');
+  if (cls) node.className = cls;
+  node.textContent = text;
+  return node;
+}
+function shortName(name) {
+  if (!name) return '';
+  return name.replace('上证指数', '上证').replace('深证成指', '深证').replace('创业板指', '创业板');
+}
+function updateTicker(info) {
+  ticker.textContent = '';
+  if (!info || info.enabled !== true) {
+    ticker.classList.remove('visible', 'up', 'down');
+    pet.classList.remove('has-ticker');
+    return;
+  }
+  pet.classList.add('has-ticker');
+  ticker.classList.add('visible');
+  const pct = Number(info.pct);
+  if (!Number.isFinite(pct)) {
+    ticker.classList.remove('up', 'down');
+    ticker.appendChild(el('', info.simulated ? '模拟盘待命' : '大盘待命'));
+    return;
+  }
+  const up = pct > 0;
+  ticker.classList.toggle('up', up);
+  ticker.classList.toggle('down', !up);
+
+  // Line 1: watched index + points + change% + change amount.
+  const main = document.createElement('div');
+  main.className = 'tk-main';
+  const arrow = up ? '▲' : '▼';
+  const sign = up ? '+' : '';
+  const points = Number(info.points);
+  main.appendChild(el('', `${info.simulated ? '模拟 ' : ''}${shortName(info.name) || '大盘'} `));
+  if (Number.isFinite(points)) main.appendChild(el('', `${points.toFixed(2)} `));
+  main.appendChild(el('tk-arrow', `${arrow}${sign}${pct.toFixed(2)}%`));
+  ticker.appendChild(main);
+
+  // Line 2: the other two major indices, each colored by its own direction.
+  if (Array.isArray(info.indices) && info.indices.length) {
+    const sub = document.createElement('div');
+    sub.className = 'tk-sub';
+    info.indices.forEach((idx, i) => {
+      const n = Number(idx.pct);
+      const cls = Number.isFinite(n) ? (n > 0 ? 'u' : 'd') : '';
+      if (i > 0) sub.appendChild(el('', '  '));
+      sub.appendChild(el(cls, `${shortName(idx.name)} ${fmtPct(idx.pct)}`));
+    });
+    ticker.appendChild(sub);
+  }
+
+  // Line 3: turnover + advance/decline breadth.
+  const amount = Number(info.amount);
+  const upC = Number(info.up);
+  const downC = Number(info.down);
+  if (Number.isFinite(amount) || Number.isFinite(upC)) {
+    const line = document.createElement('div');
+    line.className = 'tk-sub';
+    if (Number.isFinite(amount)) line.appendChild(el('', `成交 ${Math.round(amount / 1e8)}亿`));
+    if (Number.isFinite(upC) && Number.isFinite(downC)) {
+      if (Number.isFinite(amount)) line.appendChild(el('', '  '));
+      line.appendChild(el('u', `涨${upC}`));
+      line.appendChild(el('', ' '));
+      line.appendChild(el('d', `跌${downC}`));
+    }
+    ticker.appendChild(line);
+  }
+}

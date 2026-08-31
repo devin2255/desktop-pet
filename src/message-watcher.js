@@ -1,5 +1,5 @@
 'use strict';
-const { createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine } = require('./watch-rules');
+const { createDedupeSet, isBoss, matchKeyword, inQuietHours } = require('./watch-rules');
 const { execFile } = require('child_process');
 
 const DEBUG_LOG = 'C:/Users/Thinkpad/.qwenworkcn/workspace/msr5talezbqs189b/watcher-debug.log';
@@ -90,6 +90,58 @@ function resolveCoreExe(larkCliPath) {
   return larkCliPath;
 }
 
+const WINDOW_ROLE_STATES = new Set(['climb', 'perch', 'hang', 'drag', 'fall', 'impact', 'recover']);
+
+function resolveNow(now) {
+  if (typeof now === 'function') return Number(now());
+  if (typeof now === 'number' && Number.isFinite(now)) return now;
+  return Date.now();
+}
+
+function resolveKeywordState(rules, category) {
+  const fallback = (typeof rules.state === 'string' && rules.state.trim())
+    ? rules.state.trim()
+    : 'reaction';
+  const mapped = category && rules.keywordStates && rules.keywordStates[category];
+  if (typeof mapped !== 'string' || !mapped.trim()) return fallback;
+  const state = mapped.trim();
+  if (WINDOW_ROLE_STATES.has(state)) return fallback;
+  return state;
+}
+
+function messageCooldownKey(event) {
+  return String(event.senderId || event.senderName || event.eventId || '');
+}
+
+async function dispatchBossMessage(event, ctx) {
+  const { rules, voice, sendState, rng, cooldownMap } = ctx || {};
+  if (!event || !rules || typeof sendState !== 'function') return;
+  const map = cooldownMap || new Map();
+  const key = messageCooldownKey(event);
+  const now = resolveNow(ctx.now);
+  const last = map.get(key) || 0;
+  if (now - last < (rules.cooldownSec || 0) * 1000) { dbg('processLine: cooldown'); return; }
+  map.set(key, now);
+  const category = matchKeyword(event.text, rules.keywords, rules.triggers);
+  dbg('processLine: TRIGGER category=' + category + ' content=' + (event.text || '').slice(0, 40));
+  const pool = category ? rules.keywords[category] : [rules.fallback];
+  const entry = pool[Math.floor((rng || Math.random)() * pool.length)];
+  const text = entry.text || (typeof entry === 'string' ? entry : '');
+  const preAudio = entry.audio || '';
+  let audioUrl = '';
+  if (preAudio) {
+    audioUrl = preAudio;
+  } else {
+    try {
+      const audio = await voice.synthesize(text);
+      if (audio) audioUrl = audio.url;
+    } catch (_) { audioUrl = ''; }
+  }
+  const state = resolveKeywordState(rules, category);
+  dbg('processLine: sendState state=' + state + ' text=' + (text || '').slice(0, 30) + ' audio=' + (audioUrl ? 'yes' : 'no'));
+  sendState(state, text, text, { speechAudio: audioUrl });
+}
+
 function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, larkCliPath, rng }) {
   const dedupe = createDedupeSet();
   const cooldown = new Map();
@@ -111,28 +163,17 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
     dedupe.add(ev.event_id);
     if (!isBoss(ev.sender_id, rules.ids)) { dbg('processLine: not boss sender=' + ev.sender_id + ' ids=' + JSON.stringify(rules.ids)); return; }
     if (inQuietHours(new Date(), rules.quietHours)) { dbg('processLine: quiet hours'); return; }
-    const last = cooldown.get(ev.sender_id) || 0;
-    if (Date.now() - last < rules.cooldownSec * 1000) { dbg('processLine: cooldown'); return; }
-    const category = matchKeyword(ev.content, rules.keywords, rules.triggers);
-    dbg('processLine: TRIGGER category=' + category + ' content=' + (ev.content || '').slice(0, 40));
-    const pool = category ? rules.keywords[category] : [rules.fallback];
-    const entry = pool[Math.floor((rng || Math.random)() * pool.length)];
-    const text = entry.text || (typeof entry === 'string' ? entry : '');
-    const preAudio = entry.audio || '';
-    let audioUrl = '';
-    if (preAudio) {
-      audioUrl = preAudio;
-    } else {
-      try {
-        const audio = await voice.synthesize(text);
-        if (audio) audioUrl = audio.url;
-      } catch (_) { audioUrl = ''; }
-    }
-    const mapped = category && rules.keywordStates && rules.keywordStates[category];
-    const state = (typeof mapped === 'string' && mapped.trim()) ? mapped.trim() : rules.state;
-    dbg('processLine: sendState state=' + state + ' text=' + (text || '').slice(0, 30) + ' audio=' + (audioUrl ? 'yes' : 'no'));
-    sendState(state, text, text, { speechAudio: audioUrl });
-    cooldown.set(ev.sender_id, Date.now());
+    const chatType = (ev.chat_type === 'p2p' || ev.chat_type === 'group') ? ev.chat_type : 'unknown';
+    dbg('processLine: dispatch content=' + (ev.content || '').slice(0, 40));
+    await dispatchBossMessage({
+      platform: 'lark',
+      kind: 'message',
+      eventId: ev.event_id,
+      senderId: ev.sender_id,
+      senderName: '',
+      text: ev.content,
+      chatType
+    }, { rules, voice, sendState, rng, now: Date.now, cooldownMap: cooldown });
   }
 
   function scheduleRestart() {
@@ -287,4 +328,7 @@ function createMessageWatcher({ rules, voice, sendState, spawnExec, onStatus, la
   return { start, stop, processLine, isRunning: () => running };
 }
 
-module.exports = { parseEventLine, createMessageWatcher, isAtAllMessage, extractPolledMessage };
+module.exports = {
+  parseEventLine, createMessageWatcher, isAtAllMessage, extractPolledMessage,
+  dispatchBossMessage
+};

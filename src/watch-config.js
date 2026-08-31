@@ -16,21 +16,111 @@ const SELF_USE_DEFAULT_CONFIG = {
   enabled: true,
   larkCliPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd',
   bosses: ['ou_c213c1a364e0818e671eb4823b4b9e2f'],
+  platforms: ['lark', 'dingtalk'],
   cooldownSec: 30,
   quietHours: [],
-  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
+  tasks: { provider: 'feishu' },
+  callHangup: { enabled: false, platforms: ['dingtalk'], cooldownSec: 60 },
+  dingtalk: {
+    enabled: false,
+    dwsPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd',
+    pollMs: 10000,
+    bossOpenIds: [],
+    groups: []
+  },
+  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' },
+  market: { enabled: false, secid: '1.000001', pollMs: 5000, cooldownSec: 60, tradingHoursOnly: true }
 };
+
+const CUSTOMER_DEFAULT_CONFIG = {
+  enabled: false,
+  bosses: [],
+  platforms: ['lark', 'dingtalk'],
+  cooldownSec: 30,
+  quietHours: [],
+  tasks: { provider: 'feishu' },
+  callHangup: { enabled: false, platforms: ['dingtalk'], cooldownSec: 60 },
+  dingtalk: {
+    enabled: false,
+    dwsPath: 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd',
+    pollMs: 10000,
+    bossOpenIds: [],
+    groups: []
+  },
+  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' },
+  market: { enabled: false, secid: '1.000001', pollMs: 5000, cooldownSec: 60, tradingHoursOnly: true }
+};
+
+const DEFAULT_DWS_PATH = 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd';
+
+// market mood radar: watch an index quote and fire petpack sequences when the
+// index flips between green (<=0) and red (>0).
+function normalizeMarket(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const pollMs = Number(src.pollMs);
+  const cooldownSec = Number(src.cooldownSec);
+  return {
+    enabled: src.enabled === true,
+    simulated: src.simulated === true,
+    secid: typeof src.secid === 'string' && src.secid.trim() ? src.secid.trim() : '1.000001',
+    pollMs: Number.isFinite(pollMs) && pollMs >= 2000 ? pollMs : 5000,
+    cooldownSec: Number.isFinite(cooldownSec) && cooldownSec >= 0 ? cooldownSec : 60,
+    tradingHoursOnly: src.tradingHoursOnly !== false
+  };
+}
+
+// dingtalk message radar: poll `dws chat message list` for boss single chats and
+// group @所有人 messages. bossOpenIds are dingtalk openDingtalkId values.
+function normalizeDingtalk(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const clean = (arr) => (Array.isArray(arr) ? arr
+    .filter((x) => typeof x === 'string' && x.trim())
+    .map((x) => x.trim()) : []);
+  const pollMs = Number.isFinite(Number(src.pollMs)) && Number(src.pollMs) >= 2000
+    ? Number(src.pollMs) : 10000;
+  return {
+    enabled: src.enabled !== false,
+    dwsPath: typeof src.dwsPath === 'string' && src.dwsPath.trim() ? src.dwsPath.trim() : DEFAULT_DWS_PATH,
+    pollMs,
+    bossOpenIds: clean(src.bossOpenIds),
+    groups: clean(src.groups)
+  };
+}
+
+function normalizePlatforms(raw) {
+  const allowed = new Set(['lark', 'dingtalk']);
+  const list = Array.isArray(raw) ? raw.filter((x) => allowed.has(x)) : [];
+  return list.length ? [...new Set(list)] : ['lark'];
+}
+
+function normalizeCallHangup(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const platforms = Array.isArray(src.platforms)
+    ? src.platforms.filter((x) => x === 'dingtalk')
+    : ['dingtalk'];
+  return {
+    enabled: src.enabled === true,
+    platforms: platforms.length ? platforms : ['dingtalk'],
+    cooldownSec: Number.isFinite(Number(src.cooldownSec)) ? Math.max(0, Number(src.cooldownSec)) : 60
+  };
+}
+
+function normalizeTasks(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  return { provider: src.provider === 'mock' ? 'mock' : 'feishu' };
+}
 
 // Writes the self-use default boss-watch.json when the file is missing, so the
 // portable EXE works out of the box on the developer's machine. Returns the
 // config path for convenience. Existing files are never overwritten.
-function ensureBossWatchDefaults(configPath) {
+function ensureBossWatchDefaults(configPath, { customer } = {}) {
   if (!configPath) return configPath;
   try {
     if (fs.existsSync(configPath)) return configPath;
     const dir = require('path').dirname(configPath);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(configPath, JSON.stringify(SELF_USE_DEFAULT_CONFIG, null, 2) + '\n', 'utf8');
+    const payload = customer === true ? CUSTOMER_DEFAULT_CONFIG : SELF_USE_DEFAULT_CONFIG;
+    fs.writeFileSync(configPath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
   } catch (_) { /* best-effort; loadWatchConfig falls back to safe defaults */ }
   return configPath;
 }
@@ -95,6 +185,42 @@ function normalizeKeywordStates(raw) {
   return out;
 }
 
+function patchWatchFlags(configPath, flags = {}, { customer } = {}) {
+  if (!configPath) return false;
+  if (!fs.existsSync(configPath)) ensureBossWatchDefaults(configPath, { customer });
+  let raw;
+  try {
+    if (!fs.existsSync(configPath)) return false;
+    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+    raw = parsed;
+  } catch (_) {
+    return false;
+  }
+  if (typeof flags.enabled === 'boolean') raw.enabled = flags.enabled;
+  if (typeof flags.callHangupEnabled === 'boolean') {
+    const prev = raw.callHangup && typeof raw.callHangup === 'object' && !Array.isArray(raw.callHangup)
+      ? raw.callHangup
+      : {};
+    raw.callHangup = { ...prev, enabled: flags.callHangupEnabled };
+  }
+  if (typeof flags.marketSimulated === 'boolean' || typeof flags.marketEnabled === 'boolean') {
+    const prev = raw.market && typeof raw.market === 'object' && !Array.isArray(raw.market)
+      ? raw.market
+      : {};
+    const next = { ...prev };
+    if (typeof flags.marketEnabled === 'boolean') next.enabled = flags.marketEnabled;
+    if (typeof flags.marketSimulated === 'boolean') next.simulated = flags.marketSimulated;
+    raw.market = next;
+  }
+  try {
+    const dir = require('path').dirname(configPath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n', 'utf8');
+  } catch (_) { /* best-effort */ }
+  return configPath;
+}
+
 function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
   let fileCfg = {};
   try {
@@ -141,8 +267,17 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
     triggers,
     fallback,
     state,
-    keywordStates
+    keywordStates,
+    platforms: normalizePlatforms(fileCfg.platforms),
+    callHangup: normalizeCallHangup(fileCfg.callHangup),
+    dingtalk: normalizeDingtalk(fileCfg.dingtalk),
+    market: normalizeMarket(fileCfg.market),
+    tasks: normalizeTasks(fileCfg.tasks)
   };
 }
 
-module.exports = { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, SELF_USE_DEFAULT_CONFIG };
+module.exports = {
+  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, patchWatchFlags,
+  SELF_USE_DEFAULT_CONFIG, CUSTOMER_DEFAULT_CONFIG, normalizePlatforms, normalizeCallHangup,
+  normalizeDingtalk, normalizeMarket, normalizeTasks
+};

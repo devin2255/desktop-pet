@@ -84,6 +84,14 @@ def referenced_files(manifest: dict) -> set[str]:
                 for entry in entries:
                     if isinstance(entry, dict) and entry.get("audio"):
                         referenced.add(safe_relative(str(entry["audio"])).as_posix())
+    sequences = manifest.get("sequences")
+    if isinstance(sequences, dict):
+        for sequence in sequences.values():
+            if not isinstance(sequence, dict):
+                continue
+            for stage in sequence.get("stages") or []:
+                if isinstance(stage, dict) and stage.get("speechAudio"):
+                    referenced.add(safe_relative(str(stage["speechAudio"])).as_posix())
     return referenced
 
 
@@ -447,8 +455,21 @@ def validate_directory(root: Path) -> dict:
     unit = "alpha pixels" if normalization_metric == "alpha-area-v1" else "pixels"
     if normalization_metric not in {"alpha-area-v1", "bbox-span-v1"}:
         raise ValueError(f"unsupported normalizationMetric: {normalization_metric}")
-    smallest = min(values)
-    largest = max(values)
+    # Collect frame paths that belong to actions with skipScaleCheck: true
+    skip_frame_paths: set[str] = set()
+    for action_data in manifest.get("animations", {}).values():
+        if action_data.get("skipScaleCheck"):
+            skip_frame_paths.update(action_data.get("frames", []))
+    # Build the ordered list of frame paths that feed into values
+    ordered_frame_paths = [
+        p for p in sorted(referenced - {"pet.json"})
+        if not p.lower().endswith(tuple(AUDIO_EXTENSIONS)) and p in frame_paths
+    ]
+    filtered_values = [v for v, fp in zip(values, ordered_frame_paths) if fp not in skip_frame_paths]
+    if not filtered_values:
+        filtered_values = values
+    smallest = min(filtered_values)
+    largest = max(filtered_values)
     if smallest <= 0 or largest / smallest > 3.0:
         raise ValueError(f"visible subject scale drifts across frames: {smallest}..{largest} {unit}")
     return manifest

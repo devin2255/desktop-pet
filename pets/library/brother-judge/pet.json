@@ -449,6 +449,7 @@
     }
   ],
   "watch": {
+    "menuLabel": "画饼雷达",
     "keywords": {
       "画饼": [
         {

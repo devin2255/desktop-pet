@@ -3,7 +3,9 @@ const assert = require('assert');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG } = require('../src/watch-config');
+const {
+  loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, patchWatchFlags, SELF_USE_DEFAULT_CONFIG
+} = require('../src/watch-config');
 const { DEFAULT_KEYWORDS } = require('../src/watch-rules');
 
 function tmpJson(obj) {
@@ -87,10 +89,178 @@ function testSplitBosses() {
   assert.deepStrictEqual(names, ['王总', '李总']);
 }
 
+function testCallHangupDefaultOff() {
+  const cfg = loadWatchConfig({ configPath: path.join(os.tmpdir(), 'nope-xxx.json'), larkCliPath: 'lark' });
+  assert.strictEqual(cfg.callHangup.enabled, false);
+  assert.deepStrictEqual(cfg.platforms, ['lark']);
+}
+
+function testCallHangupFromFile() {
+  const p = tmpJson({ enabled: true, bosses: ['张总'], platforms: ['lark', 'dingtalk'], callHangup: { enabled: true, cooldownSec: 90 } });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.strictEqual(cfg.callHangup.enabled, true);
+  assert.strictEqual(cfg.callHangup.cooldownSec, 90);
+  assert.deepStrictEqual(cfg.platforms, ['lark', 'dingtalk']);
+}
+
+function testEnsureDefaultsCustomer() {
+  const p = path.join(os.tmpdir(), `boss-watch-customer-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    ensureBossWatchDefaults(p, { customer: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.strictEqual(raw.enabled, false);
+    assert.deepStrictEqual(raw.bosses, []);
+    assert.strictEqual(raw.callHangup.enabled, false);
+    assert.ok(!JSON.stringify(raw).includes('ou_'));
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testEnsureDefaultsSelfUse() {
+  const p = path.join(os.tmpdir(), `boss-watch-self-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    ensureBossWatchDefaults(p);
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.deepStrictEqual(raw.platforms, ['lark', 'dingtalk']);
+    assert.strictEqual(raw.callHangup.enabled, false);
+    assert.strictEqual(raw.market.enabled, false);
+    assert.deepStrictEqual(raw.tasks, { provider: 'feishu' });
+    assert.deepStrictEqual(raw.bosses, SELF_USE_DEFAULT_CONFIG.bosses);
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testPatchWatchFlagsKeepsBosses() {
+  const p = path.join(os.tmpdir(), `boss-watch-patch-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    fs.writeFileSync(p, JSON.stringify({
+      enabled: false,
+      bosses: ['张总', 'ou_keepme'],
+      platforms: ['lark', 'dingtalk'],
+      callHangup: { enabled: false, platforms: ['dingtalk'], cooldownSec: 90 },
+      extraKey: 'keep'
+    }, null, 2) + '\n', 'utf8');
+    patchWatchFlags(p, { enabled: true, callHangupEnabled: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.strictEqual(raw.enabled, true);
+    assert.strictEqual(raw.callHangup.enabled, true);
+    assert.strictEqual(raw.callHangup.cooldownSec, 90);
+    assert.deepStrictEqual(raw.bosses, ['张总', 'ou_keepme']);
+    assert.strictEqual(raw.extraKey, 'keep');
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testPatchWatchFlagsCreatesMissingFile() {
+  const p = path.join(os.tmpdir(), `boss-watch-patch-missing-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    patchWatchFlags(p, { enabled: true }, { customer: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.strictEqual(raw.enabled, true);
+    assert.deepStrictEqual(raw.bosses, []);
+    assert.ok(!JSON.stringify(raw).includes('ou_'));
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testPatchWatchFlagsSkipsCorruptFile() {
+  const p = path.join(os.tmpdir(), `boss-watch-patch-garbage-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  const garbage = '{not json, bosses still here 张总';
+  try {
+    fs.writeFileSync(p, garbage, 'utf8');
+    const result = patchWatchFlags(p, { enabled: true, callHangupEnabled: true });
+    assert.strictEqual(result, false);
+    assert.strictEqual(fs.readFileSync(p, 'utf8'), garbage);
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testEnsureDefaultsNoOverwrite() {
+  const p = path.join(os.tmpdir(), `boss-watch-existing-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  const original = { enabled: false, bosses: ['王总'], platforms: ['lark'] };
+  try {
+    fs.writeFileSync(p, JSON.stringify(original));
+    ensureBossWatchDefaults(p, { customer: true });
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    assert.deepStrictEqual(raw, original);
+  } finally {
+    try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+  }
+}
+
+function testDingtalkDefaultsWhenMissing() {
+  const cfg = loadWatchConfig({ configPath: path.join(os.tmpdir(), 'nope-xxx.json'), larkCliPath: 'lark' });
+  assert.strictEqual(cfg.dingtalk.enabled, true);
+  assert.strictEqual(cfg.dingtalk.dwsPath, 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd');
+  assert.strictEqual(cfg.dingtalk.pollMs, 10000);
+  assert.deepStrictEqual(cfg.dingtalk.bossOpenIds, []);
+  assert.deepStrictEqual(cfg.dingtalk.groups, []);
+}
+
+function testDingtalkFromFile() {
+  const p = tmpJson({
+    enabled: true,
+    bosses: ['张总'],
+    dingtalk: {
+      enabled: true,
+      dwsPath: 'D:/tools/dws.cmd',
+      pollMs: 5000,
+      bossOpenIds: [' D9RqAAA ', 'D9RqBBB', 42, ''],
+      groups: ['cide32llCyLE7o4M3yzprR24w==']
+    }
+  });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.strictEqual(cfg.dingtalk.dwsPath, 'D:/tools/dws.cmd');
+  assert.strictEqual(cfg.dingtalk.pollMs, 5000);
+  assert.deepStrictEqual(cfg.dingtalk.bossOpenIds, ['D9RqAAA', 'D9RqBBB']);
+  assert.deepStrictEqual(cfg.dingtalk.groups, ['cide32llCyLE7o4M3yzprR24w==']);
+}
+
+function testDingtalkDisabledAndClamps() {
+  const p = tmpJson({ enabled: true, dingtalk: { enabled: false, pollMs: 10 } });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.strictEqual(cfg.dingtalk.enabled, false);
+  assert.strictEqual(cfg.dingtalk.pollMs, 10000); // 低于 2000ms 钳制为默认
+}
+
+function testTaskProviderFromFile() {
+  const p = tmpJson({ tasks: { provider: 'mock' } });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.deepStrictEqual(cfg.tasks, { provider: 'mock' });
+}
+
+function testEnsureDefaultsDingtalkSections() {
+  const selfP = path.join(os.tmpdir(), `boss-watch-dt-self-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  const custP = path.join(os.tmpdir(), `boss-watch-dt-cust-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  try {
+    ensureBossWatchDefaults(selfP);
+    const selfRaw = JSON.parse(fs.readFileSync(selfP, 'utf8'));
+    assert.strictEqual(selfRaw.dingtalk.enabled, false);
+    ensureBossWatchDefaults(custP, { customer: true });
+    const custRaw = JSON.parse(fs.readFileSync(custP, 'utf8'));
+    assert.strictEqual(custRaw.dingtalk.enabled, false);
+    assert.deepStrictEqual(custRaw.dingtalk.bossOpenIds, []);
+  } finally {
+    try { fs.unlinkSync(selfP); } catch (_) { /* ignore */ }
+    try { fs.unlinkSync(custP); } catch (_) { /* ignore */ }
+  }
+}
+
 const tests = {
   testDefaultsWhenMissing, testCorruptFileFallsBack, testMergeManifest,
   testKeywordStatesFromManifest, testKeywordStatesDefaultEmpty,
-  testManifestTriggersOverride, testSplitBosses
+  testManifestTriggersOverride, testSplitBosses,
+  testCallHangupDefaultOff, testCallHangupFromFile,
+  testEnsureDefaultsCustomer, testEnsureDefaultsSelfUse, testEnsureDefaultsNoOverwrite,
+  testPatchWatchFlagsKeepsBosses, testPatchWatchFlagsCreatesMissingFile,
+  testPatchWatchFlagsSkipsCorruptFile,
+  testDingtalkDefaultsWhenMissing, testDingtalkFromFile, testDingtalkDisabledAndClamps,
+  testTaskProviderFromFile, testEnsureDefaultsDingtalkSections
 };
 let failed = 0;
 for (const [name, fn] of Object.entries(tests)) {

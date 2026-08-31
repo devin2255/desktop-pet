@@ -18,11 +18,25 @@ const { createTopmostGuard } = require('./topmost-guard');
 const { createMouseThroughGuard } = require('./mouse-through-guard');
 const { resolveStartupGreeting } = require('./startup-greeting');
 const { createSequenceController } = require('./sequence-controller');
-const { createMessageWatcher } = require('./message-watcher');
-const { loadWatchConfig, ensureBossWatchDefaults } = require('./watch-config');
+const { dispatchBossMessage } = require('./message-watcher');
+const { createImBus } = require('./im-bus');
+const { createLarkAdapter } = require('./im-adapter-lark');
+const { createDingtalkAdapter, resolveHangupAction } = require('./im-adapter-dingtalk');
+const { createDingtalkUia } = require('./dingtalk-uia');
+const { loadWatchConfig, ensureBossWatchDefaults, patchWatchFlags } = require('./watch-config');
+const { createMarketWatcher } = require('./market-watch');
+const { insetRect } = require('./approach-target');
+const {
+  hasWatch,
+  hasMarketSequences,
+  hasCallHangupSequence,
+  watchMenuLabel,
+  taskProviderFromConfig
+} = require('./capability-gates');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const { createEventHold } = require('./event-hold');
 const { nextRoamTarget, crawlIdleState } = require('./roam-motion');
+const { schedulePetTaskMock } = require('./pet-task');
 const {
   app,
   BrowserWindow,
@@ -75,7 +89,12 @@ let mouseThroughGuard;
 let quitting = false;
 let deliveryConfig;
 let sequence;
-let messageWatcher;
+let imBus;
+let marketWatcher = null;
+let watchConfig = null;
+let watchConfigPath = '';
+let restartOfficeBus = () => {};
+let petTaskPollTimer = null;
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');
@@ -292,7 +311,9 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
 
 function sendState(state, message = '', speech = '', logicalRole = state, options) {
   if (!petWindow || petWindow.isDestroyed()) return;
-  if (shouldRestoreWindowBounds(options)) restorePetWindowSize();
+  // During sequence playback (e.g. boss-call mom walk) skip bounds restore:
+  // its clamp would drag the pet window away from the approach target.
+  if (shouldRestoreWindowBounds(options) && !sequence?.isActive?.()) restorePetWindowSize();
   let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
   // 带协议前缀（pet-asset:/voice-cache:/data:/file: 等）视为完整 URL，否则按资源包相对路径改写
   if (speechAudio && !/^[a-z][a-z0-9+.-]*:/i.test(speechAudio) && activeManifest) {
@@ -307,7 +328,10 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
     speech,
     speechAudio,
     messages,
-    messageGapMs
+    messageGapMs,
+    speechGender: options?.speechGender === 'male' || options?.speechGender === 'female' ? options.speechGender : undefined,
+    messageLoop: options?.messageLoop === true,
+    speechLoop: options?.speechLoop === true
   });
 }
 
@@ -466,6 +490,17 @@ function restorePetWindowSize() {
   petWindow.setBounds({ x: position.x, y: position.y, width: expected.width, height: expected.height }, false);
 }
 
+function movePetKeepingSize(x, y) {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const size = currentSize();
+  petWindow.setBounds({
+    x: Math.round(x),
+    y: Math.round(y),
+    width: size.width,
+    height: size.height
+  }, false);
+}
+
 function updateTrayIcon() {
   if (!tray || !activeManifest) return;
   const icon = nativeImage.createFromPath(resolveInside(activeManifest.__root, activeManifest.preview));
@@ -559,7 +594,6 @@ function runContextMenuAction(item) {
 }
 
 const petTaskDir = () => path.join(app.getPath('userData'), 'pet-tasks');
-let petTaskPollTimer = null;
 
 function triggerPetTask(taskType) {
   const dir = petTaskDir();
@@ -572,7 +606,16 @@ function triggerPetTask(taskType) {
   sendState('reaction', '好的，爸！', '好的，爸', 'reaction', {
     speechAudio: typeof activeManifest?.taskAcceptAudio === 'string' ? activeManifest.taskAcceptAudio : ''
   });
-  // Notify QwenWork instantly via Feishu message to bot
+  if (taskProviderFromConfig(watchConfig) === 'mock') {
+    schedulePetTaskMock({
+      taskType,
+      onResult: (summary) => {
+        const text = String(summary).slice(0, 200);
+        sendState('reaction', text, text, 'reaction', {});
+      }
+    });
+    return;
+  }
   notifyQwenWork(taskType, taskFile);
   startPetTaskPolling();
 }
@@ -582,7 +625,7 @@ function notifyQwenWork(taskType, taskFile) {
   let exe = 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd';
   if (process.platform === 'win32') {
     const coreExe = 'C:/Users/Thinkpad/.qwenworkcn/bin/ext/lark-cli-core-windows-amd64.exe';
-    try { if (require('fs').existsSync(coreExe)) exe = coreExe; } catch (_) {}
+    try { if (fs.existsSync(coreExe)) exe = coreExe; } catch (_) {}
   }
   const taskPrompts = {
     'summarize-chat': '总结群聊重点。对群里所有消息做总结，提炼核心内容，用一句话搞笑判官风格吐槽，不超过50字',
@@ -590,14 +633,11 @@ function notifyQwenWork(taskType, taskFile) {
     'collect-gossip': '搜集群聊八卦。从群里消息中挖掘八卦和趣事，用一句话搞笑爆料，不超过50字'
   };
   const prompt = taskPrompts[taskType] || taskType;
-  const msg = `桌宠任务请求：${prompt}。请拉取飞书群 oc_55c490880d9fd2d16ffe1e86eeb81488 的最近30条消息（用 lark-cli api GET /open-apis/im/v1/messages --as user --params {"container_id_type":"chat","container_id":"oc_55c490880d9fd2d16ffe1e86eeb81488","page_size":30,"sort_type":"ByCreateTimeDesc"}），提炼后把结果 JSON 写入文件 ${taskFile}，格式为 {"status":"done","result":"总结内容"}。风格：判官吐槽，精炼幽默，50字以内。写完后桌宠自动弹气泡汇报。`;
-  // Send as user to the bot p2p chat — QwenWork's Feishu channel receives this instantly
+  const message = `桌宠任务请求：${prompt}。请拉取飞书群 oc_55c490880d9fd2d16ffe1e86eeb81488 的最近30条消息（用 lark-cli api GET /open-apis/im/v1/messages --as user --params {"container_id_type":"chat","container_id":"oc_55c490880d9fd2d16ffe1e86eeb81488","page_size":30,"sort_type":"ByCreateTimeDesc"}），提炼后把结果 JSON 写入文件 ${taskFile}，格式为 {"status":"done","result":"总结内容"}。风格：判官吐槽，精炼幽默，50字以内。写完后桌宠自动弹气泡汇报。`;
   execFile(exe, ['im', '+messages-send', '--as', 'user',
     '--chat-id', 'oc_b808a8dca7f10072c3e76b66a18477c8',
-    '--text', msg],
-    { timeout: 15000, windowsHide: true },
-    () => {}
-  );
+    '--text', message],
+  { timeout: 15000, windowsHide: true }, () => {});
 }
 
 function startPetTaskPolling() {
@@ -618,13 +658,60 @@ function startPetTaskPolling() {
         }
       } catch (_) {}
     }
-    // Stop polling if no pending tasks remain
-    const remaining = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.json')) : [];
-    if (remaining.length === 0) {
+    const remaining = fs.existsSync(dir) ? fs.readdirSync(dir).filter((file) => file.endsWith('.json')) : [];
+    if (!remaining.length) {
       clearInterval(petTaskPollTimer);
       petTaskPollTimer = null;
     }
   }, 3000);
+}
+
+function applyLoadedWatchConfig(next) {
+  if (!watchConfig) {
+    watchConfig = next;
+    return;
+  }
+  for (const key of Object.keys(watchConfig)) {
+    if (!Object.prototype.hasOwnProperty.call(next, key)) delete watchConfig[key];
+  }
+  Object.assign(watchConfig, next);
+}
+
+function refreshTrayMenu() {
+  tray?.setContextMenu(buildTrayMenu());
+}
+
+function persistWatchFlags(flags) {
+  if (!watchConfigPath) return;
+  patchWatchFlags(watchConfigPath, flags, { customer: deliveryConfig?.mode === 'customer' });
+  applyLoadedWatchConfig(loadWatchConfig({
+    configPath: watchConfigPath,
+    manifestWatch: activeManifest?.watch,
+    larkCliPath: undefined
+  }));
+  restartOfficeBus();
+  refreshTrayMenu();
+  pushMarketStatus();
+}
+
+// Push the current market radar status + last quote to the renderer so the
+// persistent ticker above the pet's head can show/hide and recolor live.
+let lastMarketQuote = null;
+function pushMarketStatus() {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const market = watchConfig?.market;
+  petWindow.webContents.send('pet:market', {
+    enabled: Boolean(market?.enabled),
+    simulated: Boolean(market?.simulated),
+    name: lastMarketQuote?.name || '',
+    points: lastMarketQuote?.points,
+    pct: lastMarketQuote?.pct,
+    change: lastMarketQuote?.change,
+    amount: lastMarketQuote?.amount,
+    up: lastMarketQuote?.up,
+    down: lastMarketQuote?.down,
+    indices: Array.isArray(lastMarketQuote?.indices) ? lastMarketQuote.indices : []
+  });
 }
 
 function buildTrayMenu() {
@@ -635,18 +722,15 @@ function buildTrayMenu() {
     template.push(...customActions.map((item) => ({ label: item.label, click: () => runContextMenuAction(item) })));
     template.push({ type: 'separator' });
   }
-  // 「当个事儿办」是自用飞书任务入口；客户交付版默认不展示。
-  if (!deliveryConfig) {
-    template.push({
-      label: '当个事儿办',
-      submenu: [
-        { label: '写周报', click: () => triggerPetTask('weekly-report') },
-        { label: '总结群聊信息重点', click: () => triggerPetTask('summarize-chat') },
-        { label: '搜集群聊八卦', click: () => triggerPetTask('collect-gossip') }
-      ]
-    });
-    template.push({ type: 'separator' });
-  }
+  template.push({
+    label: '当个事儿办',
+    submenu: [
+      { label: '写周报', click: () => triggerPetTask('weekly-report') },
+      { label: '总结群聊信息重点', click: () => triggerPetTask('summarize-chat') },
+      { label: '搜集群聊八卦', click: () => triggerPetTask('collect-gossip') }
+    ]
+  });
+  template.push({ type: 'separator' });
   template.push({ label: '叫宠物回来', click: showPet });
   if (!deliveryConfig || deliveryConfig.allowPetManagement) {
     template.push({ label: '切换宠物', submenu: pets.map((pet) => ({ label: pet.name, type: 'radio', checked: activeManifest?.id === pet.id, click: () => switchPet(pet.id) })) });
@@ -686,6 +770,40 @@ function buildTrayMenu() {
       type: 'checkbox',
       checked: topmostGuard?.isEnabled() ?? true,
       click: (item) => topmostGuard?.setEnabled(item.checked)
+    },
+    {
+      label: watchMenuLabel(activeManifest),
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.enabled),
+      visible: hasWatch(activeManifest),
+      click: (item) => persistWatchFlags({ enabled: item.checked })
+    },
+    {
+      label: '拒接老板钉钉语音',
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.callHangup?.enabled),
+      visible: hasCallHangupSequence(activeManifest),
+      click: (item) => persistWatchFlags({ callHangupEnabled: item.checked })
+    },
+    {
+      label: '真实大盘（实时行情）',
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.market?.enabled) && !watchConfig?.market?.simulated,
+      visible: hasMarketSequences(activeManifest),
+      click: (item) => {
+        persistWatchFlags({ marketEnabled: item.checked, marketSimulated: false });
+        if (item.checked) sendState('reaction', '真实大盘开启，翻红翻绿我第一个知道。');
+      }
+    },
+    {
+      label: '大盘模拟盘（随机涨跌测试）',
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.market?.simulated),
+      visible: hasMarketSequences(activeManifest),
+      click: (item) => {
+        persistWatchFlags({ marketEnabled: true, marketSimulated: item.checked });
+        sendState('reaction', item.checked ? '模拟盘开启：随机翻红翻绿，坐稳了。' : '模拟盘关闭，回归真实行情。');
+      }
     },
     { label: '开机自动启动', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }) },
     { type: 'separator' }, {
@@ -750,6 +868,7 @@ function createWindow() {
     screen,
     getCurrentSize: currentSize,
     getManifest: () => activeManifest,
+    isSuspended: () => sequence?.isActive?.() === true,
     sendState: (state, options) => sendState(
       state,
       typeof options?.message === 'string' ? options.message : '',
@@ -768,6 +887,7 @@ function createWindow() {
   petWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   petWindow.webContents.on('will-navigate', (event, url) => { if (url !== indexUrl) event.preventDefault(); });
   petWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  petWindow.webContents.on('did-finish-load', () => pushMarketStatus());
   petWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
     if (!isAlwaysOnTop && topmostGuard?.isEnabled()) setImmediate(() => topmostGuard?.ensure());
   });
@@ -931,44 +1051,257 @@ if (!gotLock) {
         sendState(action, message, speech, action, extras || {});
       },
       pauseBehavior,
-      scheduleBehavior
+      scheduleBehavior,
+      getPetBounds: () => petWindow.getBounds(),
+      movePetWindow: movePetKeepingSize
     });
     createTray();
-    // 仅当资源包声明 watch 时启用画饼雷达；无 watch 的宠物（如客户版三人组）不启。
-    const petSupportsWatch = Boolean(activeManifest?.watch && typeof activeManifest.watch === 'object');
-    const watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
-    if (petSupportsWatch) ensureBossWatchDefaults(watchConfigPath);
-    const watchConfig = loadWatchConfig({
-      configPath: petSupportsWatch ? watchConfigPath : '',
-      manifestWatch: petSupportsWatch ? activeManifest.watch : null,
+    watchConfigPath = path.join(app.getPath('userData'), 'boss-watch.json');
+    ensureBossWatchDefaults(watchConfigPath, { customer: deliveryConfig?.mode === 'customer' });
+    applyLoadedWatchConfig(loadWatchConfig({
+      configPath: watchConfigPath,
+      manifestWatch: activeManifest?.watch,
       larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
-    });
+    }));
+    refreshTrayMenu();
     if (process.env.PET_WATCH_DEBUG === '1') { try { require('fs').appendFileSync('C:/Users/Thinkpad/.qwenworkcn/workspace/msr5talezbqs189b/watcher-debug.log', new Date().toISOString() + ' MAIN watchConfigPath=' + watchConfigPath + ' enabled=' + watchConfig.enabled + ' ids=' + JSON.stringify(watchConfig.ids) + ' larkCliPath=' + watchConfig.larkCliPath + '\n'); } catch (_) {} }
-    if (petSupportsWatch && watchConfig.names.length > 0) {
+    if (watchConfig.names.length > 0) {
       sendState('reaction', '画饼雷达：老板名单中的姓名待解析，请使用 open_id 或扫码授权后自动解析。');
     }
-    if (petSupportsWatch && watchConfig.enabled) {
-      const voice = createVoiceSynthesizer({
+    const watchSendState = (state, message, speech, opts) => {
+      eventHold.beginForSpeech(message || speech);
+      sendState(state, message, speech, state, opts || {});
+    };
+    const cooldownMap = new Map();
+    let voice = watchConfig.enabled
+      ? createVoiceSynthesizer({
         cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
         voice: watchConfig.voice.voice,
         rate: watchConfig.voice.rate
-      });
-      messageWatcher = createMessageWatcher({
-        rules: watchConfig,
-        voice,
-        sendState: (state, message, speech, opts) => {
-          eventHold.beginForSpeech(message || speech);
-          sendState(state, message, speech, state, opts || {});
+      })
+      : null;
+    const dbgLogPath = path.join(app.getPath('userData'), 'dingtalk-uia-debug.log');
+    const dbg = (line) => {
+      if (process.env.PET_DINGTALK_DEBUG !== '1') return;
+      try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} ${line}\n`); } catch (_) {}
+    };
+    const dingtalkUia = createDingtalkUia({
+      rectToDip: (rect) => screen.screenToDipRect(null, rect),
+      debugLogPath: dbgLogPath
+    });
+    const dingtalk = createDingtalkAdapter({
+      locateIncomingCall: () => dingtalkUia.locateIncomingCall(),
+      invokeReject: () => dingtalkUia.invokeReject(),
+      getMessagesConfig: () => watchConfig?.dingtalk,
+      onStatus: (status) => {
+        if (status.level === 'warn' || status.level === 'error') {
+          sendState('reaction', status.message);
+        }
+      }
+    });
+    function handleDingtalkVoiceCall() {
+      if (sequence.isActive()) return;
+      if (!activeManifest?.sequences?.['boss-call']) return;
+      const dbg = (line) => {
+        if (process.env.PET_DINGTALK_DEBUG !== '1') return;
+        try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} ${line}\n`); } catch (_) {}
+      };
+      dbg(`voice-call triggered located=${JSON.stringify(dingtalk.getLastLocated())} pet=${JSON.stringify(petWindow.getBounds())}`);
+      // The DingTalk VoIP popup is itself a topmost window created AFTER our window;
+      // re-assert our Z-order throughout the sequence so mom stays above the popup.
+      const topmostTicker = setInterval(() => {
+        try {
+          if (!petWindow.isDestroyed()) topmostGuard?.ensure();
+        } catch (_) {}
+      }, 400);
+      try {
+        sequence.onceFinished?.(() => clearInterval(topmostTicker));
+      } catch (_) { clearInterval(topmostTicker); }
+      const restoreFrom = petWindow.getBounds();
+      const walkStage = activeManifest.sequences['boss-call']?.stages?.find((s) => s.approachTarget === 'incoming-call-reject');
+      const walkAction = walkStage?.action || 'call-mom-walk';
+      let lastWalkFacing = '';
+      const started = sequence.start('boss-call', {
+        restoreFrom,
+        getPetBounds: () => petWindow.getBounds(),
+        movePetWindow: movePetKeepingSize,
+        onWalkFacing: (dir) => {
+          // Re-issue the walk state with a -left suffix so the renderer mirrors mom
+          // while she strolls toward the hangup button; only on direction change.
+          if (!dir || dir === lastWalkFacing) return;
+          lastWalkFacing = dir;
+          try {
+            sendState(dir === 'left' ? `${walkAction}-left` : walkAction, '', '', walkAction, {});
+          } catch (_) {}
         },
-        onStatus: (status) => {
-          if (status.level === 'warn' || status.level === 'error') {
-            sendState('reaction', status.message);
+        getApproachRect: (name) => {
+          const located = dingtalk.getLastLocated();
+          if (!located) return null;
+          if (name === 'incoming-call-edge') return located.windowBounds;
+          if (name === 'incoming-call-reject') {
+            if (!located.rejectBounds) return null;
+            const b = located.rejectBounds;
+            // Aim the foot at the middle-right of the hangup button so mom's body
+            // leans further onto the call window and the kick reads as stepping
+            // ON the button, not merely brushing its edge.
+            const rect = {
+              x: Math.round(b.x + b.width * 0.45),
+              y: b.y,
+              width: Math.max(4, Math.round(b.width * 0.4)),
+              height: b.height
+            };
+            if (process.env.PET_DINGTALK_DEBUG === '1') {
+              try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} approach ${name} rect=${JSON.stringify(rect)} reject=${JSON.stringify(b)} pet=${JSON.stringify(petWindow.getBounds())}\n`); } catch (_) {}
+            }
+            return rect;
           }
+          return null;
         },
-        larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
+        onContact: async (stage) => {
+          const located = dingtalk.getLastLocated();
+          const pet = petWindow.getBounds();
+          const hangup = activeManifest.sequences['boss-call']?.contacts?.hangup;
+          const decision = resolveHangupAction({ located, petBounds: pet, hangup, stage });
+          if (process.env.PET_DINGTALK_DEBUG === '1') {
+            try { require('fs').appendFileSync(dbgLogPath, `${new Date().toISOString()} onContact stage=${stage.action} decision=${JSON.stringify(decision)} located=${JSON.stringify(located)} pet=${JSON.stringify(pet)}\n`); } catch (_) {}
+          }
+          if (!decision.invoke) {
+            sendState(decision.state, decision.message, '', decision.logicalRole, {});
+            return;
+          }
+          const ok = await dingtalk.invokeReject(decision.rejectBounds);
+          if (!ok) sendState(stage.action, '这次没挂上', '', stage.action, {});
+        }
       });
-      messageWatcher.start();
+      if (!started) return;
     }
+    function createOfficeBus() {
+      return createImBus({
+        getRules: () => watchConfig,
+        adapters: [
+          createLarkAdapter({
+            voice,
+            sendState: watchSendState,
+            onStatus: (status) => {
+              if (status.level === 'warn' || status.level === 'error') {
+                sendState('reaction', status.message);
+              }
+            },
+            larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
+          }),
+          dingtalk
+        ],
+        dispatchMessage: (event, rules) => {
+          if (!watchConfig.enabled) return;
+          dispatchBossMessage(event, {
+            rules,
+            voice,
+            sendState: watchSendState,
+            rng: Math.random,
+            now: Date.now,
+            cooldownMap
+          });
+        },
+        onVoiceCall: handleDingtalkVoiceCall
+      });
+    }
+    restartOfficeBus = () => {
+      imBus?.stop();
+      if (watchConfig.enabled && !voice) {
+        voice = createVoiceSynthesizer({
+          cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
+          voice: watchConfig.voice.voice,
+          rate: watchConfig.voice.rate
+        });
+      }
+      imBus = createOfficeBus();
+      void imBus.start().catch(() => {});
+    };
+    restartOfficeBus();
+
+    // ── Market mood radar ────────────────────────────────────────────────
+    // Polls the index quote; the moment it flips green<->red the petpack
+    // sequences `market-bull` / `market-bear` fly the pet onto the top of the
+    // nearest window while shouting. All pet visuals/text come from the
+    // resource package; the player only provides the trigger and flight.
+    const marketDbgLog = path.join(app.getPath('userData'), 'market-watch.log');
+    const marketDbg = (line) => {
+      if (process.env.PET_MARKET_DEBUG !== '1') return;
+      try { fs.appendFileSync(marketDbgLog, `${new Date().toISOString()} ${line}\n`); } catch (_) {}
+    };
+    let marketTargetTimer = null;
+    let marketTargetRect = null;
+    const marketDiscovery = createWindowDiscovery({ screen });
+    async function refreshMarketTarget() {
+      try {
+        const windows = await marketDiscovery.list();
+        const pet = petWindow.getBounds();
+        const cx = pet.x + pet.width / 2;
+        const cy = pet.y + pet.height / 2;
+        let best = null;
+        let bestDist = Infinity;
+        for (const win of windows) {
+          if (!win?.bounds || win.bounds.width < 220) continue;
+          const tx = win.bounds.x + win.bounds.width / 2;
+          const ty = win.bounds.y;
+          const dist = Math.hypot(tx - cx, ty - cy);
+          if (dist < bestDist) { bestDist = dist; best = win; }
+        }
+        marketTargetRect = best ? { ...best.bounds } : null;
+        marketDbg(`refreshMarketTarget best=${marketTargetRect ? JSON.stringify(marketTargetRect) : 'none'}`);
+      } catch (err) {
+        marketDbg(`refreshMarketTarget error: ${err?.message || err}`);
+      }
+    }
+    function handleMarketEvent(kind, quote) {
+      marketDbg(`handleMarketEvent kind=${kind} pct=${quote?.pct} sequenceActive=${sequence.isActive()}`);
+      if (sequence.isActive()) return;
+      const seqId = kind === 'bull' ? 'market-bull' : 'market-bear';
+      const seqDef = activeManifest?.sequences?.[seqId];
+      if (!seqDef) { marketDbg(`handleMarketEvent: manifest has no ${seqId}`); return; }
+      const flyStage = (seqDef.stages || []).find((s) => s && s.approachTarget === 'nearest-window-top');
+      const flyAction = flyStage?.action || 'fly';
+      let lastFacing = '';
+      const originBounds = petWindow.getBounds();
+      if (marketTargetTimer) { clearInterval(marketTargetTimer); marketTargetTimer = null; }
+      void refreshMarketTarget();
+      marketTargetTimer = setInterval(() => { void refreshMarketTarget(); }, 1500);
+      const started = sequence.start(seqId, {
+        getPetBounds: () => petWindow.getBounds(),
+        movePetWindow: movePetKeepingSize,
+        getApproachRect: (name) => {
+          if (name === 'nearest-window-top') return marketTargetRect;
+          if (name === 'sequence-origin') return originBounds;
+          return null;
+        },
+        onWalkFacing: (dir) => {
+          if (!dir || dir === lastFacing) return;
+          lastFacing = dir;
+          try {
+            sendState(dir === 'left' ? `${flyAction}-left` : flyAction, '', '', flyAction, {});
+          } catch (err) { marketDbg(`onWalkFacing error: ${err?.message || err}`); }
+        }
+      });
+      marketDbg(`handleMarketEvent: sequence.start(${seqId}) → ${started}`);
+      if (!started) {
+        if (marketTargetTimer) { clearInterval(marketTargetTimer); marketTargetTimer = null; }
+        return;
+      }
+      sequence.onceFinished(() => {
+        if (marketTargetTimer) { clearInterval(marketTargetTimer); marketTargetTimer = null; }
+        marketDbg('market sequence finished');
+      });
+    }
+    marketWatcher = createMarketWatcher({
+      getConfig: () => watchConfig?.market,
+      onEvent: handleMarketEvent,
+      onStatus: (status) => { marketDbg(`status: ${JSON.stringify(status)}`); },
+      onQuote: (quote) => { lastMarketQuote = quote; pushMarketStatus(); },
+      debugLogPath: marketDbgLog
+    });
+    marketWatcher.start();
+    pushMarketStatus();
+    // ─────────────────────────────────────────────────────────────────────
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);
     app.quit();
@@ -979,7 +1312,8 @@ app.on('before-quit', () => {
   quitting = true;
   interaction?.dispose();
   sequence?.dispose();
-  messageWatcher?.stop();
+  imBus?.stop();
+  marketWatcher?.stop();
   if (petTaskPollTimer) { clearInterval(petTaskPollTimer); petTaskPollTimer = null; }
   pauseBehavior();
 });

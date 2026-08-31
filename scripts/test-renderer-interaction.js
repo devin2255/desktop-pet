@@ -128,6 +128,7 @@ const context = {
     petApi: {
       onLoad: (callback) => { loadCallback = callback; },
       onState: (callback) => { stateCallback = callback; },
+      onMarket: () => {},
       getCurrentPet: () => ({ then: () => {} }),
       startDrag: () => { calls.start += 1; },
       drag: () => { calls.move += 1; },

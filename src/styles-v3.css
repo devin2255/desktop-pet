@@ -24,7 +24,10 @@ body { -webkit-app-region: no-drag; }
 .state-walk-left .pet-image,
 .state-crawl-left .pet-image,
 .state-drag-left .pet-image,
-.state-climb-left .pet-image {
+.state-climb-left .pet-image,
+.state-call-mom-walk-left .pet-image,
+.state-fly-left .pet-image,
+.state-bear-fly-left .pet-image {
   transform: scaleX(-1) scale(var(--action-scale, 1));
 }
 .ground {
@@ -61,6 +64,39 @@ body { -webkit-app-region: no-drag; }
   pointer-events: none;
 }
 .bubble.visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+/* Persistent market board pinned above the head. Red = up, green = down
+   (A-share convention). pointer-events none so it never blocks the desktop. */
+.ticker {
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, 0);
+  max-width: 96%;
+  padding: 5px 9px 4px;
+  border-radius: 10px;
+  background: rgba(40, 42, 48, 0.92);
+  box-shadow: 0 2px 10px rgba(30, 24, 16, 0.28);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.2px;
+  text-align: left;
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+.ticker.visible { opacity: 1; }
+.ticker .tk-main { font-size: 10px; white-space: nowrap; }
+.ticker .tk-main .tk-arrow { font-size: 9px; }
+.ticker .tk-sub { font-size: 9px; opacity: 0.95; margin-top: 1px; white-space: nowrap; }
+.ticker .tk-sub .u { color: #ffb3ad; }
+.ticker .tk-sub .d { color: #9ff0c0; }
+.ticker.up { background: rgba(178, 45, 38, 0.95); }
+.ticker.down { background: rgba(18, 122, 64, 0.95); }
+/* Push the speech bubble below the ticker while it is on screen. */
+.pet.has-ticker { --bubble-top: 46px; }
 .hearts { position: absolute; z-index: 4; inset: 0; pointer-events: none; }
 .heart {
   position: absolute;

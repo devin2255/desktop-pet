@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-const { validateManifest } = require('../src/petpack-validator');
+const { referencedFiles, validateManifest } = require('../src/petpack-validator');
 
 function makeAnimation(action, frameCount, loop = false) {
   const frames = [];
@@ -179,5 +179,140 @@ assert.throws(
     }]
   }), '', false)
 );
+
+function bossCallManifest(overrides = {}) {
+  return baseManifest({
+    animations: {
+      ...baseManifest().animations,
+      'call-climb': makeAnimation('call-climb', 6, false),
+      'call-mom-kick': makeAnimation('call-mom-kick', 4, false)
+    },
+    sequences: {
+      'boss-call': {
+        contacts: {
+          climb: { action: 'call-climb', anchor: { x: 0.08, y: 0.38 } },
+          hangup: { action: 'call-mom-kick', anchor: { x: 0.72, y: 0.96 } }
+        },
+        stages: [
+          {
+            action: 'call-climb',
+            approachTarget: 'incoming-call-edge',
+            messages: ['妈妈！'],
+            messageLoop: true,
+            messageGapMs: 1200,
+            timeoutMs: 4000,
+            speechAudio: 'audio/call-mom.mp3',
+            speechLoop: true,
+            speechGender: 'male'
+          },
+          {
+            action: 'call-mom-kick',
+            approachTarget: 'incoming-call-reject',
+            timeoutMs: 1200,
+            speechGender: 'female'
+          },
+          { action: 'idle', duration: 0, restorePosition: true }
+        ]
+      }
+    },
+    contextMenuActions: [
+      { id: 'boss-call', label: '演一出来电', sequence: 'boss-call' }
+    ],
+    ...overrides
+  });
+}
+
+assert.doesNotThrow(() => validateManifest(bossCallManifest(), '', false));
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        stages: [
+          { action: 'call-climb', approachTarget: 'window-top', timeoutMs: 4000 },
+          { action: 'call-mom-kick', timeoutMs: 1200 },
+          { action: 'idle', duration: 0 }
+        ]
+      }
+    }
+  }), '', false)
+);
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        stages: [
+          {
+            action: 'call-climb',
+            approachTarget: 'incoming-call-edge',
+            speechGender: 'kid',
+            timeoutMs: 4000
+          },
+          { action: 'call-mom-kick', timeoutMs: 1200 },
+          { action: 'idle', duration: 0 }
+        ]
+      }
+    }
+  }), '', false)
+);
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        contacts: {
+          climb: { action: 'call-climb', anchor: { x: 0.08, y: 0.38 } },
+          hangup: { action: 'missing-kick', anchor: { x: 0.72, y: 0.96 } }
+        }
+      }
+    }
+  }), '', false)
+);
+
+assert.throws(
+  () => validateManifest(bossCallManifest({
+    sequences: {
+      'boss-call': {
+        ...bossCallManifest().sequences['boss-call'],
+        stages: [
+          {
+            action: 'call-climb',
+            approachTarget: 'incoming-call-edge',
+            timeoutMs: 4000,
+            speechAudio: ''
+          },
+          { action: 'call-mom-kick', timeoutMs: 1200 },
+          { action: 'idle', duration: 0 }
+        ]
+      }
+    }
+  }), '', false),
+  /speechAudio 路径不合法/
+);
+
+for (const timeoutMs of [10001, -1, 1.5]) {
+  assert.throws(
+    () => validateManifest(bossCallManifest({
+      sequences: {
+        'boss-call': {
+          ...bossCallManifest().sequences['boss-call'],
+          stages: [
+            { action: 'call-climb', approachTarget: 'incoming-call-edge', timeoutMs },
+            { action: 'call-mom-kick', timeoutMs: 1200 },
+            { action: 'idle', duration: 0 }
+          ]
+        }
+      }
+    }), '', false),
+    /timeoutMs/,
+    `timeoutMs ${timeoutMs} must throw`
+  );
+}
+
+assert(referencedFiles(bossCallManifest()).has('audio/call-mom.mp3'));
 
 console.log('test-sequences-schema: ok');
