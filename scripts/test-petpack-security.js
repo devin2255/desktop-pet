@@ -182,11 +182,13 @@ assert.throws(() => validateManifest(manifest), /watch\.state 必须是字符串
 delete manifest.watch;
 assert.doesNotThrow(() => validateManifest(manifest), 'manifest without watch must still validate');
 
-const brotherPack = path.join(__dirname, '..', 'pets', 'packages', 'brother-judge.petpack');
-const brother = validatePetpack(brotherPack);
-const brotherAudio = [...referencedFiles(brother.manifest)].filter((item) => /\.(mp3|wav|ogg)$/i.test(item));
-assert.strictEqual(brotherAudio.length, 18, 'brother-judge petpack must ship active and archived voice files');
-assert.strictEqual(brother.manifest.startupGreetingAudio, 'audio/01-greeting.mp3');
-assert.strictEqual(brother.manifest.taskAcceptAudio, 'audio/06-task-ok.mp3');
+const niulaiPack = path.join(__dirname, '..', 'pets', 'packages', 'niulai.petpack');
+const niulai = validatePetpack(niulaiPack);
+const niulaiAudio = [...referencedFiles(niulai.manifest)].filter((item) => /\.(mp3|wav|ogg)$/i.test(item));
+assert.strictEqual(niulaiAudio.length, 2, 'niulai petpack must ship call sequence voice files');
+assert.ok(niulaiAudio.includes('audio/call-mom.mp3'));
+assert.ok(niulaiAudio.includes('audio/mom-niulai.mp3'));
+assert.strictEqual(niulai.manifest.watch?.menuLabel, '办公雷达');
+assert.ok(niulai.manifest.sequences?.['boss-call'], 'niulai must declare boss-call sequence');
 
 console.log('petpack archive security checks passed');

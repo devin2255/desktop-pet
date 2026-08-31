@@ -1,13 +1,13 @@
-# 当前分支桌宠制作提示词
+# 牛来桌宠制作提示词
 
-用这套提示词 + 自己的照片，可以在本仓库做出与当前分支同等能力的 Windows 桌宠（不只是待机走路，还包括窗口互动、跪爬、画饼雷达、预录音和客户 EXE）。
+本分支（`feature/niulai`）主交付宠物是 **牛来**（`niulai`）。通用播放器仍可导入外部 `.petpack`，但本分支不再预装兄弟判官。
 
 ## 怎么用
 
-1. 新会话里的模型必须先把 `feature/son-mode` 拉到本地，再开始制作。
+1. 新会话里的模型先把 `feature/niulai` 拉到本地，再开始制作。
 2. 准备同一主体的 1～8 张清晰原图（宠物或人物均可，不要混入其他人/动物）。
-3. 打开 `make-current-branch-pet.txt`，填空。也可把同目录的 `make-current-branch-pet.png` 发给模型。
-4. 把填好的全文复制到**新会话**，先附照片再发送。
-5. 仓库必须是带当前播放器能力的分支，不要让代理去重写播放器。
+3. 打开 `make-current-branch-pet.txt`，按其中流程与用户确认能力与系统后再动手。
+4. 把确认后的全文复制到**新会话**，先附照片再发送。
+5. 仓库必须是带当前播放器能力的 `feature/niulai` 分支，不要让代理去重写播放器。
 
-人物向参考：`make-laopo-pet.txt`、`make-boss-pet.txt`（已含窗口互动，但不含画饼雷达/跪爬/预录音接线）。新制作一律用 `make-current-branch-pet.txt`。
+历史参考：`make-niulai-pet.txt`（牛来专用旧版）、`make-laopo-pet.txt`、`make-boss-pet.txt`。新制作一律用 `make-current-branch-pet.txt`。

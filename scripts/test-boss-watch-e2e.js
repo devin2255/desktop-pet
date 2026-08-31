@@ -5,7 +5,7 @@
  *
  * Flow:
  *   0. Pre-check: verify user has im:message scope (needed to send as user).
- *   1. Load createMessageWatcher + brother-judge pet.json watch keywords.
+ *   1. Load createMessageWatcher + niulai pet.json watch keywords.
  *   2. Build rules with the current user's open_id as the "boss".
  *   3. Start the watcher (real spawn of lark-cli-core event consume).
  *   4. Verify the event consumer connected (websocket + ready marker).
@@ -30,7 +30,7 @@
  *   - User auth with scope im:message (to send test messages as user):
  *       lark-cli auth login --scope "im:message"
  *   - Event subscription im.message.receive_v1 enabled in feishu dev console
- *   - pets/library/brother-judge/pet.json with watch.keywords
+ *   - pets/library/niulai/pet.json with watch.keywords
  */
 
 const { spawn, execFileSync } = require('child_process');
@@ -109,15 +109,15 @@ async function main() {
   const { createMessageWatcher } = require('../src/message-watcher');
 
   // --- Load pet.json keywords ---
-  const petJsonPath = path.join(ROOT, 'pets/library/brother-judge/pet.json');
+  const petJsonPath = path.join(ROOT, 'pets/library/niulai/pet.json');
   if (!fs.existsSync(petJsonPath)) {
-    console.error('BLOCKED: brother-judge/pet.json not found at', petJsonPath);
+    console.error('BLOCKED: niulai/pet.json not found at', petJsonPath);
     process.exit(3);
   }
   const petJson = JSON.parse(fs.readFileSync(petJsonPath, 'utf8'));
   const watch = petJson.watch;
   if (!watch || !watch.keywords) {
-    console.error('BLOCKED: brother-judge/pet.json missing watch.keywords');
+    console.error('BLOCKED: niulai/pet.json missing watch.keywords');
     process.exit(3);
   }
   console.log('[e2e] Loaded keywords:', Object.keys(watch.keywords));

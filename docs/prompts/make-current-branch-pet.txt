@@ -1,18 +1,18 @@
 先把当前分支代码拉到本地，再根据我附上的照片制作桌宠。没有拉到最新代码、没有核对播放器能力之前，不要开始画帧，也不要改播放器。
 
 仓库：https://github.com/devin2255/desktop-pet.git
-分支：feature/son-mode
+分支：feature/niulai
 
 已有本地仓库时执行：
 git fetch origin
-git checkout feature/son-mode
-git pull origin feature/son-mode
+git checkout feature/niulai
+git pull origin feature/niulai
 
 没有本地仓库时执行：
-git clone -b feature/son-mode https://github.com/devin2255/desktop-pet.git
+git clone -b feature/niulai https://github.com/devin2255/desktop-pet.git
 cd desktop-pet
 
-拉完后确认存在 src/main-v3.js、src/event-hold.js、src/roam-motion.js、src/watch-config.js。对照 pets/library/brother-judge 看当前分支能力。然后使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
+拉完后阅读 README.md「本分支桌宠」一节，向用户复述本分支能力模板并逐项确认。本分支主交付是牛来（niulai），不是兄弟判官。然后使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
 
 不要修改播放器去写死这只宠物的名字、性格或动画路径。身份、动作帧、文案、语音、词库全部放进 .petpack / pet.json。播放器已具备窗口互动、跪爬模式、画饼雷达、预录音、右键「当个事儿办」、事件占用、托盘和客户交付，直接复用。
 
