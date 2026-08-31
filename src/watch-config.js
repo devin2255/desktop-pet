@@ -79,7 +79,7 @@ function normalizeDingtalk(raw) {
   const pollMs = Number.isFinite(Number(src.pollMs)) && Number(src.pollMs) >= 2000
     ? Number(src.pollMs) : 10000;
   return {
-    enabled: src.enabled !== false,
+    enabled: src.enabled === true,
     dwsPath: typeof src.dwsPath === 'string' && src.dwsPath.trim() ? src.dwsPath.trim() : DEFAULT_DWS_PATH,
     pollMs,
     bossOpenIds: clean(src.bossOpenIds),

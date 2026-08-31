@@ -80,6 +80,13 @@ function createSequenceController(deps) {
     }
   }
 
+  function runFinishCallbacks() {
+    const cbs = finishCallbacks.splice(0);
+    for (const cb of cbs) {
+      try { cb(); } catch (_) { /* callback errors must not break the sequence */ }
+    }
+  }
+
   function buildExtras(stage) {
     const extras = {};
     if (stage.messages) {
@@ -290,10 +297,7 @@ function createSequenceController(deps) {
     // sendState after active=false so main-process restorePetWindowSize can run.
     // The last cinematic stage is sent while the sequence is still active and skips that restore.
     sendState('idle');
-    const cbs = finishCallbacks.splice(0);
-    for (const cb of cbs) {
-      try { cb(); } catch (_) { /* callback errors must not break the sequence */ }
-    }
+    runFinishCallbacks();
     scheduleBehavior(900);
   }
 
@@ -375,6 +379,7 @@ function createSequenceController(deps) {
     contacted = false;
     resetRunCallbacks();
     sendState('idle');
+    runFinishCallbacks();
     if (shouldSchedule) {
       scheduleBehavior(900);
     }

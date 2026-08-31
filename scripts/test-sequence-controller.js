@@ -57,9 +57,12 @@ assert.ok(calls.schedule.length >= 1);
 
 // cancel 中断
 assert.strictEqual(seq.start('demo'), true);
+let cancelledCleanupCalls = 0;
+seq.onceFinished(() => { cancelledCleanupCalls += 1; });
 seq.cancel();
 assert.strictEqual(seq.isActive(), false);
 assert.strictEqual(calls.states.at(-1).action, 'idle');
+assert.strictEqual(cancelledCleanupCalls, 1, 'cancel must run sequence cleanup callbacks');
 
 // start 失败时不 schedule；main-v3 菜单路径须在 false 时 scheduleBehavior(900)
 const scheduleBeforeInvalid = calls.schedule.length;

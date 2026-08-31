@@ -195,7 +195,7 @@ function testEnsureDefaultsNoOverwrite() {
 
 function testDingtalkDefaultsWhenMissing() {
   const cfg = loadWatchConfig({ configPath: path.join(os.tmpdir(), 'nope-xxx.json'), larkCliPath: 'lark' });
-  assert.strictEqual(cfg.dingtalk.enabled, true);
+  assert.strictEqual(cfg.dingtalk.enabled, false);
   assert.strictEqual(cfg.dingtalk.dwsPath, 'C:/Users/Thinkpad/.qwenworkcn/bin/dws.cmd');
   assert.strictEqual(cfg.dingtalk.pollMs, 10000);
   assert.deepStrictEqual(cfg.dingtalk.bossOpenIds, []);
