@@ -4,6 +4,45 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支主交付：**兄弟判官**（文言版 + 画饼雷达）。
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+设计文档：[docs/superpowers/specs/2026-08-10-boss-watch-design.md](docs/superpowers/specs/2026-08-10-boss-watch-design.md)
+
+### 身份
+
+- id：`brother-judge`；白背心大裤衩判官帽
+- 启动：「本官到了，有冤的报冤，有饼的退下！」
+
+### 动作
+
+标准 + 窗口七动作 + crawl（无 kowtow 专帧时磕头用 reaction）
+
+### 气泡与台词
+
+- 升堂 / 退堂 / 歇息（文言）
+- 画饼雷达：「老板画的饼别吃，你啃不动！」等文言词库
+
+### 互动
+
+飞书画饼雷达、跪爬、当个事儿办（飞书任务）、窗口边、透明穿透。
+
+### 托盘与右键
+
+升堂 / 退堂 / 歇息 + 当个事儿办 + 跪爬 + 画饼雷达 + 播放器固定项。
+
+### 交付
+
+```text
+node scripts/build-customer.js --pet pets/packages/brother-judge.petpack --name "兄弟判官桌面宠物" --delivery-id brother-judge
+```
+
+Windows 便携 EXE，未签名。macOS 未交付。
+
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
