@@ -4,6 +4,42 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支主交付：**闺蜜桌宠**（`guimi` / 闺蜜桌宠）。一体双人闺蜜，不是小美&小甜分支主宠。
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+设计文档：[docs/superpowers/specs/2026-08-27-guimi-fan-pet-design.md](docs/superpowers/specs/2026-08-27-guimi-fan-pet-design.md)
+
+### 身份
+
+- id：`guimi`；程序名：闺蜜桌宠
+- 启动问候：「我们是闺蜜桌宠～今天也要一起玩。」
+
+### 动作
+
+标准五动作 + drag、cuddle、whisper、cheer、selfie、crawl、call-dad、kowtow、kowtow-crawl、perch、hang、feed-poop*、relax 分镜；侧爬关闭（climb.enabled: false）
+
+### 气泡与台词
+
+- 合影：「我站后面！」「不行，后面显脸小！」「那一起往后挤～」
+- 投喂臭粑粑：「这是什么味儿…」「臭粑粑！？」等
+- 去放松序列无 waitForClick
+
+### 互动
+
+跪爬模式、一体双人、投喂随机、去放松剧情、透明穿透、鼠标穿透采样。
+
+### 托盘与右键
+
+贴贴 / 合个影 / 说悄悄话 / 加油鸭 / 去放松 / 去睡觉 / 投喂 / 叫爸 / 下跪 + 跪爬模式 + 播放器固定项。
+
+### 交付
+
+`npm run build:guimi`。Windows 便携 EXE，未签名。macOS 未交付。
+
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
