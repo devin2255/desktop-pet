@@ -28,6 +28,7 @@ function testDefaultsWhenMissing() {
   assert.deepStrictEqual(cfg.keywords, expectedKeywords);
   assert.deepStrictEqual(cfg.fallback, { text: '你老板又开始整活儿了，装没看见。', audio: '' });
   assert.strictEqual(cfg.voice.voice, 'zh-CN-YunxiNeural');
+  assert.deepStrictEqual(cfg.tasks, { provider: 'mock' });
 }
 
 function testCorruptFileFallsBack() {
@@ -35,6 +36,19 @@ function testCorruptFileFallsBack() {
   fs.writeFileSync(p, '{not json');
   const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
   assert.strictEqual(cfg.enabled, false); // 不抛异常
+}
+
+function testTaskProviderFromFile() {
+  const p = tmpJson({ tasks: { provider: 'mock' } });
+  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
+  assert.deepStrictEqual(cfg.tasks, { provider: 'mock' });
+}
+
+function testTaskProviderNormalization() {
+  const feishu = loadWatchConfig({ configPath: tmpJson({ tasks: { provider: 'feishu' } }), larkCliPath: 'lark' });
+  const invalid = loadWatchConfig({ configPath: tmpJson({ tasks: { provider: 'unknown' } }), larkCliPath: 'lark' });
+  assert.deepStrictEqual(feishu.tasks, { provider: 'feishu' });
+  assert.deepStrictEqual(invalid.tasks, { provider: 'mock' });
 }
 
 function testMergeManifest() {
@@ -244,7 +258,7 @@ function testEnsureDefaultsDingtalkSections() {
 }
 
 const tests = {
-  testDefaultsWhenMissing, testCorruptFileFallsBack, testMergeManifest,
+  testDefaultsWhenMissing, testCorruptFileFallsBack, testTaskProviderFromFile, testTaskProviderNormalization, testMergeManifest,
   testKeywordStatesFromManifest, testKeywordStatesDefaultEmpty,
   testManifestTriggersOverride, testSplitBosses,
   testCallHangupDefaultOff, testCallHangupFromFile,

@@ -337,6 +337,19 @@ async function run() {
     assert.strictEqual(harness.clock.pending().intervals, 1, 'top attachment polling active');
   }
 
+  for (const disabledPerch of [undefined, { action: 'perch-action', enabled: false }]) {
+    const sideTarget = { id: 'side-climb-without-perch', bounds: { x: 100, y: 100, width: 500, height: 400 } };
+    const harness = createHarness({ windows: [sideTarget] });
+    if (disabledPerch === undefined) delete harness.manifest.interactionActions.perch;
+    else harness.manifest.interactionActions.perch = disabledPerch;
+    await dragAndEnd(harness, { x: 100, y: 250 });
+    harness.clock.flushTimeouts(1);
+    harness.clock.flushAnimationFrames();
+    assert.strictEqual(harness.controller.state(), 'normal', 'side climb without perch returns to normal');
+    assert.deepStrictEqual(harness.states.slice(-1), ['normal']);
+    assert.strictEqual(harness.clock.pending().intervals, 0, 'disabled perch does not attach at top');
+  }
+
   // Dragging away before 1s cancels climb-up
   {
     const sideTarget = { id: 'side-cancel-climbup', bounds: { x: 100, y: 100, width: 500, height: 400 } };

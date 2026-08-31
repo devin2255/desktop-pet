@@ -408,6 +408,11 @@ function createInteractionController(dependencies) {
       setPosition({ x, y });
 
       if (progress >= 1) {
+        if (!interactionRoleEnabled('perch')) {
+          attachment = undefined;
+          transition('normal', 'normal');
+          return;
+        }
         // Reached top — perch
         attachment = {
           id: String(targetId),

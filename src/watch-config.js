@@ -105,6 +105,13 @@ function normalizeCallHangup(raw) {
   };
 }
 
+function normalizeTasks(raw) {
+  const provider = raw && typeof raw === 'object' && raw.provider === 'feishu'
+    ? 'feishu'
+    : 'mock';
+  return { provider };
+}
+
 // Writes the self-use default boss-watch.json when the file is missing, so the
 // portable EXE works out of the box on the developer's machine. Returns the
 // config path for convenience. Existing files are never overwritten.
@@ -264,6 +271,7 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
     state,
     keywordStates,
     platforms: normalizePlatforms(fileCfg.platforms),
+    tasks: normalizeTasks(fileCfg.tasks),
     callHangup: normalizeCallHangup(fileCfg.callHangup),
     dingtalk: normalizeDingtalk(fileCfg.dingtalk),
     market: normalizeMarket(fileCfg.market)
@@ -273,5 +281,5 @@ function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
 module.exports = {
   loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG, ensureBossWatchDefaults, patchWatchFlags,
   SELF_USE_DEFAULT_CONFIG, CUSTOMER_DEFAULT_CONFIG, normalizePlatforms, normalizeCallHangup,
-  normalizeDingtalk, normalizeMarket
+  normalizeDingtalk, normalizeMarket, normalizeTasks
 };
