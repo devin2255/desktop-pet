@@ -4,6 +4,57 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支主交付：**兄弟判官**（`brother-judge` / 兄弟判官桌面宠物）。播放器通用，外形与台词来自 petpack。
+
+制作提示词（复制到新会话）：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+设计文档：[docs/superpowers/specs/2026-08-10-boss-watch-design.md](docs/superpowers/specs/2026-08-10-boss-watch-design.md)
+
+### 身份
+
+- id / delivery-id：`brother-judge`
+- 性格：毒舌、护短、接地气
+- 启动问候：「爸，我来了！」（`startupGreeting`，可带预录音）
+
+### 动作
+
+标准：idle、walk、sit、sleep、reaction
+窗口：drag、climb、perch、hang、fall、impact、recover
+其它：crawl、kowtow、kowtow-crawl（跪爬模式下右键磕头用）、以及包内其它特色帧（如 slipper / mg，仅当 pet.json 声明）
+
+### 气泡与台词
+
+- 启动：「爸，我来了！」
+- 右键叫爸：「爸」
+- 右键磕头：无气泡
+- 右键睡会儿：「行, 我睡会儿」（以 pet.json 为准）
+- 随机坐下 / 吐槽 / 睡觉：以 pet.json `behavior.random` 为准（例如「爸，我歇会！」「嗯？你同事又在舔领导？」）
+- 坐窗：以 `behavior.perched` 为准
+- 画饼雷达：以 `watch.keywords` 为准（例如「你老板又在画饼，别吃！」「你老板吹了个牛逼！」）
+- 当个事儿办接任务：以 `taskAcceptAudio` / 接任务文案为准
+
+### 互动
+
+拖动、漫游、窗口顶坐/侧爬/底挂、屏顶坠落恢复、跪爬模式（有 crawl 才显示）、透明像素鼠标穿透、小/中/大、始终置顶、开机启动。
+钉钉拒接与头顶行情条是播放器通用能力，**本宠默认没有对应序列，托盘不显示**。
+
+### 托盘与右键
+
+宠物项：叫爸、磕头、睡会儿（以 `contextMenuActions` 为准）
+播放器项：当个事儿办（写周报 / 总结群聊信息重点 / 搜集群聊八卦；客户版可隐藏）、叫宠物回来、切换/导入/打开宠物库（客户版隐藏）、宠物大小、在桌面散步、跪爬模式、始终置顶、画饼雷达（有 `watch` 时；默认 `menuLabel` 为「画饼雷达」）、开机自动启动、暂时藏起来、退出。
+
+### 交付
+
+Windows 便携 EXE，未签名。
+
+```text
+node scripts/build-customer.js --pet pets/packages/brother-judge.petpack --name "兄弟判官桌面宠物" --delivery-id brother-judge
+```
+
+macOS 安装包未交付。
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
