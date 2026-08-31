@@ -4,6 +4,53 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支主交付：**牛斯克**（`boss` / 老板桌面宠物）。播放器通用，外形与台词来自 petpack。
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+### 身份
+
+- id / delivery-id：`boss`
+- 显示名：牛斯克
+- 性格：严肃、恭敬、粘人；默认跪姿待机，爬行移动
+
+### 动作
+
+标准：idle（跪姿）、walk（跪爬）、sit、sleep、reaction
+窗口：drag、climb、perch、perch-cross-phone、perch-look、hang、fall、impact、pat-butt
+其它：call-dad、kowtow、self-slap、serve-tea
+
+### 气泡与台词
+
+- 右键叫大爷：「大爷!」
+- 右键磕头：「给您磕头了」
+- 右键错了没?：「我真该死」
+- 漫游端茶：「大爷喝茶!」
+- 坐窗打电话：「喂, 军儿吗?」
+- 左键点击：触发 reaction（播放器写死互动）
+
+### 互动
+
+拖动、漫游、窗口顶/侧/底互动、坠落恢复、透明穿透、小/中/大、置顶、开机启动。无跪爬模式开关、无画饼雷达。
+
+### 托盘与右键
+
+宠物项：叫大爷 / 磕头 / 错了没?
+播放器项：叫宠物回来、切换/导入/打开宠物库（客户版隐藏）、大小、散步、置顶、开机、藏起来、退出。
+
+### 交付
+
+```text
+npm run build:boss
+# 或
+node scripts/build-customer.js --pet pets/packages/boss.petpack --name "老板桌面宠物" --delivery-id boss
+```
+
+Windows 便携 EXE，未签名。macOS 未交付。
+
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
