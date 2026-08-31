@@ -2,6 +2,43 @@
 
 一个面向 Windows 的通用透明桌面宠物播放器。播放器不绑定某只宠物；宠物名称、性格、动画、行为和资源路径全部来自可移植的 `.petpack` 包。
 
+## 本分支桌宠
+
+本分支主交付：**小狗**（`xiaogou` / 小狗桌面宠物）。本分支重点是窗口边互动状态机，宠物本身只有标准五动作。
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+设计文档：[docs/superpowers/specs/2026-07-29-window-edge-interactions-design.md](docs/superpowers/specs/2026-07-29-window-edge-interactions-design.md)
+
+### 身份
+
+- id：`xiaogou`；显示名：小狗；性格：胆小、粘人
+
+### 动作
+
+仅 idle、walk、sit、sleep、reaction。窗口互动缺专用帧时 fallback 到 walk/sit/reaction。
+
+### 气泡与台词
+
+无固定 pet.json 台词；左键触发 reaction。
+
+### 互动
+
+窗口发现、拖到顶/侧/底、屏顶坠落、置顶守卫、透明穿透。无自定义右键菜单项。
+
+### 托盘与右键
+
+仅播放器固定项：叫宠物回来、切换/导入/宠物库、大小、散步、置顶、开机、藏起来、退出。
+
+### 交付
+
+```text
+node scripts/build-customer.js --pet pets/packages/xiaogou.petpack --name "小狗桌面宠物" --delivery-id xiaogou
+```
+
+Windows 便携 EXE，未签名。macOS 未交付。
+
+
 ## 功能
 
 - 透明无边框窗口，可见像素附近接收点击，透明区域鼠标穿透
