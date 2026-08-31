@@ -1,92 +1,31 @@
-先把当前分支代码拉到本地，再根据我附上的照片制作桌宠。没有拉到最新代码、没有核对播放器能力之前，不要开始画帧，也不要改播放器。
+请根据我附上的照片，在本仓库制作完整桌面宠物，并交付可运行的客户安装包。
 
-仓库：https://github.com/devin2255/desktop-pet.git
-分支：feature/niulai
+## 0. 先拉项目，未确认前禁止动手
 
-已有本地仓库时执行：
-git fetch origin
-git checkout feature/niulai
-git pull origin feature/niulai
+1. 若当前工作区不是本仓库：git clone https://github.com/devin2255/desktop-pet.git 并进入仓库。
+2. 若已在仓库：git fetch origin。
+3. git checkout feature/niulai
+4. 阅读该分支 README.md 中「本分支桌宠」一节。那是能力模板，不是必须沿用的角色名或外形。
+5. 用白话向用户复述：动作、气泡/台词、互动、托盘/右键、交付形态。
+6. 对照清单逐项请用户确认：要 / 不要 / 改文案。确认用户上传的图片要做成哪些动作。
+7. 确认操作系统：
+   - Windows：本仓库当前可交付便携 EXE（node scripts/build-customer.js）。
+   - macOS：本仓库没有 mac 构建，不能交付 .dmg 或 .app。若用户只要 macOS，停止并改方案。
+   - 两个都要：先交 Windows；把 macOS 列为未交付。
+8. 确认交付物：客户专属 Windows 便携 EXE + build-report.json；双击即出宠；不必装开发环境、不必手导 petpack；客户版默认隐藏导入、切换宠物、打开宠物库。
+9. 以上全部得到用户明确答复之前，禁止生成动画、修改 pet.json、打包或构建 EXE。
 
-没有本地仓库时执行：
-git clone -b feature/niulai https://github.com/devin2255/desktop-pet.git
-cd desktop-pet
+## 1. 确认后再实现
 
-拉完后阅读 README.md「本分支桌宠」一节，向用户复述本分支能力模板并逐项确认。本分支主交付是牛来（niulai），不是兄弟判官。然后使用 desktop-pet-maker 在本仓库制作完整的 Windows 桌面宠物。
+遵循仓库根目录 AGENTS.md 与 desktop-pet-maker。不要在播放器里写死这只宠物的名字、性格或动画路径。身份、帧、文案、语音全部进入 .petpack / pet.json。
 
-不要修改播放器去写死这只宠物的名字、性格或动画路径。身份、动作帧、文案、语音、词库全部放进 .petpack / pet.json。播放器已具备窗口互动、跪爬模式、画饼雷达、预录音、右键「当个事儿办」、事件占用、托盘和客户交付，直接复用。
+切帧前必须通过单元格安全门禁；失败就重生成，禁止只擦串帧碎片。互动帧连播 50 次不得缩放/平移。透明像素必须鼠标穿透。
 
-宠物名字：<填写>
-性格：<例如：毒舌、护短、粘人>
-程序名称：<例如：旺财桌面宠物>
-delivery-id：<小写英文或拼音，如 xiaowang>
-风格：<柔和写实 2D / 像素风；不填则柔和 2D>
-称呼：<桌宠怎么叫用户，例如：爸 / 老公 / 主人>
-重点特征：<必须保留的脸、发型/毛色、衣服、体型、眼镜等>
-语音：<若已附 mp3 则全部接到 speechAudio；没有预录音则不要留空，写好文案并设 speechGender，使用电脑自带中文语音合成>
-特殊要求：<可不填>
+## 2. 交付
 
-## 必须做出与当前分支同等的能力
-
-1. 标准动作（同一主体、透明背景、统一画布/体量/重心/脚底基线）
-   - idle 4 帧、walk 6 帧（朝右，向左由播放器镜像）、sit 4 帧、sleep 4 帧、reaction 4 帧
-
-2. 窗口互动七动作（写进 animations + interactionActions，不要只回退到 walk/sit）
-   - drag 6：被拖走时的姿态（四肢离地或抓紧，不要直立走）
-   - climb 6：沿看不见的窗侧往上爬，手在攀爬侧，不要把窗框画进图里
-   - perch 4：坐在看不见的窗沿上，屁股贴顶边、双腿向前垂下；待机循环必须左右腿交替悠闲晃动，不要两腿同步踢、不要僵直垂着
-   - hang 4：双手抓住看不见的下沿，身体悬空
-   - fall 4：失去支撑向下掉
-   - impact 4：落地摔坐
-   - recover 6：起身、拍拍、回到正面待机姿态
-   - 侧边攀爬锚点必须让「手贴墙」：左墙与右墙不能都变成屁股贴墙
-
-3. 跪爬
-   - crawl 6 帧跪爬循环；有 crawl 后播放器右键「跪爬模式」才能切换
-   - 可选 kowtow 4 帧磕头；若做了磕头，再做 kowtow-crawl，以便跪爬模式下右键磕头不站起来
-
-4. 文案与右键（全部来自 pet.json，口吻符合性格和称呼）
-   - startupGreeting：启动第一句
-   - contextMenuActions 至少 2 项，例如：叫人、睡觉；可选磕头
-   - behavior.random：散步/坐下/吐槽/睡觉加权，坐下和吐槽要有气泡
-   - behavior.perched：坐窗时至少 1 个符合性格的特色动作；用 idleMinMs/idleMaxMs 拉开间隔，不要刚坐下就连放。不要画真实窗框；不要默认机枪，除非我明确要求
-   - taskAcceptAudio 或接任务文案：右键「当个事儿办」时播放器会用
-
-5. 画饼雷达（pet.json.watch，不要写进播放器）
-   - keywords：至少「画饼」「吹牛」两类，每类 2～3 句吐槽
-   - triggers：画饼类至少包含 画饼、上市、期权、年终、分红、升职、加薪、亏待、功劳、融资
-   - 吹牛类至少包含 吹牛、人脉、搞得定、包在我身上、小意思、当年
-   - fallback：老板发了 @所有人 但没命中词时的兜底句
-   - keywordStates：吹牛若有专属动作（例如拎拖鞋、挥手），写成 { "吹牛": "<动作名>" }；画饼默认可走 reaction
-   - 有预录音则每条带 audio；没有预录音则只写 text，运行时用电脑自带语音合成，不要因此去改播放器或硬编 mp3
-   - referencedFiles 必须收齐已引用的 mp3，否则运行时会被拒绝
-   - 不要改 src 里的老板 open_id / lark 路径；本机雷达开关仍走 userData/boss-watch.json
-
-6. 语音（没有预录音就用电脑自带语音合成，不要静音交付）
-   - 我如果附了 mp3：拷进 pets/library/<id>/audio/，在 pet.json 用相对路径接到 speechAudio；至少覆盖启动问候、坐下、右键、接任务、画饼、吹牛、兜底
-   - 我如果没附 mp3：不要编造或下载无关录音。所有要开口的地方写清 message / speech / watch 文案，speechGender 与角色一致（male/female）。播放器会用 Windows 电脑自带中文语音合成（speechSynthesis）；画饼雷达无 audio 时同样走合成，不要把 audio 填成空路径占位
-   - 旧文案旧录音若要保留：放进 watch.archivedKeywords / behavior.archivedPerched，不要放进生效池
-   - 打包前确认 petpack_tool / referencedFiles 只包含真正引用的音频；没引用就不要塞进包里
-
-## 质量门禁
-
-- 所有帧是同一只角色；左右安全边距、禁止串帧、禁止平切尾巴/手脚/裙摆；失败就重画，禁止只擦碎片继续
-- 互动动作连播 50 次不得放大、缩小、平移；静止点击不得拖动窗口
-- 透明像素必须鼠标穿透
-- 切勿为这只宠物分叉播放器代码
-
-## 打包与交付
-
-生成并验证 pets/library/<id>/ 后打包：
+验证 petpack 后执行：
 
 python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/<id> pets/packages/<id>.petpack
-
-封装客户 EXE（不要用 npm run build:customer -- ，本机 npm 会吞参数）：
-
 node scripts/build-customer.js --pet pets/packages/<id>.petpack --name "<程序名称>" --delivery-id <id>
 
-客户双击 EXE 后宠物必须直接出现，不需要安装开发环境，也不需要手动导入资源包。客户版只含这一只，隐藏导入/切换/打开宠物库。
-
-请实际启动成品，验证：启动问候、标准动画、透明背景及透明像素鼠标穿透、静止连点 50 次无放大/平移、拖动、侧边攀爬（手贴墙）、坐窗晃腿、吊挂、屏顶坠落恢复、跪爬模式、漫游与左右朝向、右键菜单、托盘、退出、独立数据目录。无预录音时，启动问候、坐下/吐槽、右键、画饼/吹牛必须能听到电脑自带中文语音，不能只有气泡没有声音。若接了画饼雷达，用老板账号在群里发「@所有人 好好干，将来上市我记着大家的功劳」应触发画饼吐槽语音。
-
-最终交付专属 EXE、build-report.json 和验证结果，不要只交付 .petpack。未做代码签名要如实说明。
+实际启动成品。交付 EXE、build-report.json 和验证结果。列出已验证项与未验证项（必须包括：未做代码签名；macOS 未交付）。不要只交付 .petpack。

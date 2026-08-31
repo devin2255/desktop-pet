@@ -4,6 +4,55 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支主交付：**牛来**（`niulai` / 牛来桌面宠物）。致敬电影《牛来》，非官方周边。
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+设计文档：[docs/superpowers/specs/2026-08-17-niulai-office-pet-design.md](docs/superpowers/specs/2026-08-17-niulai-office-pet-design.md)
+
+### 身份
+
+- id：`niulai`　性格：胆小、躺平、嘴碎、被点到突然燃
+- 启动问候：「打工人，牛来了。」
+
+### 动作
+
+标准：idle、walk、sit、sleep、reaction、crawl  
+窗口：drag、climb、perch、hang、fall、impact、recover  
+来电：call-shout、call-mom-approach、call-mom-walk、call-mom-kick  
+行情：fly、bear-fly  
+序列：boss-call、market-bull、market-bear
+
+### 气泡与台词
+
+- 右键：站起来「我来了。」；睡会儿做梦「眼前一黑。做梦去。」；演一出来电（播 boss-call）
+- 随机漫游：坐下「先趴着。筐还没到。」；被点到「点到我了？那我站一下。」
+- 坐窗：「不敢跳。溪还没过。」
+- 来电序列：喊「妈妈！」→「牛来？」→ 走向拒接并踢挂断
+- 牛市序列：例如「牛来！牛来了！」「红了红了！」「冲冲冲！」→ 坐窗「牛市来了，先坐会儿。」
+- 熊市序列：例如「熊来！熊来了！」「绿了绿了！」「扛住，别看账户。」→「熊来了……装死。」
+- 办公雷达六类（画饼 / 吹牛 / 加班 / 甩锅 / 开会 / PUA）及 fallback「云雀又来报信了。我躺着听。」：以 `watch.keywords` 为准（画饼例：「未来可期，我的现在先没了。」；吹牛例：「这牛吹的，我都想认你当亲戚。」）
+- 当个事儿办：本分支默认本地 mock 回复，文案在 `src/pet-task.js` 的 `MOCK_RESULTS`
+
+### 互动
+
+拖动、漫游、窗口边、跪爬、钉钉来电趋近拒接、办公 IM 雷达、头顶行情条（真实行情 / 模拟盘）、透明穿透、置顶、开机启动。
+
+### 托盘与右键
+
+宠物项：站起来、睡会儿做梦、演一出来电  
+播放器项：当个事儿办三项、叫宠物回来、管理入口（客户版隐藏）、大小、散步、跪爬、置顶、办公雷达、拒接老板钉钉语音、真实大盘、模拟盘、开机启动、藏起来、退出。
+
+### 交付
+
+```text
+node scripts/build-customer.js --pet pets/packages/niulai.petpack --name "牛来桌面宠物" --delivery-id niulai
+```
+
+Windows 便携 EXE，未签名。macOS 未交付。客户版默认关闭雷达 / 拒接监听。
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
