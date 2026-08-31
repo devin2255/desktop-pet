@@ -266,6 +266,25 @@ async function run() {
 
   {
     const harness = createHarness({ windows: [target] });
+    delete harness.dependencies.getManifest().interactionActions.climb;
+    harness.controller.startDrag({ x: 200, y: 150 });
+    const result = await harness.controller.endDrag({ x: 100, y: 250 });
+    assert.strictEqual(result, true);
+    assert.strictEqual(harness.controller.state(), 'normal', 'omitting climb disables side-window cling');
+    assert.ok(!String(harness.states.at(-1) || '').startsWith('climb'), 'no climb state when role omitted');
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.dependencies.getManifest().interactionActions.climb = { action: 'climb-action', enabled: false };
+    harness.controller.startDrag({ x: 200, y: 150 });
+    const result = await harness.controller.endDrag({ x: 100, y: 250 });
+    assert.strictEqual(result, true);
+    assert.strictEqual(harness.controller.state(), 'normal', 'enabled:false skips side attachment');
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
     await dragAndEnd(harness, { x: 100, y: 250 });
     assert.strictEqual(harness.states.at(-1), 'climb-left');
     assert.strictEqual(

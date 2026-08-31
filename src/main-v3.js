@@ -26,6 +26,13 @@ const { createDingtalkUia } = require('./dingtalk-uia');
 const { loadWatchConfig, ensureBossWatchDefaults, patchWatchFlags } = require('./watch-config');
 const { createMarketWatcher } = require('./market-watch');
 const { insetRect } = require('./approach-target');
+const {
+  hasWatch,
+  hasMarketSequences,
+  hasCallHangupSequence,
+  watchMenuLabel,
+  taskProviderFromConfig
+} = require('./capability-gates');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const { createEventHold } = require('./event-hold');
 const { nextRoamTarget, crawlIdleState } = require('./roam-motion');
@@ -87,6 +94,7 @@ let marketWatcher = null;
 let watchConfig = null;
 let watchConfigPath = '';
 let restartOfficeBus = () => {};
+let restartMarketWatcher = () => {};
 let petTaskPollTimer = null;
 
 function readDeliveryConfig() {
@@ -514,6 +522,15 @@ function switchPet(id) {
   sendState('reaction', resolveStartupGreeting(next, { switching: true }), '', 'reaction', {
     speechAudio: typeof next.startupGreetingAudio === 'string' ? next.startupGreetingAudio : ''
   });
+  if (watchConfigPath) {
+    applyLoadedWatchConfig(loadWatchConfig({
+      configPath: watchConfigPath,
+      manifestWatch: next.watch,
+      larkCliPath: undefined
+    }));
+    restartOfficeBus();
+    restartMarketWatcher();
+  }
   scheduleBehavior(3200);
   return true;
 }
@@ -587,6 +604,7 @@ function runContextMenuAction(item) {
 }
 
 function triggerPetTask(taskType) {
+  if (taskProviderFromConfig(watchConfig) !== 'mock') return;
   eventHold.beginTask();
   sendState('reaction', '好的，爸！', '好的，爸', 'reaction', {
     speechAudio: typeof activeManifest?.taskAcceptAudio === 'string' ? activeManifest.taskAcceptAudio : ''
@@ -625,18 +643,30 @@ function persistWatchFlags(flags) {
     larkCliPath: undefined
   }));
   restartOfficeBus();
+  restartMarketWatcher();
   refreshTrayMenu();
-  pushMarketStatus();
 }
 
 // Push the current market radar status + last quote to the renderer so the
 // persistent ticker above the pet's head can show/hide and recolor live.
 let lastMarketQuote = null;
+function canRunOfficeBus() {
+  return Boolean(watchConfig?.enabled && hasWatch(activeManifest));
+}
+
+function canPollCallHangup() {
+  return Boolean(watchConfig?.callHangup?.enabled && hasCallHangupSequence(activeManifest));
+}
+
+function canWatchMarket() {
+  return Boolean(watchConfig?.market?.enabled && hasMarketSequences(activeManifest));
+}
+
 function pushMarketStatus() {
   if (!petWindow || petWindow.isDestroyed()) return;
   const market = watchConfig?.market;
   petWindow.webContents.send('pet:market', {
-    enabled: Boolean(market?.enabled),
+    enabled: canWatchMarket(),
     simulated: Boolean(market?.simulated),
     name: lastMarketQuote?.name || '',
     points: lastMarketQuote?.points,
@@ -707,22 +737,24 @@ function buildTrayMenu() {
       click: (item) => topmostGuard?.setEnabled(item.checked)
     },
     {
-      label: '办公雷达',
+      label: watchMenuLabel(activeManifest),
       type: 'checkbox',
       checked: Boolean(watchConfig?.enabled),
+      visible: hasWatch(activeManifest),
       click: (item) => persistWatchFlags({ enabled: item.checked })
     },
     {
       label: '拒接老板钉钉语音',
       type: 'checkbox',
       checked: Boolean(watchConfig?.callHangup?.enabled),
+      visible: hasCallHangupSequence(activeManifest),
       click: (item) => persistWatchFlags({ callHangupEnabled: item.checked })
     },
     {
       label: '真实大盘（实时行情）',
       type: 'checkbox',
       checked: Boolean(watchConfig?.market?.enabled) && !watchConfig?.market?.simulated,
-      visible: Boolean(activeManifest?.sequences?.['market-bull'] || activeManifest?.sequences?.['market-bear']),
+      visible: hasMarketSequences(activeManifest),
       click: (item) => {
         persistWatchFlags({ marketEnabled: item.checked, marketSimulated: false });
         if (item.checked) sendState('reaction', '真实大盘开启，翻红翻绿我第一个知道。');
@@ -732,7 +764,7 @@ function buildTrayMenu() {
       label: '大盘模拟盘（随机涨跌测试）',
       type: 'checkbox',
       checked: Boolean(watchConfig?.market?.simulated),
-      visible: Boolean(activeManifest?.sequences?.['market-bull'] || activeManifest?.sequences?.['market-bear']),
+      visible: hasMarketSequences(activeManifest),
       click: (item) => {
         persistWatchFlags({ marketEnabled: true, marketSimulated: item.checked });
         sendState('reaction', item.checked ? '模拟盘开启：随机翻红翻绿，坐稳了。' : '模拟盘关闭，回归真实行情。');
@@ -1025,7 +1057,13 @@ if (!gotLock) {
     const dingtalk = createDingtalkAdapter({
       locateIncomingCall: () => dingtalkUia.locateIncomingCall(),
       invokeReject: () => dingtalkUia.invokeReject(),
-      getMessagesConfig: () => watchConfig?.dingtalk,
+      getMessagesConfig: () => ({
+        ...watchConfig?.dingtalk,
+        callHangup: {
+          ...watchConfig?.callHangup,
+          enabled: canPollCallHangup()
+        }
+      }),
       onStatus: (status) => {
         if (status.level === 'warn' || status.level === 'error') {
           sendState('reaction', status.message);
@@ -1033,6 +1071,7 @@ if (!gotLock) {
       }
     });
     function handleDingtalkVoiceCall() {
+      if (!canPollCallHangup()) return;
       if (sequence.isActive()) return;
       if (!activeManifest?.sequences?.['boss-call']) return;
       const dbg = (line) => {
@@ -1110,7 +1149,13 @@ if (!gotLock) {
     }
     function createOfficeBus() {
       return createImBus({
-        getRules: () => watchConfig,
+        getRules: () => ({
+          ...watchConfig,
+          callHangup: {
+            ...watchConfig?.callHangup,
+            enabled: canPollCallHangup()
+          }
+        }),
         adapters: [
           createLarkAdapter({
             voice,
@@ -1140,6 +1185,8 @@ if (!gotLock) {
     }
     restartOfficeBus = () => {
       imBus?.stop();
+      imBus = null;
+      if (!canRunOfficeBus()) return;
       if (watchConfig.enabled && !voice) {
         voice = createVoiceSynthesizer({
           cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
@@ -1226,14 +1273,18 @@ if (!gotLock) {
       });
     }
     marketWatcher = createMarketWatcher({
-      getConfig: () => watchConfig?.market,
+      getConfig: () => canWatchMarket() ? watchConfig?.market : { enabled: false },
       onEvent: handleMarketEvent,
       onStatus: (status) => { marketDbg(`status: ${JSON.stringify(status)}`); },
       onQuote: (quote) => { lastMarketQuote = quote; pushMarketStatus(); },
       debugLogPath: marketDbgLog
     });
-    marketWatcher.start();
-    pushMarketStatus();
+    restartMarketWatcher = () => {
+      marketWatcher?.stop();
+      if (canWatchMarket()) marketWatcher.start();
+      pushMarketStatus();
+    };
+    restartMarketWatcher();
     // ─────────────────────────────────────────────────────────────────────
   }).catch((error) => {
     dialog.showErrorBox('桌宠播放器启动失败', error.stack || error.message);

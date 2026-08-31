@@ -19,6 +19,7 @@ const SELF_USE_DEFAULT_CONFIG = {
   platforms: ['lark', 'dingtalk'],
   cooldownSec: 30,
   quietHours: [],
+  tasks: { provider: 'mock' },
   callHangup: { enabled: true, platforms: ['dingtalk'], cooldownSec: 60 },
   dingtalk: {
     enabled: true,
@@ -37,6 +38,7 @@ const CUSTOMER_DEFAULT_CONFIG = {
   platforms: ['lark', 'dingtalk'],
   cooldownSec: 30,
   quietHours: [],
+  tasks: { provider: 'mock' },
   callHangup: { enabled: false, platforms: ['dingtalk'], cooldownSec: 60 },
   dingtalk: {
     enabled: false,

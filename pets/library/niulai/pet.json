@@ -616,6 +616,7 @@
     }
   ],
   "watch": {
+    "menuLabel": "办公雷达",
     "state": "reaction",
     "keywordStates": {
       "画饼": "perch",
