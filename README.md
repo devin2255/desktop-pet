@@ -4,6 +4,41 @@ Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2
 
 当前版本：**0.4.0**。
 
+## 本分支桌宠
+
+本分支主交付：**美杜莎**（`medusa` / 美杜莎桌面宠物）。
+
+制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+
+设计文档：[docs/superpowers/specs/2026-08-02-medusa-pet-design.md](docs/superpowers/specs/2026-08-02-medusa-pet-design.md)
+
+### 身份
+
+- id：`medusa`；性格：高冷、傲娇、女王范
+- 启动问候：「本女王来了。」
+
+### 动作
+
+标准五动作 + drag、lean、climb、perch、hang、fall、impact、pat-butt、perch-chin-rest、perch-hair-sweep、perch-look、cold-smile、heaven-python、kneel-before-me、talent-show、inspect、command、smirk-line
+
+### 气泡与台词
+
+- 冷笑「哼。」；吞天蟒「吞天。」；跪安「跪下。」；上才艺「给本座看好了。」
+- 漫游：「看你表现」「侍奉本座」「有趣」
+
+### 互动
+
+侧边立刻 lean（不爬顶）、遇边掉头、尺寸含超大、窗口边、透明穿透。
+
+### 托盘与右键
+
+冷笑 / 七彩吞天蟒 / 跪安 / 上才艺 + 播放器固定项（含超大尺寸）。
+
+### 交付
+
+`npm run build:medusa`。Windows 便携 EXE，未签名。macOS 未交付。
+
+
 ## 主要功能
 
 - 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透

@@ -1,0 +1,31 @@
+请根据我附上的照片，在本仓库制作完整桌面宠物，并交付可运行的客户安装包。
+
+## 0. 先拉项目，未确认前禁止动手
+
+1. 若当前工作区不是本仓库：git clone https://github.com/devin2255/desktop-pet.git 并进入仓库。
+2. 若已在仓库：git fetch origin。
+3. git checkout feat/medusa-pet
+4. 阅读该分支 README.md 中「本分支桌宠」一节。那是能力模板，不是必须沿用的角色名或外形。
+5. 用白话向用户复述：动作、气泡/台词、互动、托盘/右键、交付形态。
+6. 对照清单逐项请用户确认：要 / 不要 / 改文案。确认用户上传的图片要做成哪些动作。
+7. 确认操作系统：
+   - Windows：本仓库当前可交付便携 EXE（node scripts/build-customer.js）。
+   - macOS：本仓库没有 mac 构建，不能交付 .dmg 或 .app。若用户只要 macOS，停止并改方案。
+   - 两个都要：先交 Windows；把 macOS 列为未交付。
+8. 确认交付物：客户专属 Windows 便携 EXE + build-report.json；双击即出宠；不必装开发环境、不必手导 petpack；客户版默认隐藏导入、切换宠物、打开宠物库。
+9. 以上全部得到用户明确答复之前，禁止生成动画、修改 pet.json、打包或构建 EXE。
+
+## 1. 确认后再实现
+
+遵循仓库根目录 AGENTS.md 与 desktop-pet-maker。不要在播放器里写死这只宠物的名字、性格或动画路径。身份、帧、文案、语音全部进入 .petpack / pet.json。
+
+切帧前必须通过单元格安全门禁；失败就重生成，禁止只擦串帧碎片。互动帧连播 50 次不得缩放/平移。透明像素必须鼠标穿透。
+
+## 2. 交付
+
+验证 petpack 后执行：
+
+python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/<id> pets/packages/<id>.petpack
+node scripts/build-customer.js --pet pets/packages/<id>.petpack --name "<程序名称>" --delivery-id <id>
+
+实际启动成品。交付 EXE、build-report.json 和验证结果。列出已验证项与未验证项（必须包括：未做代码签名；macOS 未交付）。不要只交付 .petpack。
