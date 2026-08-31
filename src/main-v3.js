@@ -15,6 +15,7 @@ const {
   shouldRestoreWindowBounds
 } = require('./interaction-controller');
 const { createTopmostGuard } = require('./topmost-guard');
+const { syncStoreLibrary } = require('./store-sync');
 const {
   app,
   BrowserWindow,
@@ -52,7 +53,13 @@ let petWindow;
 let tray;
 let libraryRoot;
 let settingsPath;
-let settings = { petId: '', sizeKey: 'small', roaming: true };
+let settings = {
+  petId: '',
+  sizeKey: 'small',
+  roaming: true,
+  storeBaseUrl: 'http://localhost:3000',
+  clientToken: ''
+};
 let activeManifest;
 let behaviorTimer;
 let walkTimer;
@@ -61,6 +68,8 @@ let topmostGuard;
 let quitting = false;
 let mouseThrough = false;
 let deliveryConfig;
+let storeSettingsWindow = null;
+let storeSettingsIpcRegistered = false;
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');
@@ -419,6 +428,53 @@ function runContextMenuAction(item) {
   }, duration);
 }
 
+function openStoreSettingsWindow() {
+  if (storeSettingsWindow && !storeSettingsWindow.isDestroyed()) {
+    storeSettingsWindow.focus();
+    return storeSettingsWindow;
+  }
+  storeSettingsWindow = new BrowserWindow({
+    width: 420,
+    height: 280,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    show: false,
+    parent: petWindow && !petWindow.isDestroyed() ? petWindow : undefined,
+    modal: false,
+    title: '连接商城',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-store-settings.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  storeSettingsWindow.setMenuBarVisibility(false);
+  storeSettingsWindow.once('ready-to-show', () => storeSettingsWindow.show());
+  storeSettingsWindow.on('closed', () => {
+    storeSettingsWindow = null;
+  });
+  storeSettingsWindow.loadFile(path.join(__dirname, 'store-settings.html'));
+  return storeSettingsWindow;
+}
+
+function registerStoreSettingsIpc() {
+  if (storeSettingsIpcRegistered) return;
+  storeSettingsIpcRegistered = true;
+  ipcMain.handle('store-settings:get', () => ({
+    storeBaseUrl: settings.storeBaseUrl || 'http://localhost:3000',
+    clientToken: settings.clientToken || ''
+  }));
+  ipcMain.handle('store-settings:save', (_event, payload = {}) => {
+    settings.storeBaseUrl = String(payload.storeBaseUrl || '').trim() || 'http://localhost:3000';
+    settings.clientToken = String(payload.clientToken || '').trim();
+    saveSettings();
+    storeSettingsWindow?.close();
+    return { ok: true };
+  });
+}
+
 function buildTrayMenu() {
   const pets = listPets();
   const template = [];
@@ -430,7 +486,42 @@ function buildTrayMenu() {
   template.push({ label: '叫宠物回来', click: showPet });
   if (!deliveryConfig || deliveryConfig.allowPetManagement) {
     template.push({ label: '切换宠物', submenu: pets.map((pet) => ({ label: pet.name, type: 'radio', checked: activeManifest?.id === pet.id, click: () => switchPet(pet.id) })) });
-    template.push({ label: '导入 .petpack…', click: promptImportPetpack }, { label: '打开宠物库', click: () => shell.openPath(libraryRoot) }, { type: 'separator' });
+    template.push(
+      { label: '连接商城…', click: () => openStoreSettingsWindow() },
+      {
+        label: '同步商城宠物库',
+        click: async () => {
+          try {
+            if (!settings.clientToken) {
+              dialog.showErrorBox('未连接商城', '请先「连接商城」粘贴设备 Token');
+              return;
+            }
+            const cacheRoot = path.join(app.getPath('userData'), 'store-cache');
+            const result = await syncStoreLibrary({
+              baseUrl: settings.storeBaseUrl || 'http://localhost:3000',
+              token: settings.clientToken,
+              cacheRoot,
+              libraryRoot
+            });
+            tray?.setContextMenu(buildTrayMenu());
+            if (result.pets[0]) await switchPet(result.pets[0].composedId);
+            dialog.showMessageBox({
+              type: 'info',
+              message: `已同步 ${result.pets.length} 只宠物`
+            });
+          } catch (error) {
+            const msg = error.message === 'STORE_UNAUTHORIZED'
+              ? 'Token 无效或过期，请回网页重新生成并粘贴'
+              : (error.message || String(error));
+            dialog.showErrorBox('同步失败', msg);
+          }
+        }
+      },
+      { type: 'separator' },
+      { label: '导入 .petpack…', click: promptImportPetpack },
+      { label: '打开宠物库', click: () => shell.openPath(libraryRoot) },
+      { type: 'separator' }
+    );
   }
   template.push(
     { label: '宠物大小', submenu: Object.entries(PET_SIZES).map(([key, size]) => ({ label: size.label, type: 'radio', checked: settings.sizeKey === key, click: () => setPetSize(key) })) },
@@ -568,6 +659,8 @@ function validVisibleInsets(insets) {
     return Number.isFinite(insets[side]) && insets[side] >= 0 && insets[side] < limit;
   });
 }
+
+registerStoreSettingsIpc();
 
 handleTrusted('pet:get-current', () => publicManifest(activeManifest));
 handleTrusted('pet:import', () => {

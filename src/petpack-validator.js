@@ -52,6 +52,26 @@ function referencedFiles(manifest) {
   return referenced;
 }
 
+function validateActionPetJson(manifest) {
+  if (!manifest || manifest.schemaVersion !== 1) throw new Error('只支持 schemaVersion 1');
+  if (!PET_ID_PATTERN.test(String(manifest.id || ''))) throw new Error('宠物 id 不合法');
+  if (typeof manifest.name !== 'string' || !manifest.name.trim()) throw new Error('宠物名称不合法');
+  safeRelative(manifest.preview);
+  if (!manifest.animations || typeof manifest.animations !== 'object') {
+    throw new Error('animations 缺失');
+  }
+  const keys = Object.keys(manifest.animations);
+  if (keys.length < 1) throw new Error('动作包至少包含一个动画');
+  for (const action of keys) {
+    const animation = manifest.animations[action];
+    if (!animation || !Array.isArray(animation.frames) || animation.frames.length < 1) {
+      throw new Error(`${action} 必须包含至少 1 帧`);
+    }
+    for (const frame of animation.frames) safeRelative(frame);
+  }
+  return manifest;
+}
+
 function validateManifest(manifest, root = '', requireFiles = false) {
   if (!manifest || manifest.schemaVersion !== 1) throw new Error('只支持 schemaVersion 1');
   if (!PET_ID_PATTERN.test(String(manifest.id || ''))) throw new Error('宠物 id 不合法');
@@ -248,6 +268,8 @@ function validatePetpack(filePath) {
   validateManifest(manifest);
   const allowed = referencedFiles(manifest);
   for (const name of files.keys()) {
+    // Dual-manifest store packs may ship commerce meta beside player pet.json.
+    if (name === 'petpack.json') continue;
     if (!allowed.has(name)) throw new Error(`资源包包含未引用文件：${name}`);
   }
   for (const relative of allowed) {
@@ -270,6 +292,7 @@ module.exports = {
   referencedFiles,
   resolveInside,
   safeRelative,
+  validateActionPetJson,
   validateManifest,
   validatePetpack
 };
