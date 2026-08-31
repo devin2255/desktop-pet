@@ -37,3 +37,16 @@ Task 1: complete (commits 5afc963..e312e1f, review clean; ignored manifest/packa
 Task 2: complete (ignored candidate 68 promoted; source gate + 7 tests pass; visual review clean)
 Task 3: complete (ignored package rebuilt; isolated runtime smoke + 84-file parity pass; review clean; minor: no retained pre-task per-entry hash inventory)
 
+# SDD Progress Ledger — 2026-08-31-branch-capability-docs
+Plan: docs/superpowers/plans/2026-08-31-branch-capability-docs.md
+son-mode start: ecfacb4dd3aa7122279b4e767fc6c9555ec18a9f
+niulai start: 28f895a019a824e7671fc885fda91937eb8a90fe
+
+Task 1: complete (commits ecfacb4..82895b1, review clean)
+Task 2: complete (commits 82895b1..e015810, review clean after hangup default + cancel-timer fixes)
+Task 3: complete (commits 28f895a..5d36994, review clean after tasks.provider persist + perch gate)
+Task 4: complete (commits 5d36994..6ac2d8f, review clean; removed brother-judge preinstall)
+Task 5: complete (commits e015810..1017f76, docs only)
+Task 6: complete (commits 6ac2d8f..d9573fb, docs only)
+Task 7: complete (8 branch doc commits via apply-branch-pet-docs.js; son-pet fallback anchor)
+Task 8: complete (resource isolation PASS; test:js PASS on bestie/son-mode/niulai; no push)

@@ -1,56 +1,47 @@
-# Task 8 Report — 编写 pet.json、打包并包级测试
+# Task 8 Report — 交叉验收
 
-**Status:** PASS  
-**Date:** 2026-08-04  
-**Package id:** `xiaomei-xiaotian`  
-**Commit:** none（按指示不提交）
+## 资源隔离
 
-## Summary
+| 检查项 | 结果 |
+|--------|------|
+| `feature/son-mode` 无 `niulai` petpack / library | PASS |
+| `feature/son-mode` 含 `brother-judge` 预装 | PASS（预期） |
+| `feature/niulai` 无 `brother-judge` 任何路径 | PASS |
+| `feature/niulai` 含 `niulai.petpack` | PASS |
 
-完成「小美&小甜」清单、预览图、`.petpack` 打包与包级回归测试。`petpack_tool validate`（库目录 + 包）与 `node scripts/test-bestie-petpack.js` 全部通过。
+## 测试
 
-## Deliverables
+| Worktree | `npm run test:js` |
+|----------|-------------------|
+| 主 checkout `feature/bestie-pets-design` | PASS |
+| `.worktrees/son-mode` | PASS（含 capability-gates、market-watch、IM 全套） |
+| `.worktrees/niulai` | PASS |
 
-| 产物 | 路径 |
-|---|---|
-| 清单 | `pets/library/xiaomei-xiaotian/pet.json` |
-| 预览 | `pets/library/xiaomei-xiaotian/preview.png`（自 `idle/01.png`） |
-| 资源包 | `pets/packages/xiaomei-xiaotian.petpack` |
-| 包级测试 | `scripts/test-bestie-petpack.js` |
-| npm | `package.json`：`test:js` 接入测试；新增 `build:bestie` |
+## 文档抽查
 
-## Manifest 要点
+- 各分支 README 含「本分支桌宠」与 `make-current-branch-pet.txt` 链接
+- 提示词含 `git clone`、对应分支名、`macOS` 未交付、确认前禁止生成动画
 
-- id/name/personality/startupGreeting/speechGender 按规格
-- `normalizationMetric`: `alpha-area-v1`（bbox-span 跨动作漂移约 1.79，alpha-area 约 1.017）
-- 动画：标准五动作 + drag + cuddle/selfie/whisper/cheer + relax-* 共 16 套
-- `behavior.random`：walk32 / sit24 / reaction16 / sleep12 / cuddle10 / whisper6（不含 selfie/cheer/relax）
-- `interactionActions.drag.action` = `drag`；窗口 climb/perch/hang/fall/impact/recover 映射到既有动画
-- `sequences.relax` 7 阶段；`relax-models`：`waitForClick` + `messages: ["我要这个","我要这个"]` + `holdLastFrame: true`
-- 菜单「去放松」：`sequence: "relax"`（无 `action`）
+## 遗留 / 未做
 
-## Validate / Test
+- **未 push** 任何分支（按用户要求）
+- `scripts/apply-branch-pet-docs.js` 在主仓库工作区，未单独 commit（工具脚本）
+- GUI 手测、EXE 实启、代码签名：不在本 Task 范围
 
-```text
-python ... validate pets/library/xiaomei-xiaotian
-→ valid: xiaomei-xiaotian (小美&小甜)
+## 待推送分支汇总（供用户决定）
 
-python ... build pets/library/xiaomei-xiaotian pets/packages/xiaomei-xiaotian.petpack
-→ pets\packages\xiaomei-xiaotian.petpack
+**代码分支（Task 1–4）：**
 
-python ... validate pets/packages/xiaomei-xiaotian.petpack
-→ valid: xiaomei-xiaotian (小美&小甜)
+- `feature/son-mode` @ `1017f76`
+- `feature/niulai` @ `d9573fb`
 
-node scripts/test-bestie-petpack.js
-→ test-bestie-petpack: ok
-```
+**文档分支（Task 5–7）：**
 
-## Commit
-
-- **No commit.**
-
-## Concerns
-
-1. 窗口攀爬类动作未单独绘制，仅映射 walk/sit/reaction/idle，真人姿态可能略违和。
-2. 客户 EXE（`npm run build:bestie` / Task 9+）与实机启动验证尚未做。
-3. 本报告覆盖原 Task 8（laopo 组装）报告文件名；laopo 历史内容以 git / 其它文档为准。
+- `main` @ `38e52a1`
+- `feat/laopo-pet` @ `e881df2`
+- `feat/medusa-pet` @ `5efcf5e`
+- `feature/bestie-pets-design` @ `e8ae423`
+- `feature/boss-watch` @ `b0a3eaa`
+- `feature/brother-judge-bubble-copy` @ `9d67d1d`
+- `feature/dog-and-cat` @ `cf6351f`
+- `son-pet-window-interactions` @ `b776fe2`

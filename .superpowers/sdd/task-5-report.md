@@ -1,71 +1,25 @@
-# Task 5 Report — 生成标准五动作 + drag（日常便服）
+# Task 5 报告：son-mode README + 提示词（兄弟判官）
 
-**Status:** PASS  
-**Date:** 2026-08-04  
-**Branch:** `feature/bestie-pets-design`  
-**Commit:** none（按指示不提交）
+**Status:** DONE  
+**Branch:** feature/son-mode  
+**Commit:** `1017f76c73dc652a0cc1e44e211315cdbbe076b0`  
+**Worktree:** `.worktrees/son-mode`
 
-## Summary
+## 实现
 
-为「小美&小甜」生成日常便服双人同框透明帧：idle4 / walk6 / sit4 / sleep4 / reaction4 / drag6（共 28 帧）。经绿幕条合成、`remove_chroma_key` 去背、`process_animation_strips.py` 安全门禁，并安装到 `pets/library/xiaomei-xiaotian/animations/`。
+1. **README.md** — 在版本号后插入「本分支桌宠」一节，描述兄弟判官身份、动作、台词、互动、托盘与交付；托盘文案对照 `src/main-v3.js` 与 `scripts/test-capability-gates.js`（画饼雷达 `menuLabel`；拒接钉钉 / 行情条因无对应序列默认不显示）。
+2. **docs/prompts/make-current-branch-pet.txt** — 覆盖为计划 Shared Prompt，`CHECKOUT_BRANCH` 已替换为 `feature/son-mode`，含确认优先流程与 macOS 未交付说明。
+3. **docs/prompts/README.md** — 声明 `make-current-branch-pet.txt` 为唯一入口；`make-laopo-pet.txt` 为历史参考。
 
-## Frame counts
+## 核对
 
-| Action | Frames | Notes |
-|---|---:|---|
-| idle | 4 | 并肩轻晃站姿循环 |
-| walk | 6 | 并排右向走 |
-| sit | 4 | 并排坐；小美略靠肩 |
-| sleep | 4 | 小憩靠肩 |
-| reaction | 4 | 点击惊喜；小甜比耶（约 frame 3–4） |
-| drag | 6 | 拖着屁股走（夸张喜剧）；整条曾因 flat-side 重生成 |
-
-## Produced assets
-
-### Work
-```
-pets/work/xiaomei-xiaotian/source/standard/master-chroma.png
-pets/work/xiaomei-xiaotian/source/standard/frames/{idle,walk,sit,sleep,reaction,drag}-0N.png
-pets/work/xiaomei-xiaotian/source/standard/{idle,walk,sit,sleep,reaction,drag}-chroma.png
-pets/work/xiaomei-xiaotian/source/standard/transparent/{idle,walk,sit,sleep,reaction,drag}.png
-pets/work/xiaomei-xiaotian/processed/frames/{action}/01.png…
-pets/work/xiaomei-xiaotian/processed/contact-sheet.jpg
-pets/work/xiaomei-xiaotian/_compose_standard.py
+```powershell
+Select-String -Path README.md -Pattern '本分支桌宠|make-current-branch-pet|叫爸|画饼|macOS'  # PASS
+Select-String -Path docs/prompts/make-current-branch-pet.txt -Pattern 'git clone|feature/son-mode|macOS|禁止生成动画'  # PASS
+# 提示词中无字面 CHECKOUT_BRANCH
 ```
 
-### Library
-```
-pets/library/xiaomei-xiaotian/animations/idle/01–04.png
-pets/library/xiaomei-xiaotian/animations/walk/01–06.png
-pets/library/xiaomei-xiaotian/animations/sit/01–04.png
-pets/library/xiaomei-xiaotian/animations/sleep/01–04.png
-pets/library/xiaomei-xiaotian/animations/reaction/01–04.png
-pets/library/xiaomei-xiaotian/animations/drag/01–06.png
-```
+## 备注
 
-## Process
-
-1. **GenerateImage** 逐帧全绿幕 `#00ff00`，参考 `source/refs/bestie-reference.png` + `master-chroma.png`；身份锁：左小美（额头痣 + 月牙链）/ 右小甜；日常便服；偏真人。
-2. `_compose_standard.py` 合成等宽单元格条（640×960/格，主体约 62% 宽，保证左右安全边距）。
-3. `remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`。
-4. `process_animation_strips.py`：`--max-significant-components 2`；drag 首轮 flat-side 失败 → **整条 drag 重生成**（未擦碎片）→ 复合成/去背；最终 `--flat-side-ratio 0.18` 通过（双人人体侧影易误触 0.10）。
-5. 目检 contact sheet：左右站位稳定、痣/项链大体保留、无串帧门禁失败。
-6. 复制 processed 帧到 library。
-
-## Regenerations
-
-| Strip | Attempts | Outcome |
-|---|---|---|
-| drag | v1 flat-side fail frame1 → 全 6 帧重生成 + 更小主体复合成 | PASS |
-
-## Concerns
-
-1. **服装微漂移**：主参考为奶油上衣+米色阔腿裤 / 鼠尾草绿泡袖+短裤；部分帧出现粉开衫或近似同色奶油套装；跨动作不完全锁定。
-2. **drag 动效残留**：部分 drag 帧带拖尾/火花粒子，与「无 motion marks」理想略有偏差，可用但建议后续重生成净化。
-3. **发型微漂移**：部分帧头发更长/更松，对比参考的盘发。
-4. **flat-side-ratio 0.18**：双人人体外侧轮廓对默认 0.10 过严；未削弱连通块/安全边距门禁。
-5. Work 资源通常在 `pets/work/` gitignore 下；library 帧是否入库由后续任务决定。
-
-## Next
-
-Task 6+：闺蜜彩蛋 / 高光服装动作；manifest + petpack 验证。
+- `brother-judge` 的 `pet.json` 未纳入 git 跟踪；菜单标签以合并后播放器代码与 capability-gates 测试夹具为准。
+- 未 push（按任务要求）。

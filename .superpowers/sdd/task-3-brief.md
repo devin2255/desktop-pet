@@ -1,42 +1,99 @@
-### Task 3: 生成日常五动作 + drag（散步装）
+### Task 3: 把窗口边 opt-in 合回 niulai
 
 **Files:**
-- Create under `pets/work/guimi/`：`idle-chroma.png` `walk-chroma.png` `sit-chroma.png` `sleep-chroma.png` `reaction-chroma.png` `drag-chroma.png`
-- Output frames → `pets/library/guimi/animations/{idle,walk,sit,sleep,reaction,drag}/`
+- Create: `.worktrees/niulai` 指向 `feature/niulai`
+- Copy: `src/capability-gates.js`、`scripts/test-capability-gates.js` 从 son-mode worktree
+- Modify: `src/interaction-controller.js`, `scripts/test-interaction-controller.js`, `src/watch-config.js`, `src/main-v3.js`（任务通道默认 mock）
 
 **Interfaces:**
-- Consumes: refs + IDENTITY；Cursor `GenerateImage`（`reference_image_paths` 指向脸与日常穿搭）
-- Produces: 各动作合规透明帧；双人同框；日常装
+- Consumes: son-mode `interactionRoleEnabled` 语义；Task 1 门禁
+- Produces: niulai 可省略或 `enabled: false` 关闭 climb/perch/hang；`tasks.provider` 默认 `mock`
 
-帧数：idle≥4 / walk≥6 / sit≥4 / sleep≥4 / reaction≥4 / drag≥6
-
-- [ ] **Step 1: 按 `skills/desktop-pet-maker/references/image-prompts.md` 生成绿幕横条**
-
-每条提示词硬性锁：
-
-- 左：长直黑发 + 藏青水手服（白领浅蓝条、白大蝴蝶结）
-- 右：齐肩黑发 + 亮粉长袖 + 藏青白边运动裤
-- 偏真人、完整双人身体、脚底同一基线、左右 ≥12% 绿边、纯 `#00ff00` 背景
-- 无文字、无贴纸脸、无道具（drag 除外可夸张被拖）
-
-参考图至少：`bestie1-face.png`、`bestie1-walk-outfit.png`、`bestie2-face-store.png`、`bestie2-walk-outfit.png`。
-
-- [ ] **Step 2: 去背**
-
-对每条 chroma 使用项目既有 imagegen/去背流程（与 desktop-pet-maker skill 一致）：`--auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`。
-
-- [ ] **Step 3: 切帧规范化**
+- [ ] **Step 1: worktree**
 
 ```powershell
-python skills/desktop-pet-maker/scripts/process_animation_strips.py --help
-# 按 skill 对该目录五/六条透明条执行；任一条安全门禁失败 → 整条重生成
+git worktree add .worktrees/niulai feature/niulai
+cd .worktrees/niulai
 ```
 
-- [ ] **Step 4: 目检 contact sheet**
+- [ ] **Step 2: 把 son-mode 里「省略 climb 则不侧爬」的测试拷进 niulai 的 `scripts/test-interaction-controller.js`**
 
-检查：左右身份、脸不是贴纸、无串帧、无断肢、基线稳定、体量一致。
+在现有侧爬测试之后加入（与 son-mode `ecfacb4` 相同断言）：
 
-- [ ] **Step 5: Commit（仅当用户要求时）**
+```javascript
+{
+  const harness = createHarness({ windows: [target] });
+  delete harness.dependencies.getManifest().interactionActions.climb;
+  harness.controller.startDrag({ x: 200, y: 150 });
+  const result = await harness.controller.endDrag({ x: 100, y: 250 });
+  assert.strictEqual(result, true);
+  assert.strictEqual(harness.controller.state(), 'normal', 'omitting climb disables side-window cling');
+  assert.ok(!String(harness.states.at(-1) || '').startsWith('climb'), 'no climb state when role omitted');
+}
+```
+
+若 niulai 尚无 `enabled: false` 测试，再加：
+
+```javascript
+{
+  const harness = createHarness({ windows: [target] });
+  harness.dependencies.getManifest().interactionActions.climb = { action: 'climb-action', enabled: false };
+  harness.controller.startDrag({ x: 200, y: 150 });
+  const result = await harness.controller.endDrag({ x: 100, y: 250 });
+  assert.strictEqual(result, true);
+  assert.strictEqual(harness.controller.state(), 'normal', 'enabled:false skips side attachment');
+}
+```
+
+- [ ] **Step 3: 跑测试确认失败或仍为旧行为**
+
+Run: `node scripts/test-interaction-controller.js`  
+Expected: 省略 climb 的用例 FAIL（仍进入 climb），或 enabled:false 用例 FAIL。
+
+- [ ] **Step 4: 实现 `interactionRoleEnabled`**
+
+在 niulai `src/interaction-controller.js` 的 `endDrag` 吸附前加入：
+
+```javascript
+function interactionRoleEnabled(role) {
+  const actions = getManifest()?.interactionActions;
+  if (actions === undefined) return true;
+  const config = actions[role];
+  if (config === false || config === null || config === undefined) return false;
+  if (typeof config === 'object' && config.enabled === false) return false;
+  return true;
+}
+```
+
+侧边/顶/底吸附与屏顶 perch 均加 `interactionRoleEnabled('climb'|'perch'|'hang')` 判断，逻辑与 son-mode 一致。
+
+- [ ] **Step 5: 默认任务通道 mock；拷贝 capability-gates**
+
+从 `.worktrees/son-mode` 复制 `src/capability-gates.js` 与 `scripts/test-capability-gates.js`。  
+在 niulai `watch-config.js` 的 `SELF_USE_DEFAULT_CONFIG` 与 `CUSTOMER_DEFAULT_CONFIG` 增加 `tasks: { provider: 'mock' }`。  
+`src/main-v3.js` 的 `triggerPetTask` 使用 `taskProviderFromConfig(watchConfig)`：`mock` 走 `schedulePetTaskMock`（保持现状），`feishu` 才走飞书（若该分支没有 notifyQwenWork 则仅 mock）。
+
+托盘拒接/行情继续用 `hasCallHangupSequence` / `hasMarketSequences`，避免无序列的包露出菜单。
+
+牛来 `pets/library/niulai/pet.json` 不要删除已有 climb/perch/hang；不要误关。可在 `watch` 增加 `"menuLabel": "办公雷达"`。
+
+- [ ] **Step 6: 跑测试**
+
+```powershell
+node scripts/test-interaction-controller.js
+node scripts/test-capability-gates.js
+node scripts/test-pet-task.js
+npm run test:js
+```
+
+Expected: PASS。
+
+- [ ] **Step 7: Commit**
+
+```powershell
+git add src/interaction-controller.js src/capability-gates.js src/watch-config.js src/main-v3.js scripts
+git commit -m "feat: opt-in window-edge roles and shared capability gates on niulai"
+```
 
 ---
 

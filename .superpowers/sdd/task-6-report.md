@@ -1,74 +1,40 @@
-# Task 6 Report — 生成闺蜜彩蛋动画
+# Task 6 Report — niulai README + 提示词（牛来）
 
 **Status:** PASS  
-**Date:** 2026-08-04  
-**Branch:** `feature/bestie-pets-design`  
-**Commit:** none（按指示不提交）
+**Date:** 2026-08-31  
+**Branch:** `feature/niulai`  
+**Worktree:** `.worktrees/niulai`
 
 ## Summary
 
-为「小美&小甜」生成闺蜜彩蛋透明帧：cuddle4 / selfie4 / whisper4 / cheer4（共 16 帧）。经绿幕条合成、`remove_chroma_key` 去背、`process_animation_strips.py` 安全门禁，并安装到 `pets/library/xiaomei-xiaotian/animations/`。未覆盖 Task 5 的 idle/drag/walk/sit/sleep/reaction library 帧。
+在 niulai 分支文档中写入「本分支桌宠」能力节（仅牛来）、Shared Prompt 制作入口，并更新 `docs/prompts/README.md` 对齐 confirm-first 流程。
 
-## Frame counts
+## Changes
 
-| Action | Frames | Outfit | Notes |
-|---|---:|---|---|
-| cuddle | 4 | 日常 | 靠肩贴贴；小美更黏 |
-| selfie | 4 | 蕾丝高光 | 合影；小甜比耶（frame 2–4） |
-| whisper | 4 | 日常 | 耳语→一起偷笑 |
-| cheer | 4 | 日常 | 并排比心/打气 |
+| File | Action |
+|------|--------|
+| `README.md` | 在版本号后插入「本分支桌宠」：身份、动作、气泡/台词（对照 `pets/library/niulai/pet.json`）、互动、托盘、交付命令 |
+| `docs/prompts/make-current-branch-pet.txt` | 覆盖为 Global Shared Prompt，`CHECKOUT_BRANCH` → `feature/niulai` |
+| `docs/prompts/README.md` | 声明主宠牛来、入口文件、macOS 未交付与确认前禁止动手；保留 `make-niulai-pet.txt` 为历史参考 |
 
-## Produced assets
+## Verification
 
-### Work
-```
-pets/work/xiaomei-xiaotian/source/standard/frames/{cuddle,selfie,whisper,cheer}-0N.png
-pets/work/xiaomei-xiaotian/source/standard/{cuddle,selfie,whisper,cheer}-chroma.png
-pets/work/xiaomei-xiaotian/source/transparent/{cuddle,selfie,whisper,cheer}.png
-pets/work/xiaomei-xiaotian/source/standard/transparent/{cuddle,selfie,whisper,cheer}.png
-pets/work/xiaomei-xiaotian/processed/frames/{cuddle,selfie,whisper,cheer}/01–04.png
-pets/work/xiaomei-xiaotian/_compose_easter.py
+```powershell
+Select-String -Path README.md -Pattern '本分支桌宠|牛来|兄弟判官|make-current-branch-pet'
+Select-String -Path docs/prompts/make-current-branch-pet.txt -Pattern 'git clone|CHECKOUT_BRANCH|feature/niulai|macOS|禁止生成动画'
 ```
 
-### Library
+- README 含主宠节与提示词链接；无「兄弟判官」作主宠表述
+- 提示词含 clone、`feature/niulai`、macOS 未交付、确认前禁止动手；无字面 `CHECKOUT_BRANCH`
+
+## Commit
+
 ```
-pets/library/xiaomei-xiaotian/animations/cuddle/01–04.png
-pets/library/xiaomei-xiaotian/animations/selfie/01–04.png
-pets/library/xiaomei-xiaotian/animations/whisper/01–04.png
-pets/library/xiaomei-xiaotian/animations/cheer/01–04.png
+d9573fb34d7a64cba909a0afb4d2bc9e0a12ec17
+docs: document niulai-only capabilities and confirm-first prompt
 ```
-全部 480×480 RGBA；与既有标准动作同画布。
 
-## Process
+## Not done
 
-1. **GenerateImage** 逐帧全绿幕 `#00ff00`，参考 `master-chroma.png`（日常）/ `bestie-reference.png`（蕾丝）；身份锁：左小美（额头痣 + 月牙链）/ 右小甜。
-2. `_compose_easter.py`：等宽单元格条（640×960/格，主体约 62% 宽）→ `remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill`。
-3. `process_animation_strips.py` 仅处理四条新动作写入既有 `processed/frames/`（不重写 idle/drag）：
-   ```
-   --max-significant-components 2 --flat-side-ratio 0.18
-   --action cuddle:4 --action selfie:4 --action whisper:4 --action cheer:4
-   ```
-4. 目检 contact sheet：左右站位、痣/项链、selfie 蕾丝+比耶、基线稳定。
-5. 复制四动作 processed 帧到 library。
-
-**process exit:** 0（首轮默认 flat-side 0.10 于 cuddle frame2 失败 → 按 Task 5 双人侧影惯例改用 0.18 后通过；未擦碎片）
-
-## Regenerations
-
-| Strip / Frame | Attempts | Outcome |
-|---|---|---|
-| selfie-02 | v1 content-safety block → 弱化措辞重生成 | PASS |
-| selfie-03 | v1 小甜黑裙漂移 → 锚定白蕾丝重生成（03b→03） | PASS |
-| cuddle strip | process flat-side 0.10 fail → ratio 0.18 复跑 | PASS（未整条重绘） |
-
-## Concerns
-
-1. **日常装微漂移**：部分 cuddle/whisper/cheer 帧小甜由鼠尾草绿泡袖+短裤变为奶油短裙或近同色套装；跨帧不完全锁定 master 服装。
-2. **selfie 蕾丝款式微差**：长短裙/袖型在帧间略有变化，但均为白/奶油蕾丝高光系，比耶手势保留。
-3. **flat-side-ratio 0.18**：与 Task 5 相同；双人外侧轮廓对默认 0.10 过严；未削弱连通块/安全边距门禁。
-4. **contact-sheet**：本次 process 仅含四彩蛋动作；标准动作 sheet 未被合并回写。
-5. Work 资源通常在 `pets/work/` gitignore 下；library 帧是否入库由后续任务决定。
-
-## Next
-
-Task 7+：relax 分镜 / manifest + petpack 验证 / 客户 EXE。
+- 未 `git push`（按 Task 约束）
+- 未改播放器或 petpack 资源
