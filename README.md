@@ -1,64 +1,102 @@
 # Desktop Pet
 
-Desktop Pet 是一个面向 Windows 的透明桌面宠物播放器，由 [devin2255](https://github.com/devin2255) 维护。播放器本体不绑定某一只宠物；宠物名称、性格、动画、行为参数和资源路径均由可移植的 `.petpack` 资源包提供。
+Windows 透明桌面宠物。播放器本体不绑定某一只宠物；名称、性格、动画、台词和行为都由 `.petpack` 资源包提供。
 
-当前版本：**0.4.0**。
+仓库：<https://github.com/devin2255/desktop-pet.git>  
+默认分支：`main`（目录入口，用来让人和 AI 先看清有哪些类型）  
+当前版本：**0.4.0**  
+维护者：[devin2255](https://github.com/devin2255)
 
-## 本分支桌宠
+---
 
-本分支主交付：**牛斯克**（`boss` / 老板桌面宠物）。播放器通用，外形与台词来自 petpack。
+## 给 AI 助手（必读）
 
-制作提示词：[docs/prompts/make-current-branch-pet.txt](docs/prompts/make-current-branch-pet.txt)
+如果你是 Cursor / Codex / Claude / 其他 Agent，用户把本仓库或 Git 链接交给你之后：
 
-### 身份
+**先确认类型，再切分支，再问细节。未确认前禁止画帧、改播放器、打包 EXE。**
 
-- id / delivery-id：`boss`
-- 显示名：牛斯克
-- 性格：严肃、恭敬、粘人；默认跪姿待机，爬行移动
+按这个顺序做：
 
-### 动作
+1. 读完本 README，用白话向用户说明：这是通用桌宠播放器，不同类型做在不同 Git 分支上，能力不一样。
+2. **先问用户想做哪一种**。把下面「可选桌宠类型」列出来（名字 + 一句话能力）。用户如果已经说了类型，仍要复述并请他确认。
+3. **等用户回复**。没有明确选择前，不要 `checkout`，不要生成素材。
+4. 用户选定后，切到对应分支：
 
-标准：idle（跪姿）、walk（跪爬）、sit、sleep、reaction
-窗口：drag、climb、perch、perch-cross-phone、perch-look、hang、fall、impact、pat-butt
-其它：call-dad、kowtow、self-slap、serve-tea
-
-### 气泡与台词
-
-- 右键叫大爷：「大爷!」
-- 右键磕头：「给您磕头了」
-- 右键错了没?：「我真该死」
-- 漫游端茶：「大爷喝茶!」
-- 坐窗打电话：「喂, 军儿吗?」
-- 左键点击：触发 reaction（播放器写死互动）
-
-### 互动
-
-拖动、漫游、窗口顶/侧/底互动、坠落恢复、透明穿透、小/中/大、置顶、开机启动。无跪爬模式开关、无画饼雷达。
-
-### 托盘与右键
-
-宠物项：叫大爷 / 磕头 / 错了没?
-播放器项：叫宠物回来、切换/导入/打开宠物库（客户版隐藏）、大小、散步、置顶、开机、藏起来、退出。
-
-### 交付
-
-```text
-npm run build:boss
-# 或
-node scripts/build-customer.js --pet pets/packages/boss.petpack --name "老板桌面宠物" --delivery-id boss
+```powershell
+git fetch origin
+git checkout <对应分支>
+git pull --ff-only origin <对应分支>
 ```
 
-Windows 便携 EXE，未签名。macOS 未交付。
+若本地还没有仓库：
 
+```powershell
+git clone -b <对应分支> https://github.com/devin2255/desktop-pet.git
+```
 
-## 主要功能
+5. 切过去之后，立刻再读**该分支**的 `README.md`（优先看「本分支桌宠」或「制作 xxx 桌宠」）和 `docs/prompts/`，用该分支的能力清单继续向用户确认下一步细节，例如：
+   - 要哪些动作 / 不要哪些动作
+   - 文案、语音、右键菜单
+   - 参考照片是否齐
+   - 只要 Windows EXE，还是也想要 macOS（当前仓库不能交付 macOS）
+   - 是否启用办公雷达、来电拒接等可选能力
+6. 细节得到明确答复后，再遵循该分支 `AGENTS.md` 和 `desktop-pet-maker` 制作，交付客户专属 Windows 便携 EXE + `build-report.json`。不要只交付 `.petpack`。
 
-- 透明无边框窗口，仅在宠物可见像素附近接收点击，透明区域允许鼠标穿透
-- 支持待机、行走、坐下、睡觉和互动动画
-- 支持拖动、自动漫游、左右朝向、窗口互动、托盘菜单和开机启动
-- 安全导入、校验和切换 `.petpack` 宠物资源包
-- 将指定宠物包封装为客户专属 Windows 便携版 EXE
-- 检查动画安全边距、相邻帧串帧、断尾、视觉体量、重心和脚底基线
+例外：
+
+- 用户只是问怎么运行、测试、贡献代码：按本 README 后半的安装说明回答，不要走制作流程。
+- 用户已经在目标分支上，并明确说「继续做这个」：不要切回 `main`，直接读当前分支 README 确认细节。
+- 用户要做自己的猫 / 狗 / 人物：先问最接近哪套**能力模板**（陪伴、办公吐槽、双人、女王等），再切对应分支，把外观换成用户照片。不要在 `main` 上从零发明播放器功能。
+
+用户可把下面这段连同仓库链接一起发给新会话：
+
+```text
+请先阅读本仓库 README.md「给 AI 助手」和「可选桌宠类型」。
+不要开始画帧或改代码。
+先列出可选类型并问我想做哪一种。
+等我选定后，再 git checkout 对应分支，阅读该分支 README，继续问下一步细节。
+```
+
+---
+
+## 播放器通用能力
+
+所有类型都建立在同一套 Windows 播放器上：
+
+- 透明无边框窗口；只在宠物可见像素附近接收点击，透明区域鼠标穿透
+- 标准动作：待机、行走、坐下、睡觉、互动
+- 拖动、自动漫游、左右朝向、窗口边互动、托盘、开机启动
+- 安全导入 / 校验 / 切换 `.petpack`
+- 封装客户专属 Windows 便携 EXE（客户双击即出宠，不必装开发环境）
+- 动画安全检查：单元格边距、串帧、断尾、体量、重心、脚底基线
+
+各分支会在这套能力之上叠加角色专属动作、台词、雷达或双人剧情。切到分支后以该分支 README 为准。
+
+---
+
+## 可选桌宠类型
+
+选类型 = 选分支。确认前不要动手。
+
+| 用户怎么说 | 分支 | 能力摘要 |
+|---|---|---|
+| 老板桌宠 / 牛斯克 / 跪着的西装男 | `main` | 跪姿待机、爬行移动、叫大爷、磕头、错了没、端茶送水、窗口顶边坐下与侧爬吊挂、坐边打电话，男声 |
+| 老婆桌宠 / 女伴 / 叫老公 | `feat/laopo-pet` | 站立待机与散步、叫老公、磕头、上才艺、端茶、窗口坐边撩发 / 飞吻 / 左看右看，女声，启动「老公，我来啦~」 |
+| 美杜莎 / 女王 | `feat/medusa-pet` | 直立女王踱步、冷笑、七彩吞天蟒、跪安、侧边倚靠（不爬墙）、坐边托腮撩发，女声，支持超大尺寸 |
+| 闺蜜 / 小美小甜 / 双人女伴 | `feature/bestie-pets-design` | 一体双人同框、贴贴 / 合影 / 悄悄话、坐窗喝奶茶、侧边偷看、可中途点击续播的「去放松」剧情 |
+| 兄弟判官 / 写实判官 | `feature/brother-judge-bubble-copy` | 照片级写实判官、磕头专帧、接地气吐槽气泡、画饼词库 |
+| 儿子模式 / 叫爸 | `feature/son-mode` | 兄弟判官儿子口吻（「爸，我来了！」）、预录音、当个事儿办、飞书任务 |
+| 画饼雷达 / 监听老板飞书 | `feature/boss-watch` | 飞书 IM 监听老板消息，命中画饼 / 吹牛等关键词就气泡 + 动作 + 语音吐槽；跪爬；当个事儿办 |
+| 牛来 / 打工人 / 办公桌宠 | `feature/niulai` | 胆小躺平的小黄牛；来电喊妈并拒接；牛市 / 熊市飞行；头顶行情条；办公雷达六类吐槽；当个事儿办 |
+| 狗和猫 / 旺财咪咪 / 双宠物 | `feature/dog-and-cat` | 同一画幅左狗右猫（柴犬 + 橘猫），走双宠制作流水线 |
+| 自定义照片桌宠 | 选最接近的能力分支 | 用用户照片换外观；播放器能力复用该分支，不要在 `main` 从零做 |
+
+切分支后继续读：
+
+- `main` → 下文「制作老板桌宠」和 [docs/prompts/make-boss-pet.txt](docs/prompts/make-boss-pet.txt)
+- 其它分支 → 该分支 `README.md`，以及 `docs/prompts/` 里对应提示词（牛来优先 `make-current-branch-pet.txt`）
+
+---
 
 ## 环境要求
 
@@ -112,7 +150,7 @@ npm run build
 dist/Desktop-Pet-0.4.0.exe
 ```
 
-当前公开构建未进行 Windows 代码签名，SmartScreen 可能显示“未知发布者”。正式分发时应同时提供构建报告和 SHA-256 校验值。
+当前公开构建未进行 Windows 代码签名，SmartScreen 可能显示“未知发布者”。正式分发时应同时提供构建报告和 SHA-256 校验值。macOS 未交付。
 
 ## `.petpack` 资源包
 
@@ -129,7 +167,7 @@ animations/
   reaction/   # 建议不少于 4 帧
 ```
 
-验证示例资源包：
+验证示例资源包（`main` 上是老板包；其它分支替换为该分支的 pack）：
 
 ```powershell
 python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/boss.petpack
@@ -144,11 +182,11 @@ python skills/desktop-pet-maker/scripts/petpack_tool.py validate pets/packages/b
 - 自动发现入口：`.agents/skills/desktop-pet-maker/`
 - Skill 源码：`skills/desktop-pet-maker/`
 
-在编辑器中打开本项目并附上同一只宠物的清晰照片后，可以要求它生成动作帧、处理透明背景、统一体量与基线、验证资源包并构建客户专属 EXE。
+制作前必须先走本文开头的「给 AI 助手」流程：确认类型 → 切分支 → 再确认细节。不要在未选类型时直接生成。
 
 ### 用本项目制作老板桌宠（牛斯克）
 
-当前演示基线就是老板桌宠。若要在新会话中重做或继续迭代，按下面流程即可：
+`main` 的演示基线是老板桌宠。只有用户明确要做这一型之后，才按下面流程做：
 
 1. 准备 1～8 张同一角色的清晰参考图（正脸、全身、侧脸更好）。
 2. 打开本仓库，把照片和提示词一起发给 Agent。
@@ -195,7 +233,7 @@ scripts/build-customer.js         客户专属便携版构建器
 Desktop Pet 基于 [redniu123/pet-player](https://github.com/redniu123/pet-player) 修改和扩展。感谢原作者及所有贡献者。
 
 - 源代码采用 [MIT License](LICENSE)，并保留上游项目的原始版权声明
-- 当前演示资源为 `boss.petpack`（牛斯克 / 老板桌宠）及对应图标，见 [ASSETS_LICENSE.md](ASSETS_LICENSE.md)
+- `main` 演示资源为 `boss.petpack`（牛斯克 / 老板桌宠）及对应图标，见 [ASSETS_LICENSE.md](ASSETS_LICENSE.md)
 - 当前项目维护者：devin2255
 
 重新建立 Git 仓库不会改变上游许可证或素材署名义务。
