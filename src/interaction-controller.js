@@ -97,6 +97,10 @@ function createInteractionController(dependencies) {
     ? dependencies.dragFacingThresholdPx
     : 4;
 
+  function isSuspended() {
+    return typeof dependencies.isSuspended === 'function' && dependencies.isSuspended() === true;
+  }
+
   if (!petWindow || !discovery || !screen || typeof getCurrentSize !== 'function'
     || typeof sendState !== 'function') {
     throw new TypeError('interaction controller dependencies are incomplete');
@@ -505,7 +509,9 @@ function createInteractionController(dependencies) {
       height: size.height
     };
     const next = clampByVisibleBounds(desired, visibleInsets, display.bounds);
-    if (pointer.y - display.bounds.y <= visibleTopThreshold) {
+    if (isSuspended()) {
+      topSnap = undefined;
+    } else if (pointer.y - display.bounds.y <= visibleTopThreshold) {
       next.y = Math.round(display.bounds.y - visibleInsets.top);
       topSnap = {
         displayId: String(display.id),
@@ -533,6 +539,11 @@ function createInteractionController(dependencies) {
     if (!pointer || !dragOrigin || currentState !== 'dragging' || disposed) return false;
     dragOrigin = undefined;
     dragFacing = 'right';
+    if (isSuspended()) {
+      topSnap = undefined;
+      transition('normal', 'normal');
+      return true;
+    }
     const releasedTopSnap = topSnap;
     topSnap = undefined;
     const token = generation;

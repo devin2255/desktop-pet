@@ -30,12 +30,31 @@ const {
   hasWatch,
   hasMarketSequences,
   hasCallHangupSequence,
+  hasDuo,
+  hasDuoTent,
+  hasDuoSlack,
   watchMenuLabel,
   taskProviderFromConfig
 } = require('./capability-gates');
+const {
+  createDuoController,
+  classifyRightPointer,
+  canUnfold,
+  clampToWorkArea,
+  placeUnfoldedPair,
+  memberWindowSize,
+  unfoldTravelPx,
+  foldMovingBounds,
+  tentOpenProgress,
+  tabletWindowSize,
+  placeTabletWindow,
+  presentationWindowSize,
+  slackWindowSize,
+  placeSlackWindow
+} = require('./duo-controller');
 const { createVoiceSynthesizer } = require('./edge-voice');
 const { createEventHold } = require('./event-hold');
-const { nextRoamTarget, crawlIdleState } = require('./roam-motion');
+const { nextRoamTarget, crawlIdleState, roamStepBounds } = require('./roam-motion');
 const { schedulePetTaskMock } = require('./pet-task');
 const {
   app,
@@ -73,6 +92,8 @@ const PET_SIZES = {
   large: { label: '大', width: 280, height: 300 }
 };
 const EDGE_GAP = 14;
+const TENT_EXTRA_HEIGHT = 56;
+const SLACK_EXTRA_HEIGHT = 96;
 
 let petWindow;
 let tray;
@@ -83,6 +104,9 @@ let activeManifest;
 let behaviorTimer;
 let walkTimer;
 let lastWalkFacing = 'right';
+let lastPeerWalkFacing = 'left';
+let peerWalkTimer;
+let peerBehaviorTimer;
 let interaction;
 let topmostGuard;
 let mouseThroughGuard;
@@ -96,6 +120,58 @@ let watchConfigPath = '';
 let restartOfficeBus = () => {};
 let restartMarketWatcher = () => {};
 let petTaskPollTimer = null;
+
+// ── Duo (brother-duo) dual-window state ──────────────────────────────────
+// `duo` is the pure fold/unfold state machine. `petWindow` doubles as the
+// folded window and, when open, as the LEFT member window. `duoPeerWindow`
+// only exists in the `open` state and hosts the RIGHT member with its own
+// guards + interaction controller so click-through, topmost and window-edge
+// interactions are per-window (never a shared/duplicated hack).
+let duo = createDuoController({});
+let duoPeerWindow = null;
+let peerInteraction = null;
+let peerTopmostGuard = null;
+let peerMouseThroughGuard = null;
+let peerMember = null;
+let duoActiveWindow = null; // window currently receiving the gesture overlay
+let duoTooNarrowNotified = false;
+let duoSettleTimer;
+let duoFoldAnimTimer;
+let duoFoldFromSide = null;
+let duoFoldMovingStart = null;
+let duoFoldAnchorBounds = null;
+let duoFoldVisual = 0;
+let duoSlackTimer;
+
+function makeDuoController() {
+  const snap = activeManifest?.duo?.gesture?.snapProgress;
+  return createDuoController({
+    ...(Number.isFinite(snap) ? { snapProgress: snap } : {}),
+    tentEnabled: hasDuoTent(activeManifest),
+    slackEnabled: hasDuoSlack(activeManifest)
+  });
+}
+
+function duoGesture() {
+  const gesture = activeManifest?.duo?.gesture;
+  return {
+    menuSlopPx: Number.isFinite(gesture?.menuSlopPx) ? gesture.menuSlopPx : 12,
+    commitPx: Number.isFinite(gesture?.commitPx) ? gesture.commitPx : 20,
+    snapProgress: Number.isFinite(gesture?.snapProgress) ? gesture.snapProgress : 0.25
+  };
+}
+
+function duoMembers() {
+  return hasDuo(activeManifest) ? activeManifest.duo.members : [];
+}
+
+function duoMemberBySide(side) {
+  return duoMembers().find((member) => member && member.side === side) || null;
+}
+
+function duoIsOpen() {
+  return Boolean(duoPeerWindow && !duoPeerWindow.isDestroyed());
+}
 
 function readDeliveryConfig() {
   const deliveryRoot = path.join(__dirname, '..', 'delivery');
@@ -187,6 +263,36 @@ function publicManifest(manifest) {
       })
       : []
   };
+}
+
+// A member "view" reuses the active petpack id (so pet-asset URLs resolve) but
+// swaps in the member's own animations / interaction actions / menu / behavior.
+function memberView(member) {
+  if (!member) return activeManifest;
+  return {
+    ...activeManifest,
+    name: typeof member.name === 'string' && member.name ? member.name : activeManifest.name,
+    animations: member.animations || {},
+    interactionActions: member.interactionActions || {},
+    contextMenuActions: Array.isArray(member.contextMenuActions) ? member.contextMenuActions : [],
+    behavior: member.behavior || {},
+    startupGreeting: undefined,
+    startupGreetingAudio: undefined
+  };
+}
+
+function publicMemberManifest(member) {
+  return publicManifest(memberView(member));
+}
+
+// The manifest view backing petWindow: the LEFT member when Duo is open,
+// otherwise the root (folded / non-duo) manifest.
+function petWindowView() {
+  if (duoIsOpen() && hasDuo(activeManifest)) {
+    const leftMember = duoMemberBySide('left');
+    if (leftMember) return memberView(leftMember);
+  }
+  return activeManifest;
 }
 
 function saveSettings() {
@@ -294,6 +400,14 @@ function currentSize() {
   return PET_SIZES[settings.sizeKey];
 }
 
+function windowSize() {
+  return presentationWindowSize(currentSize(), duo.mode(), {
+    tentExtraHeight: TENT_EXTRA_HEIGHT,
+    slackExtraHeight: SLACK_EXTRA_HEIGHT,
+    peerOpen: duoIsOpen()
+  });
+}
+
 function getWorkAreaForBounds(bounds = petWindow?.getBounds()) {
   if (!bounds) return screen.getPrimaryDisplay().workArea;
   return screen.getDisplayNearestPoint({
@@ -310,11 +424,7 @@ function clampPosition(x, y, width = currentSize().width, height = currentSize()
   };
 }
 
-function sendState(state, message = '', speech = '', logicalRole = state, options) {
-  if (!petWindow || petWindow.isDestroyed()) return;
-  // During sequence playback (e.g. boss-call mom walk) skip bounds restore:
-  // its clamp would drag the pet window away from the approach target.
-  if (shouldRestoreWindowBounds(options) && !sequence?.isActive?.()) restorePetWindowSize();
+function buildStatePayload(state, message, speech, logicalRole, options) {
   let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
   // 带协议前缀（pet-asset:/voice-cache:/data:/file: 等）视为完整 URL，否则按资源包相对路径改写
   if (speechAudio && !/^[a-z][a-z0-9+.-]*:/i.test(speechAudio) && activeManifest) {
@@ -322,7 +432,7 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
   }
   const messages = Array.isArray(options?.messages) ? options.messages : undefined;
   const messageGapMs = Number.isFinite(options?.messageGapMs) ? options.messageGapMs : undefined;
-  petWindow.webContents.send('pet:state', {
+  return {
     state,
     logicalRole,
     message,
@@ -332,12 +442,27 @@ function sendState(state, message = '', speech = '', logicalRole = state, option
     messageGapMs,
     speechGender: options?.speechGender === 'male' || options?.speechGender === 'female' ? options.speechGender : undefined,
     messageLoop: options?.messageLoop === true,
-    speechLoop: options?.speechLoop === true
-  });
+    speechLoop: options?.speechLoop === true,
+    startAtLast: options?.startAtLast === true
+  };
 }
 
-function setMouseThrough(ignore) {
-  mouseThroughGuard?.set(ignore);
+function sendState(state, message = '', speech = '', logicalRole = state, options) {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  // During sequence playback (e.g. boss-call mom walk) skip bounds restore:
+  // its clamp would drag the pet window away from the approach target.
+  if (shouldRestoreWindowBounds(options) && !sequence?.isActive?.() && duo.mode() !== 'folding') restorePetWindowSize();
+  const tentHold = duo.mode() === 'tent' && state === tentAction();
+  petWindow.webContents.send('pet:state', buildStatePayload(state, message, speech, logicalRole, {
+    ...options,
+    startAtLast: options?.startAtLast === true || tentHold
+  }));
+}
+
+function sendPeerState(state, message = '', speech = '', logicalRole = state, options) {
+  if (!duoPeerWindow || duoPeerWindow.isDestroyed()) return;
+  if (shouldRestoreWindowBounds(options) && peerInteraction?.state?.() === 'normal' && duo.mode() !== 'folding') restorePeerWindowSize();
+  duoPeerWindow.webContents.send('pet:state', buildStatePayload(state, message, speech, logicalRole, options));
 }
 
 function stopWalk() {
@@ -345,10 +470,21 @@ function stopWalk() {
   walkTimer = undefined;
 }
 
+function stopPeerWalk() {
+  if (peerWalkTimer) clearInterval(peerWalkTimer);
+  peerWalkTimer = undefined;
+}
+
 function pauseBehavior() {
   stopWalk();
   if (behaviorTimer) clearTimeout(behaviorTimer);
   behaviorTimer = undefined;
+}
+
+function pausePeerBehavior() {
+  stopPeerWalk();
+  if (peerBehaviorTimer) clearTimeout(peerBehaviorTimer);
+  peerBehaviorTimer = undefined;
 }
 
 function finishEventHold() {
@@ -366,6 +502,7 @@ const eventHold = createEventHold({
 });
 
 function scheduleBehavior(delay = 4500 + Math.random() * 5500) {
+  if (duo.mode() === 'tent' || duo.mode() === 'slack') return;
   if (eventHold.isHeld()) return;
   if (interaction && interaction.state() !== 'normal') return;
   if (behaviorTimer) clearTimeout(behaviorTimer);
@@ -382,37 +519,48 @@ function walkTo(targetX) {
   const distance = Math.abs(targetX - startBounds.x);
   const duration = Math.max(1400, Math.min(4200, distance * 9));
   const startedAt = Date.now();
-  const moveAction = settings.crawlMode && activeManifest?.animations?.crawl ? 'crawl' : 'walk';
+  const moveAction = crawlEnabledFor('left') ? 'crawl' : 'walk';
   sendState(`${moveAction}-${direction}`);
   walkTimer = setInterval(() => {
     if (!petWindow || petWindow.isDestroyed()) return stopWalk();
     const progress = Math.min(1, (Date.now() - startedAt) / duration);
-    const x = Math.round(startBounds.x + (targetX - startBounds.x) * progress);
-    const workArea = getWorkAreaForBounds();
-    const expected = currentSize();
-    petWindow.setBounds({
-      x,
-      y: workArea.y + workArea.height - expected.height + 6,
-      width: expected.width,
-      height: expected.height
-    }, false);
+    const workArea = getWorkAreaForBounds(startBounds);
+    petWindow.setBounds(roamStepBounds(startBounds, targetX, progress, windowSize(), workArea), false);
     if (progress >= 1) {
       stopWalk();
       sendState(idleState());
-      scheduleBehavior(settings.crawlMode ? 700 + Math.random() * 900 : undefined);
+      scheduleBehavior(crawlEnabledFor('left') ? 700 + Math.random() * 900 : undefined);
     }
   }, 16);
 }
 
+function memberHasCrawl(member) {
+  return Boolean(member?.animations?.crawl);
+}
+
+function crawlAvailable() {
+  if (!duoIsOpen()) return Boolean(activeManifest?.animations?.crawl);
+  return memberHasCrawl(duoMemberBySide('left')) || memberHasCrawl(duoMemberBySide('right'));
+}
+
+function crawlEnabledFor(side) {
+  if (!settings.crawlMode) return false;
+  if (!duoIsOpen()) return Boolean(activeManifest?.animations?.crawl);
+  return memberHasCrawl(duoMemberBySide(side));
+}
+
 function idleState() {
-  return (settings.crawlMode && activeManifest?.animations?.crawl)
-    ? crawlIdleState(lastWalkFacing)
-    : 'idle';
+  if (duo.mode() === 'tent') return tentAction();
+  return crawlEnabledFor('left') ? crawlIdleState(lastWalkFacing) : 'idle';
+}
+
+function peerIdleState() {
+  return crawlEnabledFor('right') ? crawlIdleState(lastPeerWalkFacing) : 'idle';
 }
 
 function chooseBehavior() {
   // Crawl mode: only crawl-walk, never stand/sit/sleep
-  if (settings.crawlMode && activeManifest?.animations?.crawl) {
+  if (crawlEnabledFor('left')) {
     return { state: 'walk', weight: 100, minDuration: 2000, maxDuration: 5000 };
   }
   const choices = activeManifest?.behavior?.random;
@@ -434,6 +582,7 @@ function chooseBehavior() {
 }
 
 function runBehavior() {
+  if (duo.mode() === 'tent' || duo.mode() === 'slack') return;
   if (eventHold.isHeld()) return;
   if (interaction && interaction.state() !== 'normal') return;
   if (!settings.roaming || !activeManifest || !petWindow || petWindow.isDestroyed()) {
@@ -467,33 +616,131 @@ function runBehavior() {
   scheduleBehavior(duration);
 }
 
+function resumeDuoBehaviors(leftDelay = 1200, rightDelay = 900) {
+  scheduleBehavior(leftDelay);
+  schedulePeerBehavior(rightDelay);
+}
+
+function schedulePeerBehavior(delay = 2800 + Math.random() * 4200) {
+  if (!duoIsOpen() || !settings.roaming) return;
+  if (peerInteraction && peerInteraction.state() !== 'normal') return;
+  if (peerBehaviorTimer) clearTimeout(peerBehaviorTimer);
+  peerBehaviorTimer = setTimeout(runPeerBehavior, delay);
+}
+
+function syncPeerWindow(options = {}) {
+  if (!duoPeerWindow || duoPeerWindow.isDestroyed() || !peerMember) return;
+  if (options.load !== false) {
+    duoPeerWindow.webContents.send('pet:load', publicMemberManifest(peerMember));
+  }
+  sendPeerState(peerIdleState());
+  peerMouseThroughGuard?.set(false);
+  if (options.schedule !== false) schedulePeerBehavior(options.delay == null ? 700 : options.delay);
+}
+
+function walkPeerTo(targetX) {
+  if (!duoPeerWindow || duoPeerWindow.isDestroyed() || (peerInteraction && peerInteraction.state() !== 'normal')) return;
+  stopPeerWalk();
+  restorePeerWindowSize();
+  const startBounds = duoPeerWindow.getBounds();
+  const direction = targetX >= startBounds.x ? 'right' : 'left';
+  lastPeerWalkFacing = direction;
+  const distance = Math.abs(targetX - startBounds.x);
+  const duration = Math.max(1400, Math.min(4200, distance * 9));
+  const startedAt = Date.now();
+  const moveAction = crawlEnabledFor('right') ? 'crawl' : 'walk';
+  sendPeerState(`${moveAction}-${direction}`);
+  peerWalkTimer = setInterval(() => {
+    if (!duoPeerWindow || duoPeerWindow.isDestroyed()) return stopPeerWalk();
+    const progress = Math.min(1, (Date.now() - startedAt) / duration);
+    const workArea = getWorkAreaForBounds(startBounds);
+    duoPeerWindow.setBounds(roamStepBounds(startBounds, targetX, progress, windowSize(), workArea), false);
+    if (progress >= 1) {
+      stopPeerWalk();
+      sendPeerState(peerIdleState());
+      schedulePeerBehavior(crawlEnabledFor('right') ? 700 + Math.random() * 900 : undefined);
+    }
+  }, 16);
+}
+
+function choosePeerBehavior() {
+  if (crawlEnabledFor('right')) {
+    return { state: 'walk', weight: 100, minDuration: 2000, maxDuration: 5000 };
+  }
+  const member = duoMemberBySide('right');
+  const choices = member?.behavior?.random;
+  const filtered = Array.isArray(choices) ? choices.filter((item) => item?.state !== 'sleep') : [];
+  const usable = filtered.length ? filtered : [
+    { state: 'walk', weight: 50, minDuration: 1500, maxDuration: 4200 },
+    { state: 'reaction', weight: 30, minDuration: 2200, maxDuration: 3400 },
+    { state: 'sit', weight: 20, minDuration: 4200, maxDuration: 6200 }
+  ];
+  const total = usable.reduce((sum, item) => sum + Math.max(0, Number(item.weight) || 0), 0);
+  let cursor = Math.random() * total;
+  for (const item of usable) {
+    cursor -= Math.max(0, Number(item.weight) || 0);
+    if (cursor <= 0) return item;
+  }
+  return usable[0];
+}
+
+function runPeerBehavior() {
+  if (!duoIsOpen() || !settings.roaming || !duoPeerWindow || duoPeerWindow.isDestroyed()) return;
+  if (peerInteraction && peerInteraction.state() !== 'normal') return;
+  const member = duoMemberBySide('right');
+  const behavior = choosePeerBehavior();
+  const duration = Math.max(600, Number(behavior.minDuration) + Math.random() * Math.max(0, Number(behavior.maxDuration) - Number(behavior.minDuration)));
+  if (behavior.state === 'walk') {
+    const bounds = duoPeerWindow.getBounds();
+    const workArea = getWorkAreaForBounds(bounds);
+    const { targetX, direction } = nextRoamTarget(bounds, workArea, Math.random, lastPeerWalkFacing);
+    lastPeerWalkFacing = direction;
+    walkPeerTo(targetX);
+    return;
+  }
+  const action = behavior.state && member?.animations?.[behavior.state] ? behavior.state : 'reaction';
+  sendPeerState(action, behavior.message || '', behavior.speech || '', action, { speechAudio: behavior.speechAudio || '' });
+  schedulePeerBehavior(duration);
+}
+
 function setPetSize(nextKey) {
   if (!PET_SIZES[nextKey] || !petWindow || (interaction && interaction.state() !== 'normal')) return;
-  const old = petWindow.getBounds();
   settings.sizeKey = nextKey;
   saveSettings();
-  const next = currentSize();
-  const position = clampPosition(old.x + Math.round((old.width - next.width) / 2), old.y + old.height - next.height, next.width, next.height);
-  petWindow.setBounds({ x: position.x, y: position.y, width: next.width, height: next.height }, true);
+  restorePetWindowSize();
+  if (duoIsOpen()) restorePeerWindowSize();
   tray?.setContextMenu(buildTrayMenu());
 }
 
 function restorePetWindowSize() {
   if (!petWindow || petWindow.isDestroyed() || (interaction && interaction.state() !== 'normal')) return;
-  const expected = currentSize();
+  const expected = windowSize();
   const bounds = petWindow.getBounds();
-  const position = clampPosition(
-    bounds.x + Math.round((bounds.width - expected.width) / 2),
-    bounds.y + bounds.height - expected.height,
-    expected.width,
-    expected.height
-  );
-  petWindow.setBounds({ x: position.x, y: position.y, width: expected.width, height: expected.height }, false);
+  const workArea = getWorkAreaForBounds(bounds);
+  petWindow.setBounds(clampToWorkArea({
+    x: bounds.x + Math.round((bounds.width - expected.width) / 2),
+    y: bounds.y + bounds.height - expected.height,
+    width: expected.width,
+    height: expected.height
+  }, workArea), false);
+}
+
+function restorePeerWindowSize() {
+  if (!duoPeerWindow || duoPeerWindow.isDestroyed() || (peerInteraction && peerInteraction.state() !== 'normal')) return;
+  const expected = windowSize();
+  const bounds = duoPeerWindow.getBounds();
+  const workArea = getWorkAreaForBounds(bounds);
+  duoPeerWindow.setBounds(clampToWorkArea({
+    x: bounds.x + Math.round((bounds.width - expected.width) / 2),
+    y: bounds.y + bounds.height - expected.height,
+    width: expected.width,
+    height: expected.height
+  }, workArea), false);
 }
 
 function movePetKeepingSize(x, y) {
   if (!petWindow || petWindow.isDestroyed()) return;
-  const size = currentSize();
+  const size = windowSize();
   petWindow.setBounds({
     x: Math.round(x),
     y: Math.round(y),
@@ -513,7 +760,12 @@ function switchPet(id) {
   const next = listPets().find((pet) => pet.id === id);
   if (!next) return false;
   sequence?.cancel();
+  // Tearing down any duo transition/second window before swapping identity so a
+  // non-duo pet never inherits a stray peer window.
+  cancelDuoTransition();
+  if (duoIsOpen()) destroyDuoPeerWindow();
   activeManifest = next;
+  duo = makeDuoController();
   settings.petId = next.id;
   saveSettings();
   if (watchConfigPath) {
@@ -538,14 +790,30 @@ function switchPet(id) {
 function showPet() {
   petWindow?.showInactive();
   topmostGuard?.ensure();
+  if (duoIsOpen()) {
+    duoPeerWindow.showInactive();
+    peerTopmostGuard?.ensure();
+  }
+  if (duo.mode() === 'tent') {
+    applyTentPresentation();
+    return;
+  }
   if (interaction && interaction.state() !== 'normal') return;
   sendState('reaction', '你回来啦！');
   scheduleBehavior(3000);
+  if (duoIsOpen()) {
+    sendPeerState('reaction', '整点儿活儿？');
+    schedulePeerBehavior(2800);
+  }
 }
 
 function hidePet() {
   sequence?.cancel();
+  // Hiding mid-transition cancels the fold/unfold back to the pre-transition
+  // state; an already-open pair simply hides both windows and re-shows open.
+  cancelDuoTransition();
   petWindow?.hide();
+  if (duoIsOpen()) duoPeerWindow.hide();
 }
 
 function pickRandomMenuChoice(item) {
@@ -557,7 +825,7 @@ function pickRandomMenuChoice(item) {
 function runDirectMenuAction(choice) {
   if (!activeManifest || !choice || !activeManifest.animations[choice.action]) return;
   // State-aware kowtow: use crawl version when in crawl mode
-  if (choice.action === 'kowtow' && settings.crawlMode && activeManifest.animations['kowtow-crawl']) {
+  if (choice.action === 'kowtow' && crawlEnabledFor('left') && activeManifest.animations['kowtow-crawl']) {
     choice = { ...choice, action: 'kowtow-crawl' };
   }
   pauseBehavior();
@@ -576,6 +844,12 @@ function runDirectMenuAction(choice) {
 }
 
 function runContextMenuAction(item) {
+  if (item && item.id === 'duo-fold') { foldViaMenu('left'); return; }
+  if (item && item.id === 'duo-unfold') { unfoldViaMenu(); return; }
+  if (item && item.id === 'duo-tent') { tentViaMenu(); return; }
+  if (item && item.id === 'duo-untent') { leaveTentViaMenu(); return; }
+  if (item && item.id === 'duo-slack') { slackViaMenu(); return; }
+  if (item && item.id === 'duo-unslack') { leaveSlackViaMenu(); return; }
   if (!activeManifest || !item || (interaction && interaction.state() !== 'normal')) return;
   if (sequence?.isActive()) {
     sequence.cancel({ schedule: false });
@@ -712,6 +986,7 @@ function persistWatchFlags(flags) {
 // persistent ticker above the pet's head can show/hide and recolor live.
 let lastMarketQuote = null;
 function canRunOfficeBus() {
+  if (duo.mode() === 'tent' || duo.mode() === 'slack') return false;
   return Boolean(watchConfig?.enabled && hasWatch(activeManifest));
 }
 
@@ -720,6 +995,8 @@ function canPollCallHangup() {
 }
 
 function canWatchMarket() {
+  if (duo.mode() === 'tent') return false;
+  if (duo.mode() === 'slack') return true;
   return Boolean(watchConfig?.market?.enabled && hasMarketSequences(activeManifest));
 }
 
@@ -728,7 +1005,7 @@ function pushMarketStatus() {
   const market = watchConfig?.market;
   petWindow.webContents.send('pet:market', {
     enabled: canWatchMarket(),
-    simulated: Boolean(market?.simulated),
+    simulated: Boolean(market?.simulated) || lastMarketQuote?.name === '模拟盘',
     name: lastMarketQuote?.name || '',
     points: lastMarketQuote?.points,
     pct: lastMarketQuote?.pct,
@@ -736,7 +1013,8 @@ function pushMarketStatus() {
     amount: lastMarketQuote?.amount,
     up: lastMarketQuote?.up,
     down: lastMarketQuote?.down,
-    indices: Array.isArray(lastMarketQuote?.indices) ? lastMarketQuote.indices : []
+    indices: Array.isArray(lastMarketQuote?.indices) ? lastMarketQuote.indices : [],
+    klines: Array.isArray(lastMarketQuote?.klines) ? lastMarketQuote.klines : []
   });
 }
 
@@ -747,6 +1025,14 @@ function buildTrayMenu() {
   if (customActions.length) {
     template.push(...customActions.map((item) => ({ label: item.label, click: () => runContextMenuAction(item) })));
     template.push({ type: 'separator' });
+  }
+  const hasSlackMenu = customActions.some((item) => item.id === 'duo-slack');
+  if (duo.mode() === 'folded' && hasDuoSlack(activeManifest) && !hasSlackMenu) {
+    const slack = activeManifest?.duo?.slack || {};
+    const enterLabel = typeof slack.enterLabel === 'string' && slack.enterLabel.trim()
+      ? slack.enterLabel.trim()
+      : '摸会儿鱼';
+    template.push({ label: enterLabel, click: () => runContextMenuAction({ id: 'duo-slack' }) }, { type: 'separator' });
   }
   template.push({
     label: '当个事儿办',
@@ -773,8 +1059,11 @@ function buildTrayMenu() {
         saveSettings();
         if (interaction && interaction.state() !== 'normal') return;
         stopWalk();
+        stopPeerWalk();
         sendState(idleState());
+        if (duoIsOpen()) sendPeerState(peerIdleState());
         scheduleBehavior(1200);
+        if (item.checked) schedulePeerBehavior(900);
       }
     },
     {
@@ -786,10 +1075,13 @@ function buildTrayMenu() {
         saveSettings();
         if (interaction && interaction.state() !== 'normal') return;
         stopWalk();
+        stopPeerWalk();
         sendState(idleState());
+        if (duoIsOpen()) sendPeerState(peerIdleState());
         scheduleBehavior(600);
+        schedulePeerBehavior(700);
       },
-      visible: Boolean(activeManifest?.animations?.crawl)
+      visible: crawlAvailable()
     },
     {
       label: '始终置顶',
@@ -841,6 +1133,7 @@ function buildTrayMenu() {
       click: () => {
         quitting = true;
         interaction?.dispose();
+        try { peerInteraction?.dispose?.(); } catch (_) {}
         app.quit();
       }
     }
@@ -892,16 +1185,22 @@ function createWindow() {
     window: petWindow,
     discovery: createWindowDiscovery({ screen }),
     screen,
-    getCurrentSize: currentSize,
-    getManifest: () => activeManifest,
-    isSuspended: () => sequence?.isActive?.() === true,
-    sendState: (state, options) => sendState(
-      state,
-      typeof options?.message === 'string' ? options.message : '',
-      typeof options?.speech === 'string' ? options.speech : '',
-      options?.logicalRole || state,
-      options
-    ),
+    getCurrentSize: windowSize,
+    // When Duo is open, petWindow hosts the LEFT member view, so its interaction
+    // controller must resolve interactionActions/animations against that member.
+    getManifest: () => petWindowView(),
+    isSuspended: () => sequence?.isActive?.() === true || duo.mode() === 'tent' || duo.mode() === 'slack',
+    sendState: (state, options) => {
+      const role = options?.logicalRole || state;
+      const mapped = mapSuspendedInteractionState(state, role);
+      sendState(
+        mapped.state,
+        typeof options?.message === 'string' ? options.message : '',
+        typeof options?.speech === 'string' ? options.speech : '',
+        mapped.role,
+        options
+      );
+    },
     pauseBehavior,
     resumeBehavior: () => scheduleBehavior(2500),
     ensureOnTop: () => topmostGuard?.ensure(),
@@ -932,8 +1231,671 @@ function createWindow() {
   petWindow.on('closed', () => mouseThroughGuard?.dispose());
 }
 
+// ── Duo second window ────────────────────────────────────────────────────
+// Creates the RIGHT member window by cloning the exact transparent/preload/
+// sandbox options of `petWindow`, each with its own topmost + click-through
+// guards and its own interaction controller. Returns false on any failure so
+// the caller can stay folded.
+function createDuoPeerWindow() {
+  if (duoIsOpen()) return true;
+  try {
+    const origin = petWindow.getBounds();
+    const workArea = getWorkAreaForBounds(origin);
+    const size = memberWindowSize(currentSize());
+    const initial = placeUnfoldedPair(origin, size, workArea).right;
+    duoPeerWindow = new BrowserWindow({
+      width: size.width,
+      height: size.height,
+      x: initial.x,
+      y: initial.y,
+      transparent: true,
+      backgroundColor: '#00000000',
+      frame: false,
+      hasShadow: false,
+      resizable: false,
+      maximizable: false,
+      minimizable: false,
+      skipTaskbar: true,
+      show: false,
+      alwaysOnTop: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload-v3.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+        allowRunningInsecureContent: false
+      }
+    });
+    peerTopmostGuard = createTopmostGuard({ getWindow: () => duoPeerWindow });
+    peerMouseThroughGuard = createMouseThroughGuard({
+      getWindow: () => duoPeerWindow,
+      getCursorPoint: () => screen.getCursorScreenPoint()
+    });
+    peerTopmostGuard.ensure();
+    peerInteraction = createInteractionController({
+      window: duoPeerWindow,
+      discovery: createWindowDiscovery({ screen }),
+      screen,
+      getCurrentSize: windowSize,
+      getManifest: () => memberView(peerMember),
+      isSuspended: () => false,
+      sendState: (state, options) => sendPeerState(
+        state,
+        typeof options?.message === 'string' ? options.message : '',
+        typeof options?.speech === 'string' ? options.speech : '',
+        options?.logicalRole || state,
+        options
+      ),
+      pauseBehavior: pausePeerBehavior,
+      resumeBehavior: () => schedulePeerBehavior(2500),
+      ensureOnTop: () => peerTopmostGuard?.ensure(),
+      edgeGap: EDGE_GAP,
+      bottomOffset: 6
+    });
+    const indexPath = path.join(__dirname, 'index-v3.html');
+    const indexUrl = pathToFileURL(indexPath).toString();
+    duoPeerWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    duoPeerWindow.webContents.on('will-navigate', (event, url) => { if (url !== indexUrl) event.preventDefault(); });
+    duoPeerWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+    duoPeerWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
+      if (!isAlwaysOnTop && peerTopmostGuard?.isEnabled()) setImmediate(() => peerTopmostGuard?.ensure());
+    });
+    duoPeerWindow.webContents.on('did-finish-load', () => {
+      syncPeerWindow({ delay: 700 });
+      peerTopmostGuard?.ensure();
+    });
+    duoPeerWindow.loadFile(indexPath);
+    duoPeerWindow.once('ready-to-show', () => {
+      duoPeerWindow.showInactive();
+      peerTopmostGuard?.ensure();
+    });
+    duoPeerWindow.on('closed', () => peerMouseThroughGuard?.dispose());
+    return true;
+  } catch (error) {
+    console.warn(`Duo peer window failed to open: ${error.message}`);
+    destroyDuoPeerWindow();
+    return false;
+  }
+}
+
+function destroyDuoPeerWindow() {
+  pausePeerBehavior();
+  try { peerInteraction?.dispose?.(); } catch (_) {}
+  try { if (duoPeerWindow && !duoPeerWindow.isDestroyed()) duoPeerWindow.destroy(); } catch (_) {}
+  duoPeerWindow = null;
+  peerInteraction = null;
+  peerTopmostGuard = null;
+  peerMouseThroughGuard = null;
+  peerMember = null;
+}
+
+// Commit an unfold: keep the pair at the current window, shrink to member size,
+// and place the right brother just beside the left one.
+function openDuoWindows() {
+  if (!hasDuo(activeManifest)) return false;
+  const leftMember = duoMemberBySide('left');
+  const rightMember = duoMemberBySide('right');
+  if (!leftMember || !rightMember) return false;
+  peerMember = rightMember;
+  if (!createDuoPeerWindow()) {
+    peerMember = null;
+    return false;
+  }
+  const origin = petWindow.getBounds();
+  const workArea = getWorkAreaForBounds(origin);
+  const size = memberWindowSize(currentSize());
+  const placed = placeUnfoldedPair(origin, size, workArea);
+  petWindow.setBounds(placed.left, false);
+  petWindow.webContents.send('pet:load', publicMemberManifest(leftMember));
+  duoPeerWindow.setBounds(placed.right, false);
+  sendState(idleState());
+  syncPeerWindow({ load: false, delay: 900 });
+  try { duoPeerWindow.showInactive(); } catch (_) {}
+  tray?.setContextMenu(buildTrayMenu());
+  resumeDuoBehaviors(1200, 900);
+  return true;
+}
+
+function duoTransitionAction(kind) {
+  const key = kind === 'fold' ? 'foldAction' : 'unfoldAction';
+  const name = activeManifest?.duo?.[key];
+  if (typeof name !== 'string' || !name.trim()) return '';
+  return activeManifest?.animations?.[name] ? name : '';
+}
+
+function duoActionDuration(name) {
+  const frames = activeManifest?.animations?.[name];
+  if (!frames || !Array.isArray(frames.durations)) return 0;
+  return frames.durations.reduce((sum, value) => sum + (Number(value) || 0), 0);
+}
+
+function playDuoTransition(kind) {
+  const action = duoTransitionAction(kind);
+  if (!action) return 0;
+  sendState(action);
+  return Math.max(700, Math.min(1800, duoActionDuration(action) || 1000));
+}
+
+function playOpenDuoReactions() {
+  if (duoMemberBySide('left')?.animations?.reaction) sendState('reaction');
+  if (duoMemberBySide('right')?.animations?.reaction) sendPeerState('reaction');
+}
+
+function clearDuoSettle() {
+  if (duoSettleTimer) {
+    clearTimeout(duoSettleTimer);
+    duoSettleTimer = undefined;
+  }
+}
+
+function settleDuoThen(ms, next) {
+  clearDuoSettle();
+  duoSettleTimer = setTimeout(() => {
+    duoSettleTimer = undefined;
+    next();
+  }, Math.max(0, Number(ms) || 0));
+}
+
+// Commit a fold: destroy the peer and return petWindow to the folded (root
+// two-person) manifest.
+function closeDuoWindows() {
+  const stayAt = duoFoldAnchorBounds;
+  destroyDuoPeerWindow();
+  if (petWindow && !petWindow.isDestroyed()) {
+    const origin = stayAt || petWindow.getBounds();
+    const folded = currentSize();
+    const workArea = getWorkAreaForBounds(origin);
+    petWindow.setBounds(clampToWorkArea({
+      x: origin.x + Math.round((origin.width - folded.width) / 2),
+      y: origin.y + origin.height - folded.height,
+      width: folded.width,
+      height: folded.height
+    }, workArea), false);
+    const foldAction = duoTransitionAction('fold');
+    if (foldAction) sendState(foldAction);
+    petWindow.webContents.send('pet:load', publicManifest(activeManifest));
+    tray?.setContextMenu(buildTrayMenu());
+    clearDuoFoldLayout();
+    scheduleBehavior(foldAction ? Math.max(1600, duoActionDuration(foldAction) + 400) : 1200);
+    return;
+  }
+  clearDuoFoldLayout();
+  tray?.setContextMenu(buildTrayMenu());
+  scheduleBehavior(1200);
+}
+
+function sendDuoOverlay(win, active, overrides) {
+  if (!win || win.isDestroyed()) return;
+  const progress = Number.isFinite(overrides?.progress) ? overrides.progress : duo.progress();
+  win.webContents.send('pet:duo-overlay', {
+    active,
+    progress,
+    direction: overrides?.direction || duo.direction(),
+    phase: overrides?.phase || duo.mode(),
+    side: overrides?.side,
+    slackStage: overrides?.slackStage,
+    introLeft: overrides?.introLeft,
+    introRight: overrides?.introRight,
+    clips: overrides?.clips,
+    board: overrides?.board
+  });
+}
+
+function sendDuoOverlays(active, overrides) {
+  sendDuoOverlay(petWindow, active, { ...overrides, side: 'left' });
+  sendDuoOverlay(duoPeerWindow, active, { ...overrides, side: 'right' });
+}
+
+function applyUnfoldTabletFrame(direction, origin = petWindow?.getBounds()) {
+  if (!petWindow || petWindow.isDestroyed() || !origin) return;
+  const workArea = getWorkAreaForBounds(origin);
+  petWindow.setBounds(
+    placeTabletWindow(origin, tabletWindowSize(currentSize()), workArea, direction === 'left' ? 'left' : 'right'),
+    false
+  );
+}
+
+function tentAction() {
+  const action = activeManifest?.duo?.tent?.action;
+  if (typeof action === 'string' && activeManifest?.animations?.[action]) return action;
+  return 'idle';
+}
+
+function mapSuspendedInteractionState(state, role) {
+  const mode = duo.mode();
+  const token = String(state || '');
+  const roleName = String(role || '');
+  const idleReturn = token === 'normal' || roleName === 'normal';
+  const dragPose = token === 'drag' || roleName === 'drag'
+    || token.startsWith('drag-') || roleName.startsWith('drag-');
+  if (mode === 'tent' && idleReturn) {
+    const action = tentAction();
+    return { state: action, role: action };
+  }
+  if (mode === 'slack' && (idleReturn || dragPose)) {
+    const action = slackAction('carryAction', 'idle') || 'idle';
+    return { state: action, role: action };
+  }
+  return { state, role };
+}
+
+function tentOverlayProgress() {
+  return tentOpenProgress(activeManifest?.duo?.tent?.openProgress);
+}
+
+function applyTentPresentation() {
+  if (!petWindow || petWindow.isDestroyed() || duo.mode() !== 'tent') return;
+  restorePetWindowSize();
+  sendDuoOverlay(petWindow, true, { progress: tentOverlayProgress(), phase: 'tent' });
+  sendState(tentAction());
+  pushMarketStatus();
+  restartOfficeBus();
+  tray?.setContextMenu(buildTrayMenu());
+}
+
+function tentViaMenu() {
+  if (!hasDuoTent(activeManifest) || duo.mode() !== 'folded') return;
+  pauseBehavior();
+  pausePeerBehavior();
+  if (!duo.beginTent()) return;
+  applyTentPresentation();
+}
+
+function leaveTentViaMenu() {
+  if (duo.mode() !== 'tent' || !duo.leaveTent()) return;
+  sendDuoOverlay(petWindow, false);
+  restorePetWindowSize();
+  sendState(idleState());
+  pushMarketStatus();
+  restartOfficeBus();
+  scheduleBehavior(900);
+  tray?.setContextMenu(buildTrayMenu());
+}
+
+function clearSlackTimer() {
+  if (duoSlackTimer) {
+    clearTimeout(duoSlackTimer);
+    duoSlackTimer = undefined;
+  }
+}
+
+function slackConfig() {
+  return activeManifest?.duo?.slack || {};
+}
+
+function slackAction(key, fallback = '') {
+  const action = slackConfig()[key];
+  if (typeof action === 'string' && activeManifest?.animations?.[action]) return action;
+  return fallback && activeManifest?.animations?.[fallback] ? fallback : '';
+}
+
+function slackIntroFrame(side) {
+  const member = duoMemberBySide(side);
+  const frame = member?.animations?.idle?.frames?.[0];
+  return typeof frame === 'string' ? petAssetUrl(activeManifest.id, frame) : '';
+}
+
+function slackClips() {
+  const clips = slackConfig().clips;
+  return Array.isArray(clips)
+    ? clips.filter((clip) => typeof clip === 'string' && clip).map((clip) => petAssetUrl(activeManifest.id, clip))
+    : [];
+}
+
+function applySlackPresentation(slackStage) {
+  if (!petWindow || petWindow.isDestroyed() || duo.mode() !== 'slack') return;
+  const origin = petWindow.getBounds();
+  const size = slackWindowSize(currentSize(), SLACK_EXTRA_HEIGHT);
+  const workArea = getWorkAreaForBounds(origin);
+  petWindow.setBounds(placeSlackWindow(origin, size, workArea), false);
+  sendDuoOverlay(petWindow, true, {
+    progress: 1,
+    phase: 'slack',
+    slackStage,
+    introLeft: slackIntroFrame('left'),
+    introRight: slackIntroFrame('right'),
+    clips: slackClips(),
+    board: null
+  });
+  pushMarketStatus();
+  restartMarketWatcher();
+  restartOfficeBus();
+  tray?.setContextMenu(buildTrayMenu());
+}
+
+function slackViaMenu() {
+  if (!hasDuoSlack(activeManifest) || duo.mode() !== 'folded') return;
+  pauseBehavior();
+  pausePeerBehavior();
+  if (!duo.beginSlack()) return;
+  clearSlackTimer();
+  applySlackPresentation('intro');
+  duoSlackTimer = setTimeout(() => {
+    duoSlackTimer = undefined;
+    if (duo.mode() !== 'slack') return;
+    applySlackPresentation('jump');
+    const jumpAction = slackAction('jumpAction');
+    if (jumpAction) sendState(jumpAction);
+    const jumpMs = jumpAction ? Math.max(500, Math.min(1800, duoActionDuration(jumpAction) || 900)) : 0;
+    duoSlackTimer = setTimeout(() => {
+      duoSlackTimer = undefined;
+      if (duo.mode() !== 'slack') return;
+      applySlackPresentation('carry');
+      sendState(slackAction('carryAction', 'idle') || 'idle');
+    }, jumpMs);
+  }, 700);
+}
+
+function leaveSlackViaMenu() {
+  if (duo.mode() !== 'slack' || !duo.leaveSlack()) return;
+  clearSlackTimer();
+  sendDuoOverlay(petWindow, false);
+  restorePetWindowSize();
+  sendState('idle');
+  scheduleBehavior(1200);
+  pushMarketStatus();
+  restartOfficeBus();
+  tray?.setContextMenu(buildTrayMenu());
+}
+
+function buildSlackMenu() {
+  const slack = slackConfig();
+  const leaveLabel = typeof slack.leaveLabel === 'string' && slack.leaveLabel.trim()
+    ? slack.leaveLabel.trim()
+    : '收工了';
+  return Menu.buildFromTemplate([
+    { label: leaveLabel, click: () => leaveSlackViaMenu() },
+    { type: 'separator' },
+    { label: '暂时藏起来', click: hidePet },
+    {
+      label: `退出${deliveryConfig?.appName || '桌宠播放器'}`,
+      click: () => {
+        quitting = true;
+        interaction?.dispose();
+        try { peerInteraction?.dispose?.(); } catch (_) {}
+        app.quit();
+      }
+    }
+  ]);
+}
+
+function buildTentMenu() {
+  const tent = activeManifest?.duo?.tent || {};
+  const leaveLabel = typeof tent.leaveLabel === 'string' && tent.leaveLabel.trim()
+    ? tent.leaveLabel.trim()
+    : '收起来';
+  const rest = (activeManifest?.contextMenuActions || []).find((item) => item.id === 'rest');
+  const template = [
+    { label: leaveLabel, click: () => leaveTentViaMenu() },
+    { label: '展开', click: () => unfoldViaMenu() }
+  ];
+  if (rest && rest.label) {
+    template.push({ label: rest.label, click: () => runDirectMenuAction(rest) });
+  }
+  template.push(
+    { type: 'separator' },
+    { label: '暂时藏起来', click: hidePet },
+    {
+      label: `退出${deliveryConfig?.appName || '桌宠播放器'}`,
+      click: () => {
+        quitting = true;
+        interaction?.dispose();
+        try { peerInteraction?.dispose?.(); } catch (_) {}
+        app.quit();
+      }
+    }
+  );
+  return Menu.buildFromTemplate(template);
+}
+
+function foldWindows() {
+  const moving = duoFoldFromSide === 'right' ? duoPeerWindow : petWindow;
+  const staying = duoFoldFromSide === 'right' ? petWindow : duoPeerWindow;
+  return { moving, staying };
+}
+
+function sendFoldMovingOverlay(active, progress) {
+  const { moving, staying } = foldWindows();
+  sendDuoOverlay(staying, false);
+  sendDuoOverlay(moving, active, {
+    progress,
+    phase: 'folding',
+    side: duoFoldFromSide
+  });
+}
+
+function clearDuoFoldLayout() {
+  if (duoFoldAnimTimer) {
+    clearTimeout(duoFoldAnimTimer);
+    duoFoldAnimTimer = undefined;
+  }
+  duoFoldFromSide = null;
+  duoFoldMovingStart = null;
+  duoFoldAnchorBounds = null;
+  duoFoldVisual = 0;
+}
+
+function beginDuoFoldLayout(fromSide) {
+  duoFoldFromSide = fromSide === 'right' ? 'right' : 'left';
+  const { moving, staying } = foldWindows();
+  if (!moving || moving.isDestroyed() || !staying || staying.isDestroyed()) return;
+  duoFoldMovingStart = { ...moving.getBounds() };
+  duoFoldAnchorBounds = { ...staying.getBounds() };
+  try { moving.moveTop(); } catch (_) {}
+  applyDuoFoldLayout(0);
+  sendFoldMovingOverlay(true, 0);
+}
+
+function applyDuoFoldLayout(progress) {
+  if (!duoFoldMovingStart || !duoFoldAnchorBounds) return;
+  const { moving, staying } = foldWindows();
+  if (moving && !moving.isDestroyed()) {
+    moving.setBounds(foldMovingBounds(progress, duoFoldMovingStart, duoFoldAnchorBounds), false);
+  }
+  if (staying && !staying.isDestroyed()) {
+    staying.setBounds(duoFoldAnchorBounds, false);
+  }
+  duoFoldVisual = progress;
+}
+
+function restoreOpenDuoWindows() {
+  const { moving, staying } = foldWindows();
+  if (moving && !moving.isDestroyed() && duoFoldMovingStart) {
+    moving.setBounds(duoFoldMovingStart, false);
+  }
+  if (staying && !staying.isDestroyed() && duoFoldAnchorBounds) {
+    staying.setBounds(duoFoldAnchorBounds, false);
+  }
+}
+
+function animateDuoFoldThen(done) {
+  const from = duoFoldVisual;
+  if (from >= 1) {
+    done();
+    return;
+  }
+  const started = Date.now();
+  const duration = 420;
+  function step() {
+    const t = Math.min(1, from + (1 - from) * ((Date.now() - started) / duration));
+    applyDuoFoldLayout(t);
+    sendFoldMovingOverlay(true, t);
+    if (t < 1) {
+      duoFoldAnimTimer = setTimeout(step, 16);
+      return;
+    }
+    duoFoldAnimTimer = undefined;
+    done();
+  }
+  step();
+}
+
+function cancelDuoTransition() {
+  clearDuoSettle();
+  const mode = duo.mode();
+  if (mode === 'unfolding' || mode === 'folding') {
+    duo.cancel();
+    if (mode === 'folding') restoreOpenDuoWindows();
+    sendDuoOverlays(false);
+    if (duoActiveWindow) sendDuoOverlay(duoActiveWindow, false);
+    if (duo.mode() === 'tent') applyTentPresentation();
+    else if (duo.mode() === 'folded') restorePetWindowSize();
+  }
+  clearDuoFoldLayout();
+  duoActiveWindow = null;
+  duoTooNarrowNotified = false;
+}
+
+// Drive a full-progress fold from a menu item (`id === 'duo-fold'`).
+function foldViaMenu(side) {
+  if (duo.mode() !== 'open') return;
+  if (!duo.beginFold(side)) return;
+  pauseBehavior();
+  pausePeerBehavior();
+  playOpenDuoReactions();
+  const win = side === 'right' ? duoPeerWindow : petWindow;
+  const anchor = win && !win.isDestroyed() ? win : petWindow;
+  const workArea = getWorkAreaForBounds(anchor.getBounds());
+  duo.setTravelPx(unfoldTravelPx(workArea.width));
+  duo.updateDrag(side === 'left' ? workArea.width : -workArea.width);
+  beginDuoFoldLayout(side);
+  animateDuoFoldThen(() => {
+    if (duo.release().commit) closeDuoWindows();
+    sendDuoOverlays(false);
+    clearDuoFoldLayout();
+  });
+}
+
+// Drive a full-progress unfold from a menu item (`id === 'duo-unfold'`), used
+// as a fallback when the drag gesture is awkward.
+function unfoldViaMenu() {
+  if ((duo.mode() !== 'folded' && duo.mode() !== 'tent') || !hasDuo(activeManifest)) return;
+  const workArea = getWorkAreaForBounds(petWindow.getBounds());
+  if (!canUnfold(workArea, memberWindowSize(currentSize()))) {
+    sendState('reaction', '太挤了，展不开');
+    return;
+  }
+  const fromTent = duo.mode() === 'tent';
+  if (!duo.beginUnfold('right', fromTent ? { fromMenu: true } : undefined)) return;
+  applyUnfoldTabletFrame('right');
+  pauseBehavior();
+  pausePeerBehavior();
+  const waitMs = playDuoTransition('unfold');
+  duo.setTravelPx(unfoldTravelPx(workArea.width));
+  duo.updateDrag(workArea.width);
+  sendDuoOverlay(petWindow, true, { progress: 1, phase: 'unfolding' });
+  if (duo.progress() >= duoGesture().snapProgress) {
+    settleDuoThen(waitMs, () => {
+      if (openDuoWindows()) duo.release();
+      else {
+        duo.cancel();
+        if (duo.mode() === 'tent') applyTentPresentation();
+        else {
+          restorePetWindowSize();
+          sendState('reaction', '展不开，再试一次');
+        }
+        scheduleBehavior(1500);
+      }
+      if (duo.mode() !== 'tent') sendDuoOverlay(petWindow, false);
+    });
+  } else {
+    duo.cancel();
+    if (duo.mode() === 'tent') applyTentPresentation();
+    else {
+      restorePetWindowSize();
+      sendDuoOverlay(petWindow, false);
+    }
+    scheduleBehavior(1200);
+  }
+}
+
+// Which window(s) should receive a watch (画饼雷达) hit: folded → petWindow;
+// open → only the member flagged `watch: true`.
+function targetWatchWindow() {
+  if (duoIsOpen() && hasDuo(activeManifest)) {
+    const watchMember = duoMembers().find((m) => m.watch === true);
+    if (watchMember && watchMember.side === 'right') return duoPeerWindow;
+  }
+  return petWindow;
+}
+
+function dispatchWatchState(state, message, speech, options) {
+  if (duo.mode() === 'tent' || duo.mode() === 'slack') return;
+  const win = targetWatchWindow();
+  if (win === duoPeerWindow) sendPeerState(state, message, speech, state, options || {});
+  else sendState(state, message, speech, state, options || {});
+}
+
+// Per-member right-click menu (open state): member's own actions, plus watch
+// toggle for the watch member, hide and quit. `id === 'duo-fold'` intercepts.
+function buildMemberMenu(member, side) {
+  const template = [];
+  const actions = Array.isArray(member?.contextMenuActions) ? member.contextMenuActions : [];
+  if (actions.length) {
+    template.push(...actions.map((item) => ({ label: item.label, click: () => runMemberMenuAction(member, side, item) })));
+    template.push({ type: 'separator' });
+  }
+  if (member?.watch === true && hasWatch(activeManifest)) {
+    template.push({
+      label: watchMenuLabel(activeManifest),
+      type: 'checkbox',
+      checked: Boolean(watchConfig?.enabled),
+      click: (item) => persistWatchFlags({ enabled: item.checked })
+    }, { type: 'separator' });
+  }
+  template.push({ label: '暂时藏起来', click: hidePet });
+  template.push({
+    label: `退出${deliveryConfig?.appName || '桌宠播放器'}`,
+    click: () => {
+      quitting = true;
+      interaction?.dispose();
+      try { peerInteraction?.dispose?.(); } catch (_) {}
+      app.quit();
+    }
+  });
+  return Menu.buildFromTemplate(template);
+}
+
+function runMemberMenuAction(member, side, item) {
+  if (!item) return;
+  if (item.id === 'duo-fold') { foldViaMenu(side); return; }
+  let choice = item;
+  if (Array.isArray(item.randomActions) && item.randomActions.length) {
+    choice = item.randomActions[Math.floor(Math.random() * item.randomActions.length)];
+  }
+  if (!choice || !choice.action || !member?.animations?.[choice.action]) return;
+  if (side === 'right') pausePeerBehavior();
+  else pauseBehavior();
+  const emit = side === 'right' ? sendPeerState : sendState;
+  emit(choice.action, choice.message || '', choice.speech || '', choice.action, { speechAudio: choice.speechAudio || '' });
+  if (side === 'right') schedulePeerBehavior(2800);
+  else scheduleBehavior(2800);
+}
+
+function windowForSender(event) {
+  if (petWindow && !petWindow.isDestroyed()
+    && event.sender === petWindow.webContents && event.senderFrame === petWindow.webContents.mainFrame) {
+    return petWindow;
+  }
+  if (duoPeerWindow && !duoPeerWindow.isDestroyed()
+    && event.sender === duoPeerWindow.webContents && event.senderFrame === duoPeerWindow.webContents.mainFrame) {
+    return duoPeerWindow;
+  }
+  return null;
+}
+
+function interactionForWindow(win) {
+  return win === duoPeerWindow ? peerInteraction : interaction;
+}
+
+function setMouseThroughFor(win, ignore) {
+  if (win === duoPeerWindow) peerMouseThroughGuard?.set(ignore);
+  else mouseThroughGuard?.set(ignore);
+}
+
 function trustedIpc(event) {
-  return Boolean(petWindow && !petWindow.isDestroyed() && event.sender === petWindow.webContents && event.senderFrame === petWindow.webContents.mainFrame);
+  return windowForSender(event) !== null;
 }
 
 function handleTrusted(channel, listener) {
@@ -947,47 +1909,84 @@ function onTrusted(channel, listener) {
   ipcMain.on(channel, (event, ...args) => { if (trustedIpc(event)) listener(...args); });
 }
 
+// Window-aware variants: pass the resolved source window (petWindow or the duo
+// peer) so per-window interaction controllers and guards can be targeted.
+function handleTrustedWin(channel, listener) {
+  ipcMain.handle(channel, (event, ...args) => {
+    const win = windowForSender(event);
+    if (!win) throw new Error('拒绝来自非受信渲染页面的 IPC 请求');
+    return listener(win, ...args);
+  });
+}
+
+function onTrustedWin(channel, listener) {
+  ipcMain.on(channel, (event, ...args) => {
+    const win = windowForSender(event);
+    if (win) listener(win, ...args);
+  });
+}
+
 function validPointer(pointer) {
   return pointer && Number.isFinite(pointer.screenX) && Number.isFinite(pointer.screenY) && Math.abs(pointer.screenX) < 1000000 && Math.abs(pointer.screenY) < 1000000;
 }
 
 function validVisibleInsets(insets) {
-  const size = currentSize();
+  const size = windowSize();
   return insets && ['left', 'top', 'right', 'bottom'].every((side) => {
     const limit = side === 'left' || side === 'right' ? size.width : size.height;
     return Number.isFinite(insets[side]) && insets[side] >= 0 && insets[side] < limit;
   });
 }
 
-handleTrusted('pet:get-current', () => publicManifest(activeManifest));
+handleTrustedWin('pet:get-current', (win) => {
+  if (duoIsOpen() && hasDuo(activeManifest)) {
+    return publicMemberManifest(win === duoPeerWindow ? duoMemberBySide('right') : duoMemberBySide('left'));
+  }
+  return publicManifest(activeManifest);
+});
 handleTrusted('pet:import', () => {
   if (deliveryConfig && !deliveryConfig.allowPetManagement) return null;
   return promptImportPetpack();
 });
-onTrusted('pet:drag-start', (pointer) => {
-  if (!interaction || !validPointer(pointer)) return;
-  if (sequence?.isActive()) sequence.cancel({ schedule: false });
-  setMouseThrough(false);
-  interaction.startDrag(pointer);
+onTrustedWin('pet:drag-start', (win, pointer) => {
+  const inter = interactionForWindow(win);
+  if (!inter || !validPointer(pointer)) return;
+  // Left-drag on any window aborts an in-progress fold/unfold back to prior state.
+  cancelDuoTransition();
+  if (win === petWindow && sequence?.isActive()) sequence.cancel({ schedule: false });
+  setMouseThroughFor(win, false);
+  inter.startDrag(pointer);
 });
-onTrusted('pet:drag-move', (pointer) => {
-  if (!interaction || !validPointer(pointer)) return;
-  interaction.moveDrag(pointer);
+onTrustedWin('pet:drag-move', (win, pointer) => {
+  const inter = interactionForWindow(win);
+  if (!inter || !validPointer(pointer)) return;
+  inter.moveDrag(pointer);
 });
-onTrusted('pet:drag-end', (pointer) => {
-  if (!interaction || !validPointer(pointer)) return;
-  void interaction.endDrag(pointer).catch((error) => {
+onTrustedWin('pet:drag-end', (win, pointer) => {
+  const inter = interactionForWindow(win);
+  if (!inter || !validPointer(pointer)) return;
+  void inter.endDrag(pointer).catch((error) => {
     console.warn(`Window interaction ended unexpectedly: ${error.message}`);
   });
 });
-onTrusted('pet:visible-insets', (insets) => {
-  if (interaction && validVisibleInsets(insets)) interaction.updateVisibleInsets(insets);
+onTrustedWin('pet:visible-insets', (win, insets) => {
+  const inter = interactionForWindow(win);
+  if (inter && validVisibleInsets(insets)) inter.updateVisibleInsets(insets);
 });
-onTrusted('pet:set-mouse-through', (ignore) => {
-  if (!interaction || interaction.state() !== 'dragging') setMouseThrough(Boolean(ignore));
+onTrustedWin('pet:set-mouse-through', (win, ignore) => {
+  const inter = interactionForWindow(win);
+  if (!inter || inter.state() !== 'dragging') setMouseThroughFor(win, Boolean(ignore));
 });
-onTrusted('pet:interact', () => {
-  if (interaction && interaction.state() !== 'normal') return;
+onTrustedWin('pet:interact', (win) => {
+  const inter = interactionForWindow(win);
+  if (inter && inter.state() !== 'normal') return;
+  if (duo.mode() === 'tent' || duo.mode() === 'slack') return;
+  if (win === duoPeerWindow) {
+    pausePeerBehavior();
+    sendPeerState('reaction', '整点儿活儿？');
+    schedulePeerBehavior(2800);
+    return;
+  }
   if (sequence?.isWaitingForClick()) {
     sequence.continueFromClick();
     return;
@@ -997,16 +1996,142 @@ onTrusted('pet:interact', () => {
   sendState('reaction', '不要丢下我呀 ♥');
   scheduleBehavior(3400);
 });
-onTrusted('pet:context-menu', () => {
-  if (!petWindow || petWindow.isDestroyed()) return;
-  setMouseThrough(false);
-  buildTrayMenu().popup({
-    window: petWindow,
+onTrustedWin('pet:duo-pointer-down', (win) => {
+  if (!hasDuo(activeManifest)) return;
+  duoActiveWindow = win;
+  duoTooNarrowNotified = false;
+});
+onTrustedWin('pet:duo-pointer-move', (win, payload) => {
+  if (!hasDuo(activeManifest) || !payload) return;
+  const gesture = duoGesture();
+  const cls = classifyRightPointer({ dx: payload.dx, dy: payload.dy, menuSlopPx: gesture.menuSlopPx, commitPx: gesture.commitPx });
+  const mode = duo.mode();
+  if (mode === 'slack') return;
+  if (mode === 'folded') {
+    if (cls.kind !== 'duo') return;
+    const workArea = getWorkAreaForBounds(win.getBounds());
+    if (!canUnfold(workArea, memberWindowSize(currentSize()))) {
+      if (!duoTooNarrowNotified) {
+        duoTooNarrowNotified = true;
+        sendState('reaction', '太挤了，展不开');
+      }
+      return;
+    }
+    if (!duo.beginUnfold(cls.direction)) return;
+    duoActiveWindow = win;
+    applyUnfoldTabletFrame(cls.direction, win.getBounds());
+    pauseBehavior();
+    pausePeerBehavior();
+    playDuoTransition('unfold');
+    duo.setTravelPx(unfoldTravelPx(workArea.width));
+    duo.updateDrag(payload.dx);
+    sendDuoOverlay(win, true);
+  } else if (mode === 'unfolding') {
+    duo.updateDrag(payload.dx);
+    sendDuoOverlay(duoActiveWindow || win, true);
+  } else if (mode === 'open') {
+    if (cls.kind !== 'duo') return;
+    const side = win === duoPeerWindow ? 'right' : 'left';
+    const towardCenter = (side === 'left' && payload.dx > 0) || (side === 'right' && payload.dx < 0);
+    if (!towardCenter) return;
+    if (!duo.beginFold(side)) return;
+    duoActiveWindow = win;
+    pauseBehavior();
+    pausePeerBehavior();
+    playOpenDuoReactions();
+    const workArea = getWorkAreaForBounds(win.getBounds());
+    duo.setTravelPx(unfoldTravelPx(workArea.width));
+    duo.updateDrag(payload.dx);
+    beginDuoFoldLayout(side);
+  } else if (mode === 'folding') {
+    duo.updateDrag(payload.dx);
+    applyDuoFoldLayout(duo.progress());
+    sendFoldMovingOverlay(true, duo.progress());
+  }
+});
+onTrustedWin('pet:duo-pointer-up', (win) => {
+  if (!hasDuo(activeManifest)) return;
+  duoTooNarrowNotified = false;
+  const mode = duo.mode();
+  if (mode === 'slack') {
+    duoActiveWindow = null;
+    return;
+  }
+  const overlayWin = duoActiveWindow || win;
+  if (mode === 'unfolding') {
+    const willCommit = duo.progress() >= duoGesture().snapProgress;
+    if (willCommit) {
+      sendDuoOverlay(overlayWin, true, { progress: 1, phase: 'unfolding' });
+      settleDuoThen(duoTransitionAction('unfold') ? Math.max(700, Math.min(1400, duoActionDuration(duoTransitionAction('unfold')))) : 400, () => {
+        if (openDuoWindows()) {
+          duo.release();
+        } else {
+          duo.cancel();
+          restorePetWindowSize();
+          sendState('reaction', '展不开，再试一次');
+          scheduleBehavior(1500);
+        }
+        sendDuoOverlay(overlayWin, false);
+        duoActiveWindow = null;
+      });
+      return;
+    }
+    duo.release();
+    sendDuoOverlay(overlayWin, false);
+    restorePetWindowSize();
+    scheduleBehavior(1500);
+  } else if (mode === 'folding') {
+    if (duo.progress() >= duoGesture().snapProgress) {
+      animateDuoFoldThen(() => {
+        if (duo.release().commit) closeDuoWindows();
+        sendDuoOverlays(false);
+        sendDuoOverlay(overlayWin, false);
+        clearDuoFoldLayout();
+        duoActiveWindow = null;
+      });
+      return;
+    }
+    duo.release();
+    restoreOpenDuoWindows();
+    sendDuoOverlays(false);
+    sendDuoOverlay(overlayWin, false);
+    clearDuoFoldLayout();
+    resumeDuoBehaviors(1500, 1200);
+  }
+  duoActiveWindow = null;
+});
+onTrustedWin('pet:duo-pointer-cancel', () => {
+  cancelDuoTransition();
+});
+onTrustedWin('pet:context-menu', (win) => {
+  if (!win || win.isDestroyed()) return;
+  setMouseThroughFor(win, false);
+  // Open state: each window shows its own member menu. Right = RIGHT member,
+  // left window = LEFT member. Folded (or non-duo) keeps the full tray menu.
+  let menu;
+  if (duo.mode() === 'slack' && hasDuoSlack(activeManifest)) {
+    menu = buildSlackMenu();
+  } else if (duo.mode() === 'tent' && hasDuoTent(activeManifest)) {
+    menu = buildTentMenu();
+  } else if (duoIsOpen() && hasDuo(activeManifest)) {
+    menu = win === duoPeerWindow
+      ? buildMemberMenu(duoMemberBySide('right'), 'right')
+      : buildMemberMenu(duoMemberBySide('left'), 'left');
+  } else {
+    menu = buildTrayMenu();
+  }
+  menu.popup({
+    window: win,
     callback: () => {
-      restorePetWindowSize();
-      setMouseThrough(false);
+      if (win === duoPeerWindow) restorePeerWindowSize();
+      else restorePetWindowSize();
+      setMouseThroughFor(win, false);
     }
   });
+});
+
+onTrustedWin('pet:slack-exit', () => {
+  leaveSlackViaMenu();
 });
 
 deliveryConfig = readDeliveryConfig();
@@ -1070,6 +2195,7 @@ if (!gotLock) {
     if (!activeManifest) throw new Error('没有可用宠物，请导入 .petpack');
     settings.petId = activeManifest.id;
     saveSettings();
+    duo = makeDuoController();
     createWindow();
     sequence = createSequenceController({
       getManifest: () => activeManifest,
@@ -1096,7 +2222,8 @@ if (!gotLock) {
     }
     const watchSendState = (state, message, speech, opts) => {
       eventHold.beginForSpeech(message || speech);
-      sendState(state, message, speech, state, opts || {});
+      // 画饼雷达命中：折叠态发 petWindow；展开态只发 watch: true 的成员窗。
+      dispatchWatchState(state, message, speech, opts);
     };
     const cooldownMap = new Map();
     let voice = watchConfig.enabled
@@ -1291,6 +2418,7 @@ if (!gotLock) {
     }
     function handleMarketEvent(kind, quote) {
       marketDbg(`handleMarketEvent kind=${kind} pct=${quote?.pct} sequenceActive=${sequence.isActive()}`);
+      if (duo.mode() === 'tent' || duo.mode() === 'slack') return;
       if (sequence.isActive()) return;
       const seqId = kind === 'bull' ? 'market-bull' : 'market-bear';
       const seqDef = activeManifest?.sequences?.[seqId];
@@ -1329,7 +2457,10 @@ if (!gotLock) {
       });
     }
     marketWatcher = createMarketWatcher({
-      getConfig: () => canWatchMarket() ? watchConfig?.market : { enabled: false },
+      getConfig: () => {
+        if (duo.mode() === 'slack') return { ...(watchConfig?.market || {}), enabled: true };
+        return canWatchMarket() ? watchConfig?.market : { enabled: false };
+      },
       onEvent: handleMarketEvent,
       onStatus: (status) => { marketDbg(`status: ${JSON.stringify(status)}`); },
       onQuote: (quote) => { lastMarketQuote = quote; pushMarketStatus(); },
@@ -1350,6 +2481,9 @@ if (!gotLock) {
 
 app.on('before-quit', () => {
   quitting = true;
+  cancelDuoTransition();
+  clearSlackTimer();
+  destroyDuoPeerWindow();
   interaction?.dispose();
   sequence?.dispose();
   imBus?.stop();

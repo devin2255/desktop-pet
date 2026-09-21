@@ -61,6 +61,53 @@ function toEntry(item) {
   };
 }
 
+function parseKlines(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const line of raw) {
+    const parts = String(line).split(',');
+    const open = Number(parts[1]);
+    const close = Number(parts[2]);
+    const high = Number(parts[3]);
+    const low = Number(parts[4]);
+    if (![open, close, high, low].every(Number.isFinite)) continue;
+    out.push({ date: parts[0] || '', open, close, high, low });
+  }
+  return out;
+}
+
+function fetchKlineFromHost(host, secid, lmt) {
+  return new Promise((resolve, reject) => {
+    const url = `https://${host}/api/qt/stock/kline/get?secid=${encodeURIComponent(secid)}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&end=20500101&lmt=${lmt}`;
+    const req = https.get(url, { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) { res.resume(); reject(new Error(`HTTP ${res.statusCode}`)); return; }
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          const bars = parseKlines(parsed && parsed.data && parsed.data.klines);
+          if (!bars.length) { reject(new Error('K线数据缺失')); return; }
+          resolve(bars);
+        } catch (err) { reject(err); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(new Error('timeout')); });
+    req.on('error', (err) => reject(err));
+  });
+}
+
+async function defaultFetchKline(secid, lmt = 48) {
+  let lastErr;
+  for (const host of ['push2his.eastmoney.com', 'push2hisdelay.eastmoney.com']) {
+    try { return await fetchKlineFromHost(host, secid, lmt); } catch (err) { lastErr = err; }
+  }
+  throw lastErr || new Error('K线数据缺失');
+}
+
+const klineCache = { secid: '', at: 0, bars: [] };
+
 async function defaultFetchQuote(secid) {
   const secids = [...new Set([secid, ...EXTRA_SECIDS])].join(',');
   let diff = null;
@@ -72,10 +119,21 @@ async function defaultFetchQuote(secid) {
   const entries = diff.map(toEntry);
   const primary = entries.find((e) => e.pct !== undefined && secid.endsWith(e.code)) || entries.find((e) => e.pct !== undefined);
   if (!primary) throw new Error('行情数据缺失');
+  let klines = klineCache.secid === secid ? klineCache.bars : [];
+  const nowMs = Date.now();
+  if (!(klineCache.secid === secid && nowMs - klineCache.at < 45000 && klineCache.bars.length)) {
+    try {
+      klines = await defaultFetchKline(secid);
+      klineCache.secid = secid;
+      klineCache.at = nowMs;
+      klineCache.bars = klines;
+    } catch (_) { /* keep last bars */ }
+  }
   return {
     ...primary,
     indices: entries.filter((e) => e.code !== primary.code && e.pct !== undefined)
-      .map((e) => ({ name: e.name, pct: e.pct }))
+      .map((e) => ({ name: e.name, pct: e.pct })),
+    klines
   };
 }
 
@@ -127,6 +185,7 @@ function createMarketWatcher({
   let simSign = 'down'; // start green; the first flip fires a bull event
   let simNextFlipAt = null;
   let prevSimulated = false;
+  let simKlines = [];
 
   function simFlipDelay(config) {
     return config.cooldownSec * 1000 + 8000 + Math.floor(Math.random() * 17000);
@@ -138,6 +197,18 @@ function createMarketWatcher({
     const base = 3900 + Math.round(Math.random() * 60);
     const up = simSign === 'up' ? 2600 + Math.round(Math.random() * 1500) : 900 + Math.round(Math.random() * 900);
     const down = simSign === 'up' ? 900 + Math.round(Math.random() * 900) : 2600 + Math.round(Math.random() * 1500);
+    const klines = simKlines.length ? simKlines : [];
+    if (!klines.length) {
+      let close = base;
+      for (let i = 0; i < 40; i += 1) {
+        const open = close;
+        close = Math.max(100, open + (Math.random() - 0.42) * 18 + pct * 0.35);
+        const high = Math.max(open, close) + Math.random() * 8;
+        const low = Math.min(open, close) - Math.random() * 8;
+        klines.push({ date: String(i), open: round2(open), close: round2(close), high: round2(high), low: round2(low) });
+      }
+      simKlines = klines;
+    }
     return {
       pct: round2(pct),
       points: base + round2(pct * 10),
@@ -148,7 +219,8 @@ function createMarketWatcher({
       indices: [
         { name: '深证成指', pct: round2(pct * (0.6 + Math.random() * 0.9)) },
         { name: '创业板指', pct: round2(pct * (0.8 + Math.random() * 1.2)) }
-      ]
+      ],
+      klines
     };
   }
 
@@ -162,6 +234,7 @@ function createMarketWatcher({
     if (at < simNextFlipAt) return simQuote();
     simSign = simSign === 'up' ? 'down' : 'up';
     simNextFlipAt = at + simFlipDelay(config);
+    simKlines = [];
     dbg(`sim: flipped to ${simSign}, next flip in ${Math.round((simNextFlipAt - at) / 1000)}s`);
     return simQuote();
   }
@@ -185,6 +258,7 @@ function createMarketWatcher({
       const config = normalizeConfig(getConfig && getConfig());
       if (!config.enabled) return;
       let quote;
+      let skipEvents = false;
       if (config.simulated) {
         // Simulated mode: synthetic quotes, no trading-hours gate, no network.
         // Re-baseline when entering simulation so the mode switch itself
@@ -192,23 +266,28 @@ function createMarketWatcher({
         if (!prevSimulated) {
           lastSign = null;
           simNextFlipAt = null;
+          simKlines = [];
         }
         quote = simulatedTick(config);
       } else {
         prevSimulated = false;
         if (config.tradingHoursOnly && !inTradingHours(new Date(now()))) {
-          // Outside trading hours keep the last known sign so the first flip
-          // after the open can still trigger.
-          dbg('tick: outside trading hours');
-          return;
+          // Closed market: still fill the board for evening demos, never fly.
+          skipEvents = true;
+          quote = simulatedTick(config);
+        } else {
+          quote = await fetchQuote(config.secid);
         }
-        quote = await fetchQuote(config.secid);
       }
       prevSimulated = config.simulated;
       const sign = signOf(quote.pct);
       dbg(`tick: ${quote.name || config.secid} pct=${quote.pct} sign=${sign} lastSign=${lastSign}`);
       // Feed the live quote to the renderer ticker on every successful sample.
       try { onQuote && onQuote(quote, config); } catch (err) { dbg(`onQuote error: ${err?.message || err}`); }
+      if (skipEvents) {
+        if (lastSign === null) lastSign = sign;
+        return;
+      }
       if (lastSign === null) {
         lastSign = sign;
         return;
@@ -250,9 +329,10 @@ function createMarketWatcher({
     lastSign = null;
     simNextFlipAt = null;
     prevSimulated = false;
+    simKlines = [];
   }
 
   return { start, stop, tick, inTradingHours, signOf, normalizeConfig };
 }
 
-module.exports = { createMarketWatcher, inTradingHours, signOf, normalizeConfig, defaultFetchQuote };
+module.exports = { createMarketWatcher, inTradingHours, signOf, normalizeConfig, defaultFetchQuote, parseKlines };

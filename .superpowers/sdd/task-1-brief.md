@@ -1,160 +1,89 @@
-### Task 1: watch-rules.js — 过滤管线纯函数（TDD）
+### Task 1: duo-controller slack 状态机与窗尺寸
 
 **Files:**
-- Create: `src/watch-rules.js`
-- Test: `scripts/test-watch-rules.js`
-- Modify: `package.json`（`test:js` 链追加 `node scripts/test-watch-rules.js`）
+- Modify: `src/duo-controller.js`
+- Test: `scripts/test-duo-controller.js`
 
 **Interfaces:**
-- Produces:
-  - `createDedupeSet(maxSize = 5000)` → `{ has(id) → boolean, add(id) → void }`（内部 LRU，超限淘汰最旧）
-  - `isBoss(senderId, bossIds)` → `boolean`（bossIds 为已解析 open_id 数组；空数组返回 false）
-  - `matchKeyword(text, keywordMap)` → `category | null`（keywordMap 如 `{ '画饼': [...], '吹牛': [...] }`；`text.toLowerCase().includes(keyword.toLowerCase())` 命中即返回该类别，按对象键顺序取首个）
-  - `inQuietHours(now, quietHours)` → `boolean`（quietHours 形如 `[['12:00','13:30']]`；跨午夜区间如 `['19:00','09:00']` 也支持；空数组返回 false；now 为 `Date`）
-  - `pickLine(pool, rng = Math.random)` → `string`（pool 非空数组；rng 注入便于测试）
-  - `DEFAULT_KEYWORDS` 常量：`{ '画饼': ['老板画的饼别吃，你啃不动！', '这饼画得真圆，可惜啃不动。'], '吹牛': ['你的老板吹了个牛逼！', '这牛吹得，我耳朵都疼了。'], }`
+- Consumes: 现有 `createDuoController`、`presentationWindowSize`、`clampToWorkArea`
+- Produces: `beginSlack` / `leaveSlack` / `slackWindowSize` / `placeSlackWindow`；`presentationWindowSize` 识别 `'slack'`
 
-- [ ] **Step 1: 写失败测试** `scripts/test-watch-rules.js`
+- [ ] **Step 1: 写失败测试**
+
+在 `scripts/test-duo-controller.js` 追加（`require` 增加 `slackWindowSize`、`placeSlackWindow`）：
 
 ```js
-'use strict';
-const assert = require('assert');
-const {
-  createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine, DEFAULT_KEYWORDS
-} = require('../src/watch-rules');
+const slackOff = createDuoController({});
+assert.strictEqual(slackOff.beginSlack(), false);
 
-function testDedupe() {
-  const s = createDedupeSet(2);
-  assert.strictEqual(s.has('a'), false);
-  s.add('a');
-  assert.strictEqual(s.has('a'), true);
-  s.add('b'); s.add('c'); // 超限淘汰 a
-  assert.strictEqual(s.has('a'), false);
-  assert.strictEqual(s.has('c'), true);
-}
+const slackDuo = createDuoController({ slackEnabled: true, tentEnabled: true });
+assert.strictEqual(slackDuo.beginSlack(), true);
+assert.strictEqual(slackDuo.mode(), 'slack');
+assert.strictEqual(slackDuo.beginUnfold('right'), false, 'slack blocks gesture unfold');
+assert.strictEqual(slackDuo.beginTent(), false, 'slack cannot tent');
+assert.strictEqual(slackDuo.leaveSlack(), true);
+assert.strictEqual(slackDuo.mode(), 'folded');
 
-function testIsBoss() {
-  assert.strictEqual(isBoss('ou_1', ['ou_1', 'ou_2']), true);
-  assert.strictEqual(isBoss('ou_3', ['ou_1']), false);
-  assert.strictEqual(isBoss('ou_3', []), false);
-}
+assert.strictEqual(slackDuo.beginTent(), true);
+assert.strictEqual(slackDuo.beginSlack(), false, 'tent cannot slack');
+slackDuo.leaveTent();
 
-function testMatchKeyword() {
-  const map = { '画饼': ['a'], '吹牛': ['b'] };
-  assert.strictEqual(matchKeyword('年底给你画个大饼', map), '画饼');
-  assert.strictEqual(matchKeyword('老板又开始吹牛了', map), '吹牛');
-  assert.strictEqual(matchKeyword('今天天气不错', map), null);
-  assert.strictEqual(matchKeyword('', map), null);
-}
+assert.strictEqual(createDuoController({ slackEnabled: true }).beginUnfold('right'), true);
 
-function testQuietHours() {
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T12:30:00+08:00'), [['12:00', '13:30']]), true);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T14:00:00+08:00'), [['12:00', '13:30']]), false);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T23:00:00+08:00'), [['19:00', '09:00']]), true);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T08:00:00+08:00'), [['19:00', '09:00']]), true);
-  assert.strictEqual(inQuietHours(new Date('2026-08-10T12:00:00+08:00'), []), false);
-}
+const petSize = { width: 170, height: 190, label: '小（推荐）' };
+const slackSize = slackWindowSize(petSize, 56);
+assert.strictEqual(slackSize.height, 246);
+assert.ok(slackSize.width >= 340);
+assert.deepStrictEqual(
+  presentationWindowSize(petSize, 'slack', { slackExtraHeight: 56 }),
+  slackSize
+);
 
-function testPickLine() {
-  assert.strictEqual(pickLine(['x'], () => 0.5), 'x');
-  assert.strictEqual(pickLine(['a', 'b'], () => 0.9), 'b');
-}
-
-function testDefaults() {
-  assert.ok(Array.isArray(DEFAULT_KEYWORDS['画饼']) && DEFAULT_KEYWORDS['画饼'].length >= 1);
-  assert.ok(Array.isArray(DEFAULT_KEYWORDS['吹牛']) && DEFAULT_KEYWORDS['吹牛'].length >= 1);
-}
-
-const tests = { testDedupe, testIsBoss, testMatchKeyword, testQuietHours, testPickLine, testDefaults };
-let failed = 0;
-for (const [name, fn] of Object.entries(tests)) {
-  try { fn(); console.log(`ok - ${name}`); } catch (e) { failed++; console.error(`FAIL - ${name}: ${e.message}`); }
-}
-if (failed) process.exit(1);
-console.log('watch-rules: all tests passed');
+const origin = { x: 100, y: 400, width: 170, height: 190 };
+const placed = placeSlackWindow(origin, slackSize, { x: 0, y: 0, width: 1000, height: 800 });
+assert.strictEqual(placed.y + placed.height, origin.y + origin.height, 'foot stays');
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [ ] **Step 2:** `node scripts/test-duo-controller.js` 必须失败（`slackWindowSize is not a function` 或 `beginSlack` 缺失）。
 
-Run: `node scripts/test-watch-rules.js`
-Expected: `FAIL - ...`（Cannot find module '../src/watch-rules'）退出码 1
+- [ ] **Step 3: 最小实现**
 
-- [ ] **Step 3: 实现** `src/watch-rules.js`
+`createDuoController` 增加 `slackEnabled`。`beginSlack`：仅 `slackEnabled && mode==='folded'`。`leaveSlack`：仅 `mode==='slack'`。`beginTent` 增加 `mode !== 'slack'`（已是 folded-only，保持即可）。`beginUnfold`：`mode==='slack'` 时 false。
 
 ```js
-'use strict';
-
-const DEFAULT_KEYWORDS = {
-  '画饼': ['老板画的饼别吃，你啃不动！', '这饼画得真圆，可惜啃不动。'],
-  '吹牛': ['你的老板吹了个牛逼！', '这牛吹得，我耳朵都疼了。']
-};
-
-function createDedupeSet(maxSize = 5000) {
-  const seen = new Set();
-  const queue = [];
+function slackWindowSize(size, extraHeight = 56) {
+  const foldedH = Math.max(108, Number(size?.height) || 0);
+  const foldedW = Math.max(96, Number(size?.width) || 0);
+  const extra = Math.max(0, Number(extraHeight) || 0);
+  const height = foldedH + extra;
+  const width = Math.max(foldedW * 2, Math.round(height * 4 / 3));
   return {
-    has(id) { return seen.has(id); },
-    add(id) {
-      if (seen.has(id)) return;
-      seen.add(id);
-      queue.push(id);
-      while (queue.length > maxSize) seen.delete(queue.shift());
-    }
+    width,
+    height,
+    ...(size && size.label ? { label: size.label } : {})
   };
 }
 
-function isBoss(senderId, bossIds) {
-  return Array.isArray(bossIds) && bossIds.length > 0
-    && typeof senderId === 'string' && bossIds.includes(senderId);
+function placeSlackWindow(origin, slackSize, workArea) {
+  const width = Number(slackSize?.width) || 0;
+  const height = Number(slackSize?.height) || 0;
+  const footY = (Number(origin?.y) || 0) + (Number(origin?.height) || height);
+  const originMid = (Number(origin?.x) || 0) + (Number(origin?.width) || 0) / 2;
+  const x = originMid - width / 2;
+  return clampToWorkArea({ x, y: footY - height, width, height }, workArea);
 }
-
-function matchKeyword(text, keywordMap) {
-  if (typeof text !== 'string' || !text) return null;
-  const lower = text.toLowerCase();
-  for (const [category, pool] of Object.entries(keywordMap || {})) {
-    if (Array.isArray(pool) && lower.includes(category.toLowerCase())) return category;
-  }
-  return null;
-}
-
-function toMinutes(hm) {
-  const [h, m] = String(hm).split(':').map(Number);
-  return h * 60 + (m || 0);
-}
-
-function inQuietHours(now, quietHours) {
-  if (!Array.isArray(quietHours) || quietHours.length === 0) return false;
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  for (const [start, end] of quietHours) {
-    const s = toMinutes(start); const e = toMinutes(end);
-    if (s === e) continue;
-    if (s < e) { if (minutes >= s && minutes < e) return true; }
-    else { if (minutes >= s || minutes < e) return true; } // 跨午夜
-  }
-  return false;
-}
-
-function pickLine(pool, rng = Math.random) {
-  const arr = Array.isArray(pool) && pool.length ? pool : [''];
-  return arr[Math.floor(rng() * arr.length)];
-}
-
-module.exports = { createDedupeSet, isBoss, matchKeyword, inQuietHours, pickLine, DEFAULT_KEYWORDS };
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+`presentationWindowSize`：在 tent 分支之后、open 分支之前：
 
-Run: `node scripts/test-watch-rules.js`
-Expected: 全部 `ok - ...` + `watch-rules: all tests passed`
-
-- [ ] **Step 5: 并入测试链 + 提交**
-
-在 `package.json` 的 `test:js` 末尾追加 `&& node scripts/test-watch-rules.js`。
-
-```bash
-git add src/watch-rules.js scripts/test-watch-rules.js package.json
-git commit -m "feat: add watch rules filtering pipeline"
+```js
+if (mode === 'slack') {
+  return slackWindowSize(size, options.slackExtraHeight);
+}
 ```
+
+导出这两个函数。
+
+- [ ] **Step 4:** `node scripts/test-duo-controller.js` 通过。跳过 commit。
 
 ---
-

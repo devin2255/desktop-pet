@@ -55,3 +55,34 @@ Task 9: complete (commits 74118ac..ffb6a18, EXE built 89.9MiB; key fix: build-cu
 Final review fix: complete (commits ffb6a18..8912130; fixed Critical CSP media-src, Important #2-6 customer-guard/larkCliPath/onStatus/restart-dedup/name-warning, Minor #7/9/10; all tests green)
 Final review: Ready with notes (after fix commit 8912130)
 Pending: Task 8 e2e BLOCKED on user feishu auth (im:message scope); GUI manual launch QA; edge-tts CC-BY-NC-SA license note for delivery; name-to-open_id resolution deferred (warning shown)
+
+# SDD Progress Ledger — feature/son-mode / brother-duo
+Plan: docs/superpowers/plans/2026-09-11-brother-duo.md
+Branch start: 1017f76c73dc652a0cc1e44e211315cdbbe076b0
+
+Task 1: complete (working tree, no commit; review clean Approved; minors: snapProgress option untested, folding reverse-drag untested, createDuoController menuSlopPx/commitPx unused on instance)
+Task 2: complete (working tree, no commit; review clean after fix; Important Python 动画路径冲突 fixed; schema mojibake was review-package encoding false positive; minors: JS/Python id/name/watch/gesture negative cases thin; xiaogou temp fixture in test_petpack_tool.py)
+Task 3: complete (working tree, no commit; review Approved by controller after 2 fix passes; Important preload finite + contextmenu/mouseleave/12px fixed; leftover reviewer flags adjudicated: left-click hearts/interact is existing pet interaction not Duo fold; cancel-on-left-drag is Task 4 pet:drag-start; minor none)
+Task 4: complete (working tree, no commit; review Approved after left-manifest fix; minors: peer no independent roam, sequences/setPetSize not half-clamped, drag can transiently cross midline)
+Task 5: complete (working tree, no commit; review clean Approved; floral-face.jpg 181390 bytes + IDENTITY.md)
+Task 6: complete (working tree, no commit; review Approved after 2 fix passes; minors: sleep/04 Zzz, walk floral pocket flicker, sleep/01 fist vs later idle-sleep)
+Task 7: complete (working tree, no commit; judge copied; floral idle4/walk6/sit4/sleep4/reaction4/drag6; window-seven mapped; strip tests OK)
+Task 8: complete (working tree, no commit; pet.json + preview + brother-duo.petpack validate+test ok)
+Task 9: complete (working tree, no commit; targetWatchWindow source gates added)
+Task 10: complete (EXE 兄弟桌宠 Duo-1.0.0.exe ~102MiB + build-report.json; GUI hand QA of fold/unfold/radar pending; no code signing)
+
+# SDD Progress Ledger — feature/son-mode / duo-slack-fish
+Plan: docs/superpowers/plans/2026-09-15-duo-slack-fish.md
+Branch start: working tree (no commit)
+
+Task 1: complete (working tree, no commit; review clean Approved)
+
+Task 2: complete (working tree, no commit; review Approved after controller adjudication — tent main-v3 asserts in test-capability-gates.js are pre-existing, Task 2 only added hasDuoSlack)
+
+Task 3: complete (working tree, no commit; review clean Approved)
+
+Task 4: complete (working tree, no commit; review Approved after removing overlay setState jump/carry)
+
+Task 5: complete (working tree, no commit; review Approved after leaveLabel=收工了 and carry phone removed; minor: jump/carry still idle composites, leftover red fragment between figures)
+
+Task 6: complete (working tree, no commit; EXE built+launched; GUI overlay hand-test unverified; no code signing)

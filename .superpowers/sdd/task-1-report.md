@@ -1,109 +1,98 @@
-# Task 1 Report: watch-rules.js 过滤管线纯函数（TDD）
+# Task 1 Report: duo-controller slack 状态机与窗尺寸
 
-## What I Implemented
+## What Was Implemented
 
-Created the pure-function filtering pipeline for the "飞书画饼雷达" (boss watch radar) feature:
+在 `src/duo-controller.js` 中新增 slack 状态与窗尺寸辅助函数，遵循现有 tent 模式（`beginTent` / `leaveTent`、`presentationWindowSize`）的模式：
 
-- **`src/watch-rules.js`** — Six exports per the brief's Step 3 implementation, transcribed verbatim:
-  - `createDedupeSet(maxSize = 5000)` — LRU set with FIFO eviction (`seen` Set + `queue` array; shifts oldest when over limit).
-  - `isBoss(senderId, bossIds)` — strict boolean; returns false for empty array or non-string senderId.
-  - `matchKeyword(text, keywordMap)` — checks `text.toLowerCase().includes(category.toLowerCase())` per category in object-key order; returns the first matching category or `null`.
-  - `inQuietHours(now, quietHours)` — minute-based comparison; supports same-day (`s < e`) and cross-midnight (`s > e`) intervals; empty array → false.
-  - `pickLine(pool, rng = Math.random)` — injectable RNG for testability; falls back to `['']` on empty/non-array.
-  - `DEFAULT_KEYWORDS` — constant with 画饼 / 吹牛 response-line pools.
-- **`scripts/test-watch-rules.js`** — Six test functions covering all exports, transcribed from the brief Step 1 with one typo fix (see below).
-- **`package.json`** — Appended ` && node scripts/test-watch-rules.js` to the `test:js` script chain.
+### 新增导出函数
 
-### Typo Fix (documented deviation from brief)
+- **`slackWindowSize(size, extraHeight = 56)`** — 基于 folded 尺寸计算 slack 窗口：`height = max(108, foldedH) + extra`；`width = max(foldedW * 2, round(height * 4 / 3))`；保留 `label`。
+- **`placeSlackWindow(origin, slackSize, workArea)`** — 以 origin 水平居中、脚底基线对齐放置 slack 窗口，经 `clampToWorkArea` 约束。
 
-The brief's `testMatchKeyword` test text `'年底给你画个大饼'` does NOT contain `'画饼'` as a contiguous substring (the characters 画 and 饼 are separated by 个大 in that string). Since the implementation checks `text.toLowerCase().includes(category.toLowerCase())` — i.e. the text must contain the category key as a substring — this test case would always return `null` and fail.
+### `presentationWindowSize` 扩展
 
-The `DEFAULT_KEYWORDS` values are clearly response *lines* (long sentences with exclamation marks), confirming that the keywordMap's array values are pickLine pools, not match keywords. The implementation correctly matches the category key against the text, consistent with the interface description (`text.toLowerCase().includes(keyword.toLowerCase())`).
+在 tent 分支之后、open 分支之前增加：
 
-Fix: changed the test text from `'年底给你画个大饼'` to `'年底给你画饼了'` (画 and 饼 are now adjacent), preserving the semantic intent (drawing a pie = making empty promises) while making the substring match succeed. No implementation code was changed.
+```js
+if (mode === 'slack') {
+  return slackWindowSize(size, options.slackExtraHeight);
+}
+```
+
+### `createDuoController` 扩展
+
+- 新增选项 `slackEnabled`（默认 `false`）。
+- **`beginSlack()`** — 仅当 `slackEnabled && mode === 'folded'` 时进入 `slack` 模式。
+- **`leaveSlack()`** — 仅当 `mode === 'slack'` 时返回 `folded`。
+- **`beginUnfold()`** — 增加 `mode === 'slack'` 时返回 `false`（阻止手势展开）。
+- **`beginTent()`** — 保持 folded-only 检查，slack 模式下自然无法进入 tent（无需额外分支）。
+
+## What Was Tested and Results
+
+| Command | Result |
+|---|---|
+| `node scripts/test-duo-controller.js`（RED） | exit 1 — `TypeError: slackOff.beginSlack is not a function` |
+| `node scripts/test-duo-controller.js`（GREEN） | `test-duo-controller: ok`（exit 0） |
+| `node --check src/duo-controller.js` | exit 0，无输出 |
+
+新增测试覆盖：
+
+- `slackEnabled: false` 时 `beginSlack()` 返回 false
+- slack ↔ folded 状态切换
+- slack 阻止 `beginUnfold` / `beginTent`；tent 阻止 `beginSlack`
+- `slackEnabled: true` 时 folded 可正常 `beginUnfold`
+- `slackWindowSize(petSize, 56)` 高度 246、宽度 ≥ 340
+- `presentationWindowSize(..., 'slack', { slackExtraHeight: 56 })` 与 `slackWindowSize` 一致
+- `placeSlackWindow` 脚底基线保持不变
 
 ## TDD Evidence
 
-### RED — Step 2 (before implementation)
-
-Command:
-```
-node scripts/test-watch-rules.js
-```
-
-Failing output excerpt:
-```
-Error: Cannot find module '../src/watch-rules'
-Require stack:
-- D:\Vibe_Coding\desktop-pet\scripts\test-watch-rules.js
-    at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
-    ...
-    code: 'MODULE_NOT_FOUND'
-EXIT_CODE=1
-```
-
-### GREEN — Step 4 (after implementation)
-
-Command:
-```
-node scripts/test-watch-rules.js
-```
-
-Passing output:
-```
-ok - testDedupe
-ok - testIsBoss
-ok - testMatchKeyword
-ok - testQuietHours
-ok - testPickLine
-ok - testDefaults
-watch-rules: all tests passed
-EXIT_CODE=0
-```
-
-All six test functions pass.
-
-## `npm run test:js` Result
-
-Command:
-```
-npm run test:js
-```
-
-Result: **PASSING** (exit code 0). The entire JS test chain (syntax checks + all existing test scripts + the new `test-watch-rules.js`) ran cleanly with no errors. Output was pristine — all existing tests still pass and the new test output appears at the end:
+### RED
 
 ```
-... (existing test output) ...
-test-sequence-controller: ok
-ok - testDedupe
-ok - testIsBoss
-ok - testMatchKeyword
-ok - testQuietHours
-ok - testPickLine
-ok - testDefaults
-watch-rules: all tests passed
+node scripts/test-duo-controller.js
 ```
+
+```
+D:\Vibe_Coding\desktop-pet\scripts\test-duo-controller.js:174
+assert.strictEqual(slackOff.beginSlack(), false);
+                            ^
+
+TypeError: slackOff.beginSlack is not a function
+    at Object.<anonymous> (D:\Vibe_Coding\desktop-pet\scripts\test-duo-controller.js:174:29)
+```
+
+### GREEN
+
+```
+node scripts/test-duo-controller.js
+```
+
+```
+test-duo-controller: ok
+```
+
+```
+node --check src/duo-controller.js
+```
+
+(exit 0, no output)
 
 ## Files Changed
 
-- `src/watch-rules.js` (created — 46 lines)
-- `scripts/test-watch-rules.js` (created — 68 lines)
-- `package.json` (modified — `test:js` script extended with `&& node scripts/test-watch-rules.js`)
+| File | Action |
+|---|---|
+| `src/duo-controller.js` | 新增 `slackWindowSize`、`placeSlackWindow`；扩展 `createDuoController` 与 `presentationWindowSize` |
+| `scripts/test-duo-controller.js` | 追加 brief 指定 slack 测试块；require 增加 `slackWindowSize`、`placeSlackWindow` |
 
 ## Self-Review Findings
 
-1. **Completeness**: All six exports from the brief are implemented and tested. The module is CommonJS (`module.exports`), uses `'use strict'`, and has zero dependencies — consistent with `src/startup-greeting.js` style.
+- 实现与 brief 指定代码 verbatim 一致，未扩展 scope。
+- `beginTent` 保持 folded-only，slack 模式下 `mode !== 'folded'` 已自然阻止进入 tent。
+- slack 与 tent 互斥：tent 时 `beginSlack` 失败（mode 非 folded）；slack 时 `beginTent` 失败（同上）。
+- 未修改 renderer、main、菜单或资源，符合 Task 1 边界。
+- 未 git commit（用户要求）。
 
-2. **TDD discipline**: RED was confirmed (module-not-found, exit 1) before any implementation was written. GREEN was confirmed after implementation.
+## Issues or Concerns
 
-3. **Test hygiene**: The test script follows the repo's established pattern (tests object, iterate with try/catch, `console.log` on pass / `console.error` on fail, `process.exit(1)` on any failure). No test pollution — each test function is independent. RNG is injected in `testPickLine` (deterministic). No flaky randomness.
-
-4. **YAGNI**: No extra functions, no over-engineering. The `pickLine` fallback to `['']` is defensive but minimal. The `toMinutes` helper is private (not exported).
-
-5. **Chain integrity**: The `test:js` chain was extended correctly — the new test runs last and the whole chain passes, confirming no existing test was broken.
-
-6. **Concern**: The brief contained a typo in the test text (see Typo Fix section above). The fix is minimal and preserves intent. The implementation was NOT modified — only the test text was corrected to contain the required substring.
-
-## Commits Created
-
-- `3ed0243` — `feat: add watch rules filtering pipeline`
+无阻塞项。后续任务需接线菜单入口、renderer 与 slack 素材。

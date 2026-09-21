@@ -192,6 +192,7 @@ function buildCustomer(options) {
         'src/dingtalk-call-uia.ps1',
         'src/pet-task.js',
         'src/capability-gates.js',
+        'src/duo-controller.js',
         { from: relativeDelivery, to: 'delivery', filter: ['**/*'] },
         'package.json'
       ]

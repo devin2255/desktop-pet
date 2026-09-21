@@ -315,4 +315,130 @@ for (const timeoutMs of [10001, -1, 1.5]) {
 
 assert(referencedFiles(bossCallManifest()).has('audio/call-mom.mp3'));
 
+function memberAnimations(memberId) {
+  return {
+    idle: makeAnimation(`${memberId}/idle`, 4, true),
+    walk: makeAnimation(`${memberId}/walk`, 6, true),
+    sit: makeAnimation(`${memberId}/sit`, 4, false),
+    sleep: makeAnimation(`${memberId}/sleep`, 4, true),
+    reaction: makeAnimation(`${memberId}/reaction`, 4, false)
+  };
+}
+
+function duoManifest(overrides = {}) {
+  return baseManifest({
+    duo: {
+      gesture: {
+        menuSlopPx: 12,
+        commitPx: 48,
+        snapProgress: 0.5
+      },
+      members: [
+        {
+          id: 'judge',
+          side: 'left',
+          name: '兄弟判官',
+          watch: true,
+          animations: memberAnimations('judge')
+        },
+        {
+          id: 'floral',
+          side: 'right',
+          name: '花袄弟',
+          watch: false,
+          animations: memberAnimations('floral')
+        }
+      ],
+      ...overrides
+    }
+  });
+}
+
+assert.doesNotThrow(() => validateManifest(duoManifest(), '', false));
+
+assert.throws(
+  () => validateManifest(duoManifest({
+    members: [
+      {
+        id: 'judge',
+        side: 'left',
+        name: '兄弟判官',
+        animations: memberAnimations('judge')
+      }
+    ]
+  }), '', false),
+  /members/
+);
+
+assert.throws(
+  () => validateManifest(duoManifest({
+    members: [
+      {
+        id: 'judge',
+        side: 'left',
+        name: '兄弟判官',
+        animations: memberAnimations('judge')
+      },
+      {
+        id: 'floral',
+        side: 'left',
+        name: '花袄弟',
+        animations: memberAnimations('floral')
+      }
+    ]
+  }), '', false),
+  /side/
+);
+
+assert.throws(
+  () => {
+    const manifest = duoManifest();
+    manifest.duo.members[0].animations.idle.frames[0] = manifest.animations.idle.frames[0];
+    validateManifest(manifest, '', false);
+  },
+  /动画路径冲突/
+);
+
+assert.doesNotThrow(() => validateManifest(duoManifest({
+  unfoldAction: 'reaction',
+  foldAction: 'idle'
+}), '', false));
+assert.throws(
+  () => validateManifest(duoManifest({ unfoldAction: 'missing-kick' }), '', false),
+  /unfoldAction/
+);
+
+assert.doesNotThrow(() => validateManifest(duoManifest({
+  tent: { action: 'sit', enterLabel: '支起来', leaveLabel: '收起来', openProgress: 0.48 }
+}), '', false));
+assert.throws(
+  () => validateManifest(duoManifest({ tent: { openProgress: 0.2 } }), '', false),
+  /openProgress/
+);
+assert.throws(
+  () => validateManifest(duoManifest({ tent: { action: 'missing-sit' } }), '', false),
+  /tent\.action/
+);
+assert.throws(
+  () => validateManifest(duoManifest({ tent: { enterLabel: '' } }), '', false),
+  /enterLabel/
+);
+
+assert.doesNotThrow(() => validateManifest(duoManifest({
+  slack: { jumpAction: 'idle', carryAction: 'walk', clips: ['video/slack/01.webm'] }
+}), '', false));
+assert.throws(
+  () => validateManifest(duoManifest({ slack: { jumpAction: 'idle', carryAction: 'walk', clips: [] } }), '', false),
+  /clips/
+);
+assert.throws(
+  () => validateManifest(duoManifest({
+    slack: { jumpAction: 'missing', carryAction: 'walk', clips: ['video/slack/01.webm'] }
+  }), '', false),
+  /jumpAction/
+);
+
+assert(referencedFiles(duoManifest()).has('animations/judge/idle/01.png'));
+assert(referencedFiles(duoManifest()).has('animations/floral/reaction/04.png'));
+
 console.log('test-sequences-schema: ok');

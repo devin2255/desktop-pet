@@ -26,6 +26,7 @@ function element() {
   const node = {
     listeners,
     classList: classes,
+    dataset: {},
     style: {
       setProperty: (name, value) => properties.set(name, value),
       getPropertyValue: (name) => properties.get(name)
@@ -50,10 +51,46 @@ petImage.naturalHeight = 480;
 const bubble = element();
 bubble.offsetHeight = 24;
 const hearts = element();
+const ticker = element();
+const duoOverlay = element();
+function videoElement() {
+  const node = element();
+  node.src = '';
+  node.loop = false;
+  node.muted = true;
+  node.pause = () => {};
+  node.play = () => Promise.resolve();
+  node.removeAttribute = (name) => {
+    if (name === 'src') node.src = '';
+  };
+  return node;
+}
+const duoSlackFeed = element();
+const duoSlackVideo = videoElement();
+duoSlackVideo.classList.add('duo-slack-video', 'is-current');
+const duoSlackVideoNext = videoElement();
+duoSlackVideoNext.classList.add('duo-slack-video', 'is-next');
 const windowListeners = new Map();
-const calls = { start: 0, move: 0, end: 0, endPointers: [], interact: 0, through: [], spoken: [], audio: [], insets: [] };
+const calls = {
+  start: 0,
+  move: 0,
+  end: 0,
+  endPointers: [],
+  interact: 0,
+  through: [],
+  spoken: [],
+  audio: [],
+  insets: [],
+  openMenu: 0,
+  duoDown: [],
+  duoMove: [],
+  duoUp: [],
+  duoCancel: 0,
+  slackExit: 0
+};
 let loadCallback;
 let stateCallback;
+let overlayCallback;
 
 let alphaBounds = { left: 30, top: 60, right: 449, bottom: 479 };
 const canvasContext = {
@@ -106,7 +143,17 @@ const context = {
     return rafCallbacks.length;
   },
   document: {
-    getElementById: (id) => ({ pet, 'pet-image': petImage, bubble, hearts }[id]),
+    getElementById: (id) => ({
+      pet,
+      'pet-image': petImage,
+      bubble,
+      hearts,
+      ticker,
+      'duo-overlay': duoOverlay,
+      'duo-slack-feed': duoSlackFeed,
+      'duo-slack-video': duoSlackVideo,
+      'duo-slack-video-next': duoSlackVideoNext
+    }[id]),
     createElement: (name) => name === 'canvas' ? canvas : element()
   },
   window: {
@@ -129,6 +176,7 @@ const context = {
       onLoad: (callback) => { loadCallback = callback; },
       onState: (callback) => { stateCallback = callback; },
       onMarket: () => {},
+      onDuoOverlay: (callback) => { overlayCallback = callback; },
       getCurrentPet: () => ({ then: () => {} }),
       startDrag: () => { calls.start += 1; },
       drag: () => { calls.move += 1; },
@@ -136,7 +184,12 @@ const context = {
       interact: () => { calls.interact += 1; },
       setMouseThrough: (ignore) => calls.through.push(ignore),
       setVisibleInsets: (insets) => calls.insets.push(insets),
-      openMenu: () => {}
+      openMenu: () => { calls.openMenu += 1; },
+      duoPointerDown: (payload) => calls.duoDown.push(payload),
+      duoPointerMove: (payload) => calls.duoMove.push(payload),
+      duoPointerUp: (payload) => calls.duoUp.push(payload),
+      duoPointerCancel: () => { calls.duoCancel += 1; },
+      slackExit: () => { calls.slackExit += 1; }
     }
   }
 };
@@ -150,7 +203,7 @@ const manifest = {
   animations: {
     idle: { frames: ['idle.png'], durations: [100], loop: true },
     walk: { frames: ['walk.png'], durations: [100], loop: true },
-    sit: { frames: ['sit.png'], durations: [100], loop: true },
+    sit: { frames: ['sit-01.png', 'sit-02.png', 'sit-03.png', 'sit-04.png'], durations: [100, 100, 100, 1800], loop: false },
     reaction: { frames: ['reaction.png'], durations: [100], loop: false },
     'call-dad': { frames: ['call.png'], durations: [100], loop: false }
   },
@@ -159,6 +212,14 @@ const manifest = {
   ]
 };
 loadCallback(manifest);
+
+stateCallback({ state: 'reaction', message: '' });
+assert.strictEqual(petImage.src, 'reaction.png');
+overlayCallback({ active: true, progress: 1, phase: 'slack', slackStage: 'jump' });
+assert.strictEqual(petImage.src, 'reaction.png', 'slack jump overlay must not replace the pet:state animation');
+overlayCallback({ active: true, progress: 1, phase: 'slack', slackStage: 'carry', clips: [] });
+assert.strictEqual(petImage.src, 'reaction.png', 'slack carry overlay must not replace the pet:state animation');
+overlayCallback({ active: false, progress: 0, phase: 'slack' });
 
 function runTimers(ms) {
   let elapsed = 0;
@@ -174,7 +235,31 @@ function runTimers(ms) {
 }
 
 function pointer(name, x, y, pointerId = 1) {
-  pet.listeners.get(name)({ button: 0, screenX: x, screenY: y, pointerId });
+  pet.listeners.get(name)({
+    button: 0,
+    screenX: x,
+    screenY: y,
+    pointerId,
+    preventDefault: () => {}
+  });
+}
+
+function rightPointer(name, x, y, pointerId = 2) {
+  pet.listeners.get(name)({
+    button: 2,
+    screenX: x,
+    screenY: y,
+    pointerId,
+    preventDefault: () => {}
+  });
+}
+
+function contextMenu() {
+  let prevented = 0;
+  pet.listeners.get('contextmenu')({
+    preventDefault: () => { prevented += 1; }
+  });
+  return prevented;
 }
 
 for (let index = 0; index < 50; index += 1) {
@@ -198,6 +283,49 @@ assert.strictEqual(calls.start, 1, 'movement past the dead zone should start one
 assert.strictEqual(calls.move, 1);
 assert.strictEqual(calls.end, 1);
 assert.deepStrictEqual({ ...calls.endPointers[0] }, { screenX: 107, screenY: 100 });
+
+const interactBeforeSlack = calls.interact;
+overlayCallback({ active: true, progress: 1, phase: 'slack', slackStage: 'intro' });
+pointer('pointerdown', 100, 100);
+pointer('pointerup', 100, 100);
+assert.strictEqual(calls.slackExit, 1, 'stationary left click during slack should exit slack mode');
+assert.strictEqual(calls.interact, interactBeforeSlack, 'slack exit click must not trigger the normal interaction');
+
+pointer('pointerdown', 100, 100);
+pointer('pointermove', 107, 100);
+pointer('pointerup', 107, 100);
+assert.strictEqual(calls.slackExit, 1, 'left drag during slack must not exit slack mode');
+assert.strictEqual(calls.end, 2, 'left drag during slack should still use normal drag release');
+overlayCallback({ active: false, progress: 0, phase: 'slack' });
+
+rightPointer('pointerdown', 100, 100);
+rightPointer('pointerup', 105, 100);
+assert.strictEqual(contextMenu(), 1, 'short right press menu must suppress the browser default menu');
+assert.strictEqual(calls.openMenu, 1, 'short right press should open the app menu');
+
+rightPointer('pointerdown', 100, 100);
+rightPointer('pointermove', 112, 100);
+rightPointer('pointerup', 112, 100);
+assert.strictEqual(contextMenu(), 1, '12px right press duo gesture should suppress the app menu');
+assert.strictEqual(calls.openMenu, 1, 'duo gesture must not open the app menu');
+assert.deepStrictEqual({ ...calls.duoMove.at(-1) }, {
+  screenX: 112, screenY: 100, dx: 12, dy: 0
+}, 'duo move payload should report finite displacement');
+
+rightPointer('pointerdown', 100, 100);
+rightPointer('pointerup', 112, 100);
+assert.strictEqual(contextMenu(), 1, 'jump-to-12px right release should suppress the app menu');
+assert.strictEqual(calls.openMenu, 1, 'final 12px displacement without move must not open the app menu');
+
+const throughBeforeDuoLeave = calls.through.length;
+rightPointer('pointerdown', 100, 100);
+windowListeners.get('mouseleave')();
+assert.strictEqual(
+  calls.through.length,
+  throughBeforeDuoLeave,
+  'mouseleave during a duo gesture must not flip mouse-through on'
+);
+rightPointer('pointercancel', 100, 100);
 
 for (let index = 0; index < 50; index += 1) stateCallback({ state: 'reaction', message: '' });
 assert.strictEqual(pet.style.getPropertyValue('--action-scale'), '1', 'repeated reactions must set an absolute scale');
@@ -295,5 +423,75 @@ assert.strictEqual(bubble.textContent, '第二句', 'staggered messages should a
 runTimers(100);
 stateCallback({ state: 'idle', message: '', speech: '', speechAudio: '' });
 assert.strictEqual(bubble.classList.contains('visible'), false, 'empty state should hide the bubble and clear stagger timers');
+
+stateCallback({ state: 'sit' });
+assert.strictEqual(petImage.src, 'sit-01.png', 'normal sit still starts on the stand-up intro');
+stateCallback({ state: 'idle' });
+stateCallback({ state: 'sit', startAtLast: true });
+assert.strictEqual(petImage.src, 'sit-04.png', 'tent hold pose must skip the stand-to-sit intro');
+
+loadCallback({
+  name: 'folded-duo',
+  animations: {
+    idle: { frames: ['idle.png'], durations: [100], loop: true, scale: 1 },
+    crawl: { frames: ['folded-crawl.png'], durations: [100], loop: true, scale: 1 },
+    'duo-kick': { frames: ['duo-kick.png'], durations: [100], loop: false, scale: 1 }
+  }
+});
+stateCallback({ state: 'duo-kick' });
+assert.strictEqual(petImage.src, 'duo-kick.png');
+loadCallback({
+  name: 'judge',
+  animations: {
+    idle: { frames: ['idle.png'], durations: [100], loop: true, scale: 1 },
+    crawl: { frames: ['crawl.png'], durations: [100], loop: true, scale: 0.62 }
+  }
+});
+assert.notStrictEqual(
+  petImage.src,
+  'idle.png',
+  'unfold must not flash unscaled standing idle when the fold transition action is missing on the member'
+);
+assert.strictEqual(petImage.classList.contains('ready'), false, 'member load should hide the old transition frame');
+stateCallback({ state: 'crawl-left' });
+assert.strictEqual(pet.style.getPropertyValue('--action-scale'), '0.62');
+assert.strictEqual(petImage.src, 'crawl.png');
+
+overlayCallback({
+  active: true,
+  progress: 1,
+  phase: 'slack',
+  slackStage: 'carry',
+  clips: ['clip-a.mp4', 'clip-b.mp4', 'clip-c.mp4']
+});
+assert.strictEqual(duoSlackFeed.hidden, false, 'carry should show the right-screen feed');
+assert.strictEqual(duoSlackVideo.src, 'clip-a.mp4', 'feed should start on the first clip');
+assert.strictEqual(duoSlackVideoNext.src, '', 'must not preload the next clip while the current clip is still playing');
+assert.ok(!duoSlackVideo.listeners.has('timeupdate'), 'must not preload on timeupdate');
+assert.ok(!duoSlackVideo.listeners.has('waiting'), 'must not skip a clip when Chromium fires waiting');
+duoSlackVideo.listeners.get('ended')({ target: duoSlackVideo });
+assert.strictEqual(duoSlackVideoNext.src, 'clip-b.mp4', 'next clip loads only after the current clip ends');
+assert.ok(duoSlackFeed.classList.contains('is-sliding'), 'ended clip should slide up to the next video');
+duoSlackFeed.listeners.get('transitionend')({
+  propertyName: 'transform',
+  target: duoSlackVideoNext
+});
+assert.ok(!duoSlackFeed.classList.contains('is-sliding'), 'slide should finish after the transform');
+assert.ok(duoSlackVideoNext.classList.contains('is-current'), 'incoming clip should become current');
+assert.ok(duoSlackVideo.classList.contains('is-next'), 'outgoing clip should wait below');
+assert.strictEqual(duoSlackVideoNext.src, 'clip-b.mp4', 'current layer should keep playing the second clip');
+assert.strictEqual(duoSlackVideo.src, '', 'outgoing layer should not load the third clip while the second is playing');
+duoSlackVideoNext.listeners.get('ended')({ target: duoSlackVideoNext });
+duoSlackFeed.listeners.get('transitionend')({
+  propertyName: 'transform',
+  target: duoSlackVideo
+});
+assert.strictEqual(duoSlackVideo.src, 'clip-c.mp4', 'third clip should become current');
+assert.strictEqual(duoSlackVideoNext.src, '', 'wrap must wait until the third clip ends');
+duoSlackVideo.listeners.get('ended')({ target: duoSlackVideo });
+assert.strictEqual(duoSlackVideoNext.src, 'clip-a.mp4', 'feed should wrap back to the first clip');
+overlayCallback({ active: false, progress: 0, phase: 'slack' });
+assert.strictEqual(duoSlackFeed.hidden, true, 'leaving slack should hide the feed');
+assert.strictEqual(duoSlackVideo.src, '', 'leaving slack should unload clips');
 
 console.log('renderer interaction regression checks passed');

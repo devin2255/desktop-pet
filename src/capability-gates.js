@@ -17,6 +17,21 @@ function hasCallHangupSequence(manifest) {
     && seq.stages.some((stage) => stage && (stage.onContact || stage.messageLoop)));
 }
 
+function hasDuo(manifest) {
+  const duo = manifest && manifest.duo;
+  return Boolean(duo && typeof duo === 'object' && !Array.isArray(duo) && Array.isArray(duo.members) && duo.members.length === 2);
+}
+
+function hasDuoTent(manifest) {
+  return hasDuo(manifest)
+    && Boolean(manifest.duo.tent && typeof manifest.duo.tent === 'object' && !Array.isArray(manifest.duo.tent));
+}
+
+function hasDuoSlack(manifest) {
+  return hasDuo(manifest)
+    && Boolean(manifest.duo.slack && typeof manifest.duo.slack === 'object' && !Array.isArray(manifest.duo.slack));
+}
+
 function watchMenuLabel(manifest) {
   const label = manifest && manifest.watch && typeof manifest.watch.menuLabel === 'string'
     ? manifest.watch.menuLabel.trim()
@@ -32,6 +47,9 @@ module.exports = {
   hasWatch,
   hasMarketSequences,
   hasCallHangupSequence,
+  hasDuo,
+  hasDuoTent,
+  hasDuoSlack,
   watchMenuLabel,
   taskProviderFromConfig
 };

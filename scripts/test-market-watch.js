@@ -5,7 +5,7 @@
 
 const assert = require('assert');
 const path = require('path');
-const { createMarketWatcher, inTradingHours, signOf, normalizeConfig } = require('../src/market-watch');
+const { createMarketWatcher, inTradingHours, signOf, normalizeConfig, parseKlines } = require('../src/market-watch');
 
 let fakeNow = new Date(2026, 7, 17, 10, 0).getTime(); // 周一 10:00，交易时段内
 function now() { return fakeNow; }
@@ -26,6 +26,14 @@ function makeWatcher(quotes, events) {
 }
 
 async function main() {
+  assert.deepStrictEqual(parseKlines([
+    '2026-09-15,10,12,13,9,1,1,1,1,1,1',
+    'bad'
+  ]), [
+    { date: '2026-09-15', open: 10, close: 12, high: 13, low: 9 }
+  ]);
+  assert.deepStrictEqual(parseKlines(null), []);
+
   // signOf: >0 is red (up), <=0 is green (down)
   assert.strictEqual(signOf(0.01), 'up');
   assert.strictEqual(signOf(0), 'down');
@@ -180,7 +188,32 @@ async function main() {
     w.stop();
   }
 
-  console.log('test-market-watch: all 7 scenarios passed');
+  // Scenario 8: outside trading hours renders the simulated board (for evening
+  // demos) and must not emit bull/bear or hit the network.
+  {
+    const savedNow = fakeNow;
+    fakeNow = new Date(2026, 7, 22, 10, 0).getTime(); // 周六
+    const events = [];
+    const quotes = [];
+    const w = createMarketWatcher({
+      getConfig: () => ({ enabled: true, pollMs: 2000, cooldownSec: 60, tradingHoursOnly: true }),
+      fetchQuote: async () => { throw new Error('after hours must use simulated board, not fetch'); },
+      onEvent: (kind) => events.push(kind),
+      onQuote: (quote) => quotes.push(quote),
+      now,
+      debugLogPath: path.join(__dirname, '..', 'tmp-market-test-debug.log')
+    });
+    w.start();
+    await w.tick();
+    assert.strictEqual(events.length, 0, 'after-hours must not emit bull/bear');
+    assert.strictEqual(quotes.length >= 1, true, 'after-hours must still push a quote to the board');
+    assert.strictEqual(quotes[0].name, '模拟盘');
+    assert.ok(Array.isArray(quotes[0].klines) && quotes[0].klines.length >= 2, 'after-hours simulated board needs a kline');
+    w.stop();
+    fakeNow = savedNow;
+  }
+
+  console.log('test-market-watch: all 8 scenarios passed');
 }
 
 main().catch((err) => {

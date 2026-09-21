@@ -1,119 +1,44 @@
-### Task 5: main-v3.js 集成 — 协议、sendState 修正、启动/停止
+### Task 5: 兄弟 Duo 资源（动作条 + clips + pet.json）
 
 **Files:**
-- Modify: `src/main-v3.js`
+- Create: `pets/library/brother-duo/animations/slack-jump/01.png`…、`slack-carry/01.png`…
+- Create: `pets/library/brother-duo/video/slack/01.webm` 等至少 3 个
+- Modify: `pets/work/brother-duo/_write_pet_json.js`
+- Test: `scripts/test-brother-duo-petpack.js`
 
-**Changes:**
+**Interfaces:**
+- Consumes: Task 2 validator
+- Produces: 可打包的 `duo.slack`
 
-- [ ] **Step 1: 注册 voice-cache 协议**
+- [ ] **Step 1:** petpack 测试先断言 `duo.slack.jumpAction==='slack-jump'`、`carryAction==='slack-carry'`、`clips.length>=3`、合上菜单 `摸会儿鱼` id `duo-slack`。跑测试失败。
 
-`protocol.registerSchemesAsPrivileged` 数组（33-44 行）追加：
+- [ ] **Step 2: 画条**
+
+身份锁定：左红背心圆框眼镜深蓝短裤人字拖；右东北大花短袖军绿短裤人字拖。480×480 透明底，脚底对齐。禁止苹果标、禁止把 K 线/视频画面画进 PNG。
+
+- `slack-jump` ≥4 帧，不循环：两人从「在框里」跳到「在框外两侧、手就位」
+- `slack-carry` ≥4 帧，循环：扛机吃力、肩压低、可轻微晃
+
+切帧走现有 `process_animation_strips` 安全门；失败重画，禁止只擦碎片。
+
+- [ ] **Step 3: clips**
+
+用 ffmpeg 做 **静音** 3～6 段 ≤4s 的 `webm`（vp8/vp9），内容为自制「竖屏信息流」抽象画面（色块卡片上滑），**不要**抖音水印、Logo、未授权成片。例如：
+
+```powershell
+ffmpeg -y -f lavfi -i "color=c=0x111111:s=360x640:d=3" -an -c:v libvpx -b:v 400k pets/library/brother-duo/video/slack/01.webm
+```
+
+再叠加文字/色条做出三条观感不同的循环（也可用几张 PNG `zoompan`）。放入 `video/slack/01.webm`…。
+
+- [ ] **Step 4:** `_write_pet_json.js` 根级增加 jump/carry 动画；`duo.slack` 写入 labels、动作名、clips；`contextMenuActions` 增加 `{ id:'duo-slack', label:'摸会儿鱼' }`（id 须过 `SEQUENCE_ID_PATTERN`：现有 `duo-tent` 已证明 `duo-slack` 合法）。
 
 ```js
-  {
-    scheme: 'voice-cache',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
-  }
+node pets/work/brother-duo/_write_pet_json.js
+python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/brother-duo pets/packages/brother-duo.petpack
+node scripts/test-brother-duo-petpack.js
 ```
 
-- [ ] **Step 2: 修正 sendState 的 speechAudio 改写逻辑（281-287 行）**
-
-把：
-
-```js
-  let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
-  if (speechAudio && !speechAudio.startsWith('pet-asset:') && activeManifest) {
-    speechAudio = petAssetUrl(activeManifest.id, speechAudio);
-  }
-```
-
-改为：
-
-```js
-  let speechAudio = typeof options?.speechAudio === 'string' ? options.speechAudio : '';
-  // 带协议前缀（pet-asset:/voice-cache:/data:/file: 等）视为完整 URL，否则按资源包相对路径改写
-  if (speechAudio && !/^[a-z][a-z0-9+.-]*:/i.test(speechAudio) && activeManifest) {
-    speechAudio = petAssetUrl(activeManifest.id, speechAudio);
-  }
-```
-
-- [ ] **Step 3: 文件顶部 require 新模块（19 行后）**
-
-```js
-const { createMessageWatcher, parseEventLine } = require('./message-watcher');
-const { loadWatchConfig } = require('./watch-config');
-const { createVoiceSynthesizer } = require('./edge-voice');
-```
-
-并声明模块级变量（66 行 `let sequence;` 后）：
-
-```js
-let messageWatcher;
-```
-
-- [ ] **Step 4: 在 `protocol.handle('pet-asset', ...)` 之后（752 行后）注册 voice-cache 处理器**
-
-```js
-    const voiceCacheRoot = path.join(app.getPath('userData'), 'voice-cache');
-    fs.mkdirSync(voiceCacheRoot, { recursive: true });
-    protocol.handle('voice-cache', async (request) => {
-      const name = decodeURIComponent(new URL(request.url).hostname + new URL(request.url).pathname.replace(/^\//, ''));
-      if (!/^[a-f0-9]{32}\.mp3$/.test(name)) throw new Error('拒绝访问非语音缓存文件');
-      const filePath = resolveInside(voiceCacheRoot, name);
-      const data = await fs.promises.readFile(filePath);
-      return new Response(data, {
-        headers: { 'content-type': 'audio/mpeg', 'access-control-allow-origin': '*' }
-      });
-    });
-```
-
-注意：`voice-cache://<hash>.mp3` 在标准 scheme 下 hostname 与 pathname 的拆分——实现时以实际 `new URL('voice-cache://abc.mp3')` 输出为准（hostname 可能为 `abc.mp3`、pathname 为空或 `/`），用上面拼接逻辑兜底；若解析异常，回退为仅取 hostname。提交前用 `node -e` 实际验证一次并固定写法。
-
-- [ ] **Step 5: 启动集成（whenReady 内 `createTray()` 之后，770 行后）**
-
-```js
-    const watchConfig = loadWatchConfig({
-      configPath: path.join(app.getPath('userData'), 'boss-watch.json'),
-      manifestWatch: activeManifest?.watch,
-      larkCliPath: undefined // 由 boss-watch.json 提供；缺失时用默认路径兜底
-    });
-    if (watchConfig.enabled) {
-      const voice = createVoiceSynthesizer({
-        cacheDir: path.join(app.getPath('userData'), 'voice-cache'),
-        voice: watchConfig.voice.voice,
-        rate: watchConfig.voice.rate
-      });
-      messageWatcher = createMessageWatcher({
-        rules: watchConfig,
-        voice,
-        sendState: (state, message, speech, opts) => {
-          sendState(state, message, speech, state, opts || {});
-        },
-        larkCliPath: watchConfig.larkCliPath || 'C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd'
-      });
-      messageWatcher.start();
-    }
-```
-
-同时把 `activeManifest?.watch` 传给 publicManifest 不需要——renderer 不读 watch；仅主进程消费。若用户希望开发版也能开，确保 `boss-watch.json` 存在即 enabled——本机开发调试时手动在 userData 放该文件即可（userData 路径为 `%APPDATA%/desktop-pet` 或按 app name，实际以运行日志为准）。
-
-- [ ] **Step 6: 退出清理（before-quit，780 行）**
-
-```js
-  messageWatcher?.stop();
-```
-
-- [ ] **Step 7: 语法检查 + 回归**
-
-Run: `node --check src/main-v3.js && npm run test:js`
-Expected: 全绿（含新增 test-watch-rules / test-watch-config / test-message-watcher）
-
-- [ ] **Step 8: 提交**
-
-```bash
-git add src/main-v3.js
-git commit -m "feat: integrate boss watch radar into player main process"
-```
+期望：`ok`。跳过 commit。
 
 ---
-

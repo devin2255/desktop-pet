@@ -1,43 +1,21 @@
-# Task 10 Report — laopo icons + docs baseline cleanup
+# Task 10 Report: 客户 EXE
 
-**Branch:** feat/laopo-pet  
-**Status:** complete  
-**Commit:** `5ecb62e` — Switch demo icons and docs baseline to laopo.
+**Status:** DONE_WITH_CONCERNS  
+**Commits:** none
 
-## Summary
+## Build
 
-Generated laopo tray/ICO assets from `pets/library/laopo/preview.png`, rewired `package.json` build icon/tray paths from boss → laopo, updated README/AGENTS/ASSETS_LICENSE baseline statements, removed tracked boss icon files, and verified full test suite.
+First electron-builder attempt failed (`Lock file is already being held`). Retry succeeded.
 
-## Changes
+- EXE: `dist/customers/brother-duo/兄弟桌宠 Duo-1.0.0.exe` (107,088,336 bytes)
+- Report: `dist/customers/brother-duo/build-report.json`
+- `src/duo-controller.js` added to `scripts/build-customer.js` files list
+- Regression: duo-controller, renderer-interaction, brother-duo-petpack, strip safety — all OK
 
-1. **Icons (PIL)**
-   - `assets/generated/laopo-tray.png` — 64×64 RGBA from preview (matches boss-tray size)
-   - `assets/generated/laopo.ico` — multi-size ICO (16–256px) via Pillow `append_images`
-   - Removed `assets/generated/boss.ico`, `assets/generated/boss-tray.png`
+Launched EXE after build; process started (`兄弟桌宠 Duo-1.0.0`).
 
-2. **`package.json`**
-   - `build.win.icon` → `assets/generated/laopo.ico`
-   - `build.files` tray → `assets/generated/laopo-tray.png`
+## Unverified / pending
 
-3. **Docs / gitignore**
-   - `README.md`, `AGENTS.md`, `ASSETS_LICENSE.md` — current demo baseline is laopo / 老婆桌面宠物
-   - `.gitignore` exceptions: boss icon paths → laopo icon paths
-
-## Tests
-
-```
-npm test → PASS
-  test:js (incl. laopo petpack + security) → PASS
-  test:python (14 tests) → PASS
-  validate:demo → valid: laopo (老婆)
-```
-
-## Concerns
-
-- `scripts/build-customer.js` help example still mentions boss path (cosmetic; Task 11 may touch).
-- `scripts/test-boss-petpack.js` may remain locally untracked; not referenced by npm test.
-- Historical boss references intentionally kept in `docs/superpowers/plans/` and SDD briefs.
-
-## Next
-
-Task 11: `npm run build:laopo`, customer EXE verification, `outputs/laopo-verification-report.json`.
+- Full GUI checklist: right-drag unfold/fold, half-screen clamp, left radar, right menu, click-through, tray dual-window
+- Code signing
+- macOS package (out of scope)

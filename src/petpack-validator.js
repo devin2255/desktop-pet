@@ -94,6 +94,12 @@ function referencedFiles(manifest) {
   for (const animation of Object.values(manifest.animations || {})) {
     for (const frame of animation.frames || []) referenced.add(frame);
   }
+  for (const member of manifest.duo?.members || []) {
+    if (!member || typeof member !== 'object') continue;
+    for (const animation of Object.values(member.animations || {})) {
+      for (const frame of animation.frames || []) referenced.add(frame);
+    }
+  }
   for (const item of manifest.contextMenuActions || []) {
     if (!item || typeof item !== 'object') continue;
     addAudioRef(referenced, item.speechAudio);
@@ -126,6 +132,12 @@ function referencedFiles(manifest) {
     if (watch.fallback && typeof watch.fallback === 'object') addAudioRef(referenced, watch.fallback.audio);
     addWatchPoolAudio(referenced, watch.keywords);
     addWatchPoolAudio(referenced, watch.archivedKeywords);
+  }
+  const slack = manifest.duo?.slack;
+  if (slack && typeof slack === 'object' && !Array.isArray(slack) && Array.isArray(slack.clips)) {
+    for (const clip of slack.clips) {
+      if (typeof clip === 'string' && clip) referenced.add(clip);
+    }
   }
   return referenced;
 }
@@ -213,30 +225,35 @@ function validateManifest(manifest, root = '', requireFiles = false) {
     throw new Error('animations 缺失');
   }
 
-  function validateAnimation(action, expected) {
-    const animation = manifest.animations[action];
+  function validateAnimationFrom(animations, action, expected, label = action) {
+    const animation = animations[action];
     if (!animation || typeof animation !== 'object' || Array.isArray(animation)) {
-      throw new Error(`${action} 动画配置不合法`);
+      throw new Error(`${label} 动画配置不合法`);
     }
     if (!Array.isArray(animation.frames)
       || (expected === undefined ? animation.frames.length < 1 : animation.frames.length !== expected)) {
       throw new Error(expected === undefined
-        ? `${action} 必须包含至少 1 帧`
-        : `${action} 必须包含 ${expected} 帧`);
+        ? `${label} 必须包含至少 1 帧`
+        : `${label} 必须包含 ${expected} 帧`);
     }
     if (!Array.isArray(animation.durations) || animation.durations.length !== animation.frames.length) {
-      throw new Error(`${action} 的 durations 数量不匹配`);
+      throw new Error(`${label} 的 durations 数量不匹配`);
     }
     if (animation.durations.some((value) => !Number.isInteger(value) || value < 40 || value > 10000)) {
-      throw new Error(`${action} 存在非法帧时长`);
+      throw new Error(`${label} 存在非法帧时长`);
     }
     if (animation.scale !== undefined && (!Number.isFinite(animation.scale) || animation.scale < 0.5 || animation.scale > 1.5)) {
-      throw new Error(`${action} 的 scale 必须在 0.5 到 1.5 之间`);
+      throw new Error(`${label} 的 scale 必须在 0.5 到 1.5 之间`);
     }
     for (const frame of animation.frames) {
       safeRelative(frame);
-      if (path.posix.extname(frame).toLowerCase() !== '.png') throw new Error(`${action} 的帧必须是 PNG`);
+      if (path.posix.extname(frame).toLowerCase() !== '.png') throw new Error(`${label} 的帧必须是 PNG`);
     }
+    return animation.frames;
+  }
+
+  function validateAnimation(action, expected) {
+    return validateAnimationFrom(manifest.animations, action, expected);
   }
 
   const validatedAnimations = new Set();
@@ -378,6 +395,151 @@ function validateManifest(manifest, root = '', requireFiles = false) {
         }
         if (stage.restorePosition !== undefined && typeof stage.restorePosition !== 'boolean') {
           throw new Error(`sequences.${sequenceId}.stages[${index}].restorePosition 必须是布尔值`);
+        }
+      }
+    }
+  }
+
+  if (manifest.duo !== undefined) {
+    const duo = manifest.duo;
+    if (!duo || typeof duo !== 'object' || Array.isArray(duo)) {
+      throw new Error('duo 必须是对象');
+    }
+    if (duo.gesture !== undefined) {
+      const gesture = duo.gesture;
+      if (!gesture || typeof gesture !== 'object' || Array.isArray(gesture)) {
+        throw new Error('duo.gesture 必须是对象');
+      }
+      if (gesture.menuSlopPx !== undefined && (!Number.isInteger(gesture.menuSlopPx) || gesture.menuSlopPx < 1 || gesture.menuSlopPx > 40)) {
+        throw new Error('duo.gesture.menuSlopPx 必须为 1 到 40 的整数');
+      }
+      if (gesture.commitPx !== undefined && (!Number.isInteger(gesture.commitPx) || gesture.commitPx < 20 || gesture.commitPx > 200)) {
+        throw new Error('duo.gesture.commitPx 必须为 20 到 200 的整数');
+      }
+      if (gesture.snapProgress !== undefined && (!Number.isFinite(gesture.snapProgress) || gesture.snapProgress < 0.2 || gesture.snapProgress > 0.9)) {
+        throw new Error('duo.gesture.snapProgress 必须为 0.2 到 0.9 的数字');
+      }
+    }
+    for (const key of ['unfoldAction', 'foldAction']) {
+      if (duo[key] === undefined) continue;
+      if (typeof duo[key] !== 'string' || !duo[key].trim()) {
+        throw new Error(`duo.${key} 必须是非空字符串`);
+      }
+      if (!manifest.animations?.[duo[key]]) {
+        throw new Error(`duo.${key} 必须指向根级动画`);
+      }
+    }
+    if (!Array.isArray(duo.members) || duo.members.length !== 2) {
+      throw new Error('duo.members 必须包含 2 个成员');
+    }
+    const rootFramePaths = new Set();
+    for (const animation of Object.values(manifest.animations)) {
+      if (!animation || typeof animation !== 'object' || Array.isArray(animation) || !Array.isArray(animation.frames)) continue;
+      for (const frame of animation.frames) rootFramePaths.add(frame);
+    }
+    const seenMemberIds = new Set();
+    const seenSides = new Set();
+    const memberFramePaths = new Set();
+    for (const [index, member] of duo.members.entries()) {
+      const label = `duo.members[${index}]`;
+      if (!member || typeof member !== 'object' || Array.isArray(member)) {
+        throw new Error(`${label} 必须是对象`);
+      }
+      if (!PET_ID_PATTERN.test(String(member.id || '')) || seenMemberIds.has(member.id)) {
+        throw new Error(`${label}.id 不合法或重复`);
+      }
+      seenMemberIds.add(member.id);
+      if (member.side !== 'left' && member.side !== 'right') {
+        throw new Error(`${label}.side 必须是 left 或 right`);
+      }
+      seenSides.add(member.side);
+      if (typeof member.name !== 'string' || !member.name.trim() || member.name.length > 80) {
+        throw new Error(`${label}.name 长度必须为 1 到 80 个字符`);
+      }
+      if (member.watch !== undefined && typeof member.watch !== 'boolean') {
+        throw new Error(`${label}.watch 必须是布尔值`);
+      }
+      if (!member.animations || typeof member.animations !== 'object' || Array.isArray(member.animations)) {
+        throw new Error(`${label}.animations 必须是对象`);
+      }
+      for (const [action, expected] of Object.entries(REQUIRED_ACTIONS)) {
+        const frames = validateAnimationFrom(member.animations, action, expected, `${label}.animations.${action}`);
+        for (const frame of frames) {
+          if (rootFramePaths.has(frame) || memberFramePaths.has(frame)) {
+            throw new Error('动画路径冲突');
+          }
+          memberFramePaths.add(frame);
+        }
+      }
+    }
+    if (!seenSides.has('left') || !seenSides.has('right')) {
+      throw new Error('duo.members side 必须分别为 left 和 right');
+    }
+    if (duo.tent !== undefined) {
+      const tent = duo.tent;
+      if (!tent || typeof tent !== 'object' || Array.isArray(tent)) {
+        throw new Error('duo.tent 必须是对象');
+      }
+      if (tent.action !== undefined) {
+        if (typeof tent.action !== 'string' || !tent.action.trim()) {
+          throw new Error('duo.tent.action 必须是非空字符串');
+        }
+        if (!manifest.animations?.[tent.action]) {
+          throw new Error('duo.tent.action 必须指向根级动画');
+        }
+      }
+      for (const key of ['enterLabel', 'leaveLabel']) {
+        if (tent[key] === undefined) continue;
+        if (typeof tent[key] !== 'string' || !tent[key].trim() || tent[key].length > 24) {
+          throw new Error(`duo.tent.${key} 长度必须为 1 到 24 个字符`);
+        }
+      }
+      if (tent.openProgress !== undefined) {
+        const progress = tent.openProgress;
+        if (typeof progress !== 'number' || !Number.isFinite(progress) || progress < 0.35 || progress > 0.65) {
+          throw new Error('duo.tent.openProgress 必须为 0.35 到 0.65 的数字');
+        }
+      }
+    }
+    if (duo.slack !== undefined) {
+      const slack = duo.slack;
+      if (!slack || typeof slack !== 'object' || Array.isArray(slack)) {
+        throw new Error('duo.slack 必须是对象');
+      }
+      for (const key of ['jumpAction', 'carryAction']) {
+        if (typeof slack[key] !== 'string' || !slack[key].trim()) {
+          throw new Error(`duo.slack.${key} 必须是非空字符串`);
+        }
+        if (!manifest.animations?.[slack[key]]) {
+          throw new Error(`duo.slack.${key} 必须指向根级动画`);
+        }
+      }
+      for (const key of ['enterLabel', 'leaveLabel']) {
+        if (slack[key] === undefined) continue;
+        if (typeof slack[key] !== 'string' || !slack[key].trim() || slack[key].length > 24) {
+          throw new Error(`duo.slack.${key} 长度必须为 1 到 24 个字符`);
+        }
+      }
+      if (!Array.isArray(slack.clips) || slack.clips.length < 1 || slack.clips.length > 8) {
+        throw new Error('duo.slack.clips 必须包含 1 到 8 个视频路径');
+      }
+      for (const clip of slack.clips) {
+        if (typeof clip !== 'string' || !clip.trim()) {
+          throw new Error('duo.slack.clips 必须是非空字符串数组');
+        }
+        safeRelative(clip);
+        const ext = path.posix.extname(clip).toLowerCase();
+        if (ext !== '.mp4' && ext !== '.webm') {
+          throw new Error('duo.slack.clips 只支持 mp4/webm');
+        }
+        if (requireFiles && !fs.statSync(resolveInside(root, clip), { throwIfNoEntry: false })?.isFile()) {
+          throw new Error(`资源缺失：${clip}`);
+        }
+      }
+      if (slack.boardSecids !== undefined) {
+        if (!Array.isArray(slack.boardSecids) || slack.boardSecids.length < 1 || slack.boardSecids.length > 8
+          || slack.boardSecids.some((value) => typeof value !== 'string' || !value.trim())) {
+          throw new Error('duo.slack.boardSecids 必须包含 1 到 8 个非空字符串');
         }
       }
     }

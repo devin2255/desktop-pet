@@ -12,6 +12,37 @@
       <div id="ticker" class="ticker" aria-hidden="true"></div>
       <div id="bubble" class="bubble" role="status" aria-live="polite"></div>
       <div id="hearts" class="hearts" aria-hidden="true"></div>
+      <div id="duo-overlay" class="duo-overlay" hidden aria-hidden="true">
+        <div class="duo-device" aria-hidden="true">
+          <div class="duo-device-bezel"></div>
+          <div class="duo-device-screen">
+            <div class="duo-device-leaf duo-device-leaf-left">
+              <img id="duo-intro-left" class="duo-intro-image" hidden alt="" />
+              <div id="duo-slack-board" class="duo-slack-board" hidden>
+                <div id="duo-slack-quotes" class="duo-slack-quotes"></div>
+                <canvas id="duo-slack-kline" class="duo-slack-kline" width="240" height="160"></canvas>
+              </div>
+            </div>
+            <div class="duo-device-hinge"></div>
+            <div class="duo-device-leaf duo-device-leaf-right">
+              <img id="duo-intro-right" class="duo-intro-image" hidden alt="" />
+              <div id="duo-slack-feed" class="duo-slack-feed" hidden>
+                <video id="duo-slack-video" class="duo-slack-video is-current" muted playsinline preload="none"></video>
+                <video id="duo-slack-video-next" class="duo-slack-video is-next" muted playsinline preload="none"></video>
+              </div>
+            </div>
+            <div class="duo-clock" aria-hidden="true">
+              <div id="duo-clock-date" class="duo-clock-date"></div>
+              <div id="duo-clock-time" class="duo-clock-time">
+                <span id="duo-clock-hm">00:00</span><span class="duo-clock-colon">:</span><span id="duo-clock-sec" class="duo-clock-sec">00</span>
+              </div>
+            </div>
+          </div>
+          <div class="duo-device-pill"></div>
+          <div class="duo-device-island"></div>
+          <div class="duo-device-home"></div>
+        </div>
+      </div>
       <img id="pet-image" class="pet-image" draggable="false" alt="桌面宠物" />
       <div class="ground" aria-hidden="true"></div>
     </main>

@@ -38,4 +38,21 @@ function crawlIdleState(facing) {
   return facing === 'left' ? 'crawl-left' : 'crawl-right';
 }
 
-module.exports = { nextRoamTarget, crawlIdleState };
+function roamStepBounds(startBounds, targetX, progress, size, workArea) {
+  const t = Math.min(1, Math.max(0, Number(progress) || 0));
+  const width = size.width;
+  const height = size.height;
+  const x = Math.round((Number(startBounds?.x) || 0) + (targetX - (Number(startBounds?.x) || 0)) * t);
+  const minX = workArea.x;
+  const maxX = workArea.x + workArea.width - width;
+  const minY = workArea.y;
+  const maxY = workArea.y + workArea.height - height;
+  return {
+    x: Math.round(Math.min(Math.max(x, minX), maxX)),
+    y: Math.round(Math.min(Math.max(Number(startBounds?.y) || 0, minY), maxY)),
+    width,
+    height
+  };
+}
+
+module.exports = { nextRoamTarget, crawlIdleState, roamStepBounds };

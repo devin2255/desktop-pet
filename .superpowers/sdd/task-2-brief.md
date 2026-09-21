@@ -1,178 +1,66 @@
-### Task 2: watch-config.js — 双层配置加载合并
+### Task 2: 校验与能力门
 
 **Files:**
-- Create: `src/watch-config.js`
-- Test: `scripts/test-watch-config.js`
+- Modify: `src/capability-gates.js`, `src/petpack-validator.js`, `skills/desktop-pet-maker/scripts/petpack_tool.py`
+- Test: `scripts/test-capability-gates.js`, `scripts/test-sequences-schema.js`, `skills/desktop-pet-maker/scripts/test_petpack_tool.py`
 
 **Interfaces:**
-- Consumes: `DEFAULT_KEYWORDS`（Task 1）
-- Produces:
-  - `DEFAULT_BOSS_CONFIG` 常量（enabled:false、cooldownSec:30、quietHours:[]、voice:{enabled:true, gender:'male', rate:'+0%', voice:'zh-CN-YunxiNeural'}）
-  - `loadWatchConfig({ configPath, manifestWatch, larkCliPath })` → 规范化配置对象（见下），读取失败/字段非法回退默认值，绝不抛异常
-  - `splitBosses(bosses)` → `{ ids: string[], names: string[] }`（以 `ou_` 开头的进 ids，其余进 names）
-  - 返回配置结构：`{ enabled, larkCliPath, bosses, ids, names, cooldownSec, quietHours, voice, keywords, fallback, state }`
-  - `keywords`：manifestWatch.keywords 合法则用，否则 `DEFAULT_KEYWORDS`；`fallback`：manifestWatch.fallback 字符串合法则用，否则 `'老板又开始整活儿了，装没看见。'`；`state`：manifestWatch.state 字符串合法则用，否则 `'reaction'`
+- Consumes: `hasDuo`
+- Produces: `hasDuoSlack(manifest)`；validator 接受合法 `duo.slack`、拒绝缺动作/缺 clips
 
-- [ ] **Step 1: 写失败测试** `scripts/test-watch-config.js`
+- [ ] **Step 1: 失败测试**
+
+`scripts/test-capability-gates.js`：
 
 ```js
-'use strict';
-const assert = require('assert');
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
-const { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG } = require('../src/watch-config');
-const { DEFAULT_KEYWORDS } = require('../src/watch-rules');
-
-function tmpJson(obj) {
-  const p = path.join(os.tmpdir(), `boss-watch-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
-  fs.writeFileSync(p, JSON.stringify(obj));
-  return p;
-}
-
-function testDefaultsWhenMissing() {
-  const cfg = loadWatchConfig({ configPath: path.join(os.tmpdir(), 'nope-xxx.json'), larkCliPath: 'lark' });
-  assert.strictEqual(cfg.enabled, false);
-  assert.strictEqual(cfg.cooldownSec, 30);
-  assert.deepStrictEqual(cfg.quietHours, []);
-  assert.strictEqual(cfg.state, 'reaction');
-  assert.deepStrictEqual(cfg.keywords, DEFAULT_KEYWORDS);
-  assert.strictEqual(cfg.voice.voice, 'zh-CN-YunxiNeural');
-}
-
-function testCorruptFileFallsBack() {
-  const p = path.join(os.tmpdir(), 'boss-watch-bad.json');
-  fs.writeFileSync(p, '{not json');
-  const cfg = loadWatchConfig({ configPath: p, larkCliPath: 'lark' });
-  assert.strictEqual(cfg.enabled, false); // 不抛异常
-}
-
-function testMergeManifest() {
-  const p = tmpJson({ enabled: true, bosses: ['王总', 'ou_abc'] });
-  const cfg = loadWatchConfig({
-    configPath: p,
-    larkCliPath: 'lark',
-    manifestWatch: { keywords: { '画饼': ['专属文案'] }, fallback: '兜底', state: 'idle' }
-  });
-  assert.strictEqual(cfg.enabled, true);
-  assert.deepStrictEqual(cfg.keywords, { '画饼': ['专属文案'] });
-  assert.strictEqual(cfg.fallback, '兜底');
-  assert.strictEqual(cfg.state, 'idle');
-}
-
-function testSplitBosses() {
-  const { ids, names } = splitBosses(['王总', 'ou_123', 'ou_456', '李总']);
-  assert.deepStrictEqual(ids, ['ou_123', 'ou_456']);
-  assert.deepStrictEqual(names, ['王总', '李总']);
-}
-
-const tests = { testDefaultsWhenMissing, testCorruptFileFallsBack, testMergeManifest, testSplitBosses };
-let failed = 0;
-for (const [name, fn] of Object.entries(tests)) {
-  try { fn(); console.log(`ok - ${name}`); } catch (e) { failed++; console.error(`FAIL - ${name}: ${e.message}`); }
-}
-if (failed) process.exit(1);
-console.log('watch-config: all tests passed');
+const { hasDuoSlack } = require('../src/capability-gates');
+assert.strictEqual(hasDuoSlack({}), false);
+assert.strictEqual(hasDuoSlack({ duo: { members: [{}, {}] } }), false);
+assert.strictEqual(hasDuoSlack({ duo: { members: [{}, {}], slack: { jumpAction: 'slack-jump' } } }), true);
+assert.strictEqual(hasDuoSlack({ duo: { members: [{}, {}], slack: null } }), false);
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+`testRuntimeCapabilitiesAreManifestGated` 追加（实现 Task 3 前这条会失败，**本 task 只加 hasDuoSlack 断言；main 契约放到 Task 3**）。
 
-Run: `node scripts/test-watch-config.js`
-Expected: FAIL（模块不存在）
-
-- [ ] **Step 3: 实现** `src/watch-config.js`
+`scripts/test-sequences-schema.js` 在现有 `duoManifest` helper 旁增加：
 
 ```js
-'use strict';
-const fs = require('fs');
-const { DEFAULT_KEYWORDS } = require('./watch-rules');
-
-const DEFAULT_BOSS_CONFIG = {
-  enabled: false,
-  cooldownSec: 30,
-  quietHours: [],
-  voice: { enabled: true, gender: 'male', rate: '+0%', voice: 'zh-CN-YunxiNeural' }
-};
-
-function splitBosses(bosses) {
-  const ids = [];
-  const names = [];
-  for (const item of Array.isArray(bosses) ? bosses : []) {
-    if (typeof item !== 'string' || !item.trim()) continue;
-    if (item.startsWith('ou_')) ids.push(item);
-    else names.push(item);
-  }
-  return { ids, names };
-}
-
-function asStrings(v) { return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()) : []; }
-function asStringArray(v) { return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()) : []; }
-
-function normalizeQuietHours(v) {
-  if (!Array.isArray(v)) return [];
-  return v.filter((pair) => Array.isArray(pair) && pair.length === 2
-    && typeof pair[0] === 'string' && typeof pair[1] === 'string' && /^\d{1,2}:\d{2}$/.test(pair[0]) && /^\d{1,2}:\d{2}$/.test(pair[1]));
-}
-
-function loadWatchConfig({ configPath, manifestWatch, larkCliPath }) {
-  let fileCfg = {};
-  try {
-    if (configPath && fs.existsSync(configPath)) {
-      const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (raw && typeof raw === 'object') fileCfg = raw;
-    }
-  } catch (_) { fileCfg = {}; }
-
-  const voiceBase = (fileCfg.voice && typeof fileCfg.voice === 'object') ? fileCfg.voice : {};
-  const voice = {
-    enabled: voiceBase.enabled === undefined ? DEFAULT_BOSS_CONFIG.voice.enabled : Boolean(voiceBase.enabled),
-    gender: voiceBase.gender === 'female' ? 'female' : 'male',
-    rate: typeof voiceBase.rate === 'string' ? voiceBase.rate : DEFAULT_BOSS_CONFIG.voice.rate,
-    voice: typeof voiceBase.voice === 'string' && voiceBase.voice ? voiceBase.voice : DEFAULT_BOSS_CONFIG.voice.voice
-  };
-
-  const manifestWatch = manifestWatch && typeof manifestWatch === 'object' ? manifestWatch : {};
-  const manifestKeywords = manifestWatch.keywords && typeof manifestWatch.keywords === 'object'
-    ? Object.fromEntries(Object.entries(manifestWatch.keywords)
-        .filter(([k, v]) => typeof k === 'string' && k && Array.isArray(v) && v.some((x) => typeof x === 'string' && x))
-        .map(([k, v]) => [k, asStrings(v)]))
-    : {};
-  const keywords = Object.keys(manifestKeywords).length ? manifestKeywords : DEFAULT_KEYWORDS;
-  const fallback = typeof manifestWatch.fallback === 'string' && manifestWatch.fallback.trim()
-    ? manifestWatch.fallback.trim() : '老板又开始整活儿了，装没看见。';
-  const state = typeof manifestWatch.state === 'string' && manifestWatch.state.trim()
-    ? manifestWatch.state.trim() : 'reaction';
-
-  const { ids, names } = splitBosses(fileCfg.bosses);
-  return {
-    enabled: Boolean(fileCfg.enabled),
-    larkCliPath: typeof larkCliPath === 'string' && larkCliPath ? larkCliPath : '',
-    bosses: asStringArray(fileCfg.bosses),
-    ids,
-    names,
-    cooldownSec: Number.isFinite(Number(fileCfg.cooldownSec)) ? Math.max(0, Number(fileCfg.cooldownSec)) : DEFAULT_BOSS_CONFIG.cooldownSec,
-    quietHours: normalizeQuietHours(fileCfg.quietHours),
-    voice,
-    keywords,
-    fallback,
-    state
-  };
-}
-
-module.exports = { loadWatchConfig, splitBosses, DEFAULT_BOSS_CONFIG };
+() => validateManifest(duoManifest({ slack: { jumpAction: 'idle', carryAction: 'walk', clips: [] } }), '', false),
+/clips/,
+() => validateManifest(duoManifest({
+  slack: { jumpAction: 'missing', carryAction: 'walk', clips: ['video/slack/01.webm'] }
+}), '', false),
+/jumpAction/,
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+合法夹具：`jumpAction`/`carryAction` 指向根级已有动画，`clips` 至少 1 个（validator 在 `validateManifest(manifest, '', false)` 时若 root 为空可能跳过文件存在检查——与 tent 一样：无 root 只查字段类型；`validateManifest(..., root, true)` 才查文件）。
 
-Run: `node scripts/test-watch-config.js`
-Expected: 全部 ok + `watch-config: all tests passed`
+看 `validateManifest` 对 tent 的文件检查模式：slack clips 在 `root` 非空且第三参 true 时 `fs.existsSync`。
 
-- [ ] **Step 5: 并入 test:js + 提交**
+Python `test_petpack_tool.py` 增加合法 slack 一条、`clips: []` 非法一条。
 
-```bash
-git add src/watch-config.js scripts/test-watch-config.js package.json
-git commit -m "feat: add watch config loader with petpack merge"
+- [ ] **Step 2:** 跑对应测试，确认失败。
+
+- [ ] **Step 3: 实现**
+
+```js
+function hasDuoSlack(manifest) {
+  return hasDuo(manifest)
+    && Boolean(manifest.duo.slack && typeof manifest.duo.slack === 'object' && !Array.isArray(manifest.duo.slack));
+}
 ```
+
+`petpack-validator.js` 在 `duo.tent` 块后：
+
+- `slack` 必须是对象
+- `jumpAction`/`carryAction` 非空且 `manifest.animations[name]`
+- labels 1～24 若出现
+- `clips` 必须是 1～8 长度的字符串数组，每项相对路径、以 `.mp4` 或 `.webm` 结尾（大小写不敏感）
+- `checkFiles===true` 时每个 clip `resolveInside(root, clip)` 必须是文件
+- `boardSecids` 若出现：1～8 个非空字符串
+
+Python `petpack_tool.py` 对齐同样规则。
+
+- [ ] **Step 4:** `node scripts/test-capability-gates.js`、`node scripts/test-sequences-schema.js`、相关 Python unittest 通过。跳过 commit。
 
 ---
-

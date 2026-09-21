@@ -1,59 +1,93 @@
-# Task 5 报告：main-v3.js 集成 — 协议、sendState 修正、启动/停止
+# Task 5 Report: 兄弟 Duo 资源（动作条 + clips + pet.json）
 
-## 已实施的变更（按 brief 顺序）
+## Status
 
-1. **Step 1 — 注册 voice-cache 协议**：在 `protocol.registerSchemesAsPrivileged` 数组中追加 `voice-cache` 项，权限与 `pet-asset` 一致（`standard/secure/supportFetchAPI/corsEnabled/stream`）。
-2. **Step 2 — 修正 sendState speechAudio 改写**：将 `!speechAudio.startsWith('pet-asset:')` 替换为 `!/^[a-z][a-z0-9+.-]*:/i.test(speechAudio)`，使任何带协议前缀的字符串（pet-asset/voice-cache/data/file）都视为完整 URL，不再被当作相对路径改写。
-3. **Step 3 — 引入新模块 + 声明模块级变量**：在 `createSequenceController` require 之后追加 `message-watcher`/`watch-config`/`edge-voice` 三个 require；在 `let sequence;` 之后追加 `let messageWatcher;`。
-4. **Step 4 — 注册 voice-cache 处理器**：紧跟 `protocol.handle('pet-asset', ...)` 之后注册 `voice-cache` 处理器。预先创建 `userData/voice-cache` 目录，使用 `hostname + 去掉前导斜杠的 pathname` 拼接提取文件名，再以正则 `^[a-f0-9]{32}\.mp3$` 白名单校验，通过后用 `resolveInside` 防穿越并读取文件，返回 `audio/mpeg`。
-5. **Step 5 — 启动集成**：在 `createTray()` 之后调用 `loadWatchConfig`（configPath = `userData/boss-watch.json`，manifestWatch = `activeManifest?.watch`）。当 `watchConfig.enabled` 为真时创建 voice synthesizer（cacheDir = `userData/voice-cache`，voice/rate 取自 `watchConfig.voice`），构造 messageWatcher（sendState 包装为 `(state, message, speech, opts) => sendState(state, message, speech, state, opts || {})`），并 `start()`。
-6. **Step 6 — 退出清理**：在 `before-quit` 中追加 `messageWatcher?.stop();`。
-7. **Step 7 — 语法 + 回归**：`node --check src/main-v3.js` 通过；`npm run test:js` 全绿（含 watch-rules / watch-config / edge-voice / message-watcher）。
-8. **Step 8 — 提交**：commit `999b690`。
+**DONE**
 
-## voice-cache URL 解析验证
+## TDD Evidence
 
-实测 Node `new URL(...)` 结果：
+1. **RED** — 先修改 `scripts/test-brother-duo-petpack.js`，新增断言：
+   - `duo.slack.jumpAction === 'slack-jump'`
+   - `duo.slack.carryAction === 'slack-carry'`
+   - `duo.slack.clips.length >= 3`
+   - 右键菜单包含 `{ id: 'duo-slack', label: '摸会儿鱼' }`
+   - `slack-jump` 不循环，`slack-carry` 循环，且两者各 4 帧。
 
-| 输入 | hostname | pathname |
-|---|---|---|
-| `voice-cache://abc123.mp3` | `abc123.mp3` | `` |
-| `voice-cache://abc123.mp3/` | `abc123.mp3` | `/` |
+2. **RED Run**
 
-采用 brief 的 `hostname + pathname.replace(/^\//, '')` 拼接策略：对 `voice-cache://abc123.mp3` 得 `abc123.mp3 + '' = abc123.mp3`；对带尾斜杠者得 `abc123.mp3 + '' = abc123.mp3`；若极端情况 hostname 为空（如 `voice-cache:///abc.mp3`），pathname 为 `/abc.mp3`，拼接得 `abc.mp3`。所有路径提取后再以 `^[a-f0-9]{32}\.mp3$` 强校验，不匹配一律拒绝。
+```text
+$ node scripts/test-brother-duo-petpack.js
+AssertionError [ERR_ASSERTION]: folded menu missing 摸会儿鱼
+```
 
-## sendState 正则验证
+3. **GREEN** — 增加资源、扩展写入脚本、重新生成 `pet.json` 并打包。
 
-正则：`/^[a-z][a-z0-9+.-]*:/i`
+4. **GREEN Run**
 
-| 输入 | 判定 | 行为 |
-|---|---|---|
-| `pet-asset://x/y` | FULL | 不改写 |
-| `voice-cache://abc.mp3` | FULL | 不改写 |
-| `data:audio/mpeg;base64,AAA` | FULL | 不改写 |
-| `file:///C:/x` | FULL | 不改写 |
-| `animations/foo.png` | RELATIVE | 改写为 pet-asset URL |
-| `foo.mp3` | RELATIVE | 改写为 pet-asset URL |
+```text
+$ node pets/work/brother-duo/_write_pet_json.js && python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/brother-duo pets/packages/brother-duo.petpack && node scripts/test-brother-duo-petpack.js
+wrote D:\Vibe_Coding\desktop-pet\pets\library\brother-duo\pet.json
+pets\packages\brother-duo.petpack
+test-brother-duo-petpack: ok
+```
 
-所有现有 `sendState` 调用点（`runBehavior`/`runDirectMenuAction`/`publicManifest` 等）传入的 speechAudio 要么是相对路径（会被改写为 pet-asset URL，与旧行为一致），要么已经在 `publicManifest` 中改写为 pet-asset URL（FULL，不再二次改写）——行为保持兼容。
+## Implementation
 
-## 验证结果
+- Created root action frames:
+  - `pets/library/brother-duo/animations/slack-jump/01.png` ... `04.png`
+  - `pets/library/brother-duo/animations/slack-carry/01.png` ... `04.png`
+- Created muted abstract vertical-feed clips:
+  - `pets/library/brother-duo/video/slack/01.webm`
+  - `pets/library/brother-duo/video/slack/02.webm`
+  - `pets/library/brother-duo/video/slack/03.webm`
+- Updated `pets/work/brother-duo/_write_pet_json.js`:
+  - root `animations.slack-jump`
+  - root `animations.slack-carry`
+  - `duo.slack`
+  - folded menu item `duo-slack` / `摸会儿鱼`
+- Rebuilt:
+  - `pets/library/brother-duo/pet.json`
+  - `pets/packages/brother-duo.petpack`
 
-- `node --check src/main-v3.js`：**SYNTAX OK**
-- `npm run test:js`：**全绿**，输出 pristine（renderer interaction / petpack security / sequences schema / window interactions / window discovery / interaction controller / topmost guard / runtime CDP / laopo petpack / startup greeting / sequence controller / watch-rules / watch-config / edge-voice / message-watcher 全部通过）
+## Asset Verification
 
-## 变更文件
+```text
+slack-jump 4
+all frames: (480, 480) RGBA, non-empty alpha
+slack-carry 4
+all frames: (480, 480) RGBA, non-empty alpha
+video/slack/01.webm [{'codec_name': 'vp8', 'codec_type': 'video'}]
+video/slack/02.webm [{'codec_name': 'vp8', 'codec_type': 'video'}]
+video/slack/03.webm [{'codec_name': 'vp8', 'codec_type': 'video'}]
+```
 
-- `D:/Vibe_Coding/desktop-pet/src/main-v3.js`（+45 / -1）
+## Commits
 
-## 自审发现
+None（按任务要求未提交）。
 
-- **启动/停止配对**：`whenReady` 内根据 `watchConfig.enabled` 创建并 `start()`；`before-quit` 通过可选链 `messageWatcher?.stop()` 清理，未启用时为 undefined 也不会报错。✓
-- **sendState 正则兼容性**：所有现有调用点传入相对路径或已带 `pet-asset:` 前缀；新 voice-cache URL 也带前缀——均按预期判定。✓
-- **voice-cache 白名单**：`^[a-f0-9]{32}\.mp3$` 在提取后强校验；`resolveInside` 二次防穿越。✓
-- **未破坏 pet-asset 处理器**：新处理器独立注册，未触碰原 pet-asset 逻辑。✓
-- **潜在隐患**：Step 5 的 `larkCliPath` 默认值硬编码为 `C:/Users/Thinkpad/.qwenworkcn/bin/lark-cli.cmd`，这是本机开发路径；客户交付时若 `boss-watch.json` 未提供 `larkCliPath`，会回退到该路径。由于客户场景默认 `watchConfig.enabled=false`（`boss-watch.json` 不存在时 `loadWatchConfig` 返回 `enabled: false`），不会触发。仅开发调试场景受影响，与 brief 一致。
+## Concerns
 
-## 提交
+新增 PNG 使用现有 idle 帧保守合成，能保持服装颜色和左右身份，但不是重新绘制的高质量动作条；视觉丰富度可后续继续精修。
 
-- `999b690` — feat: integrate boss watch radar into player main process
+## Follow-up Fix: 2026-09-15 09:48
+
+- Fixed `duo.slack.leaveLabel` from `接着干` to spec value `收工了` in `pets/work/brother-duo/_write_pet_json.js`, then regenerated `pets/library/brother-duo/pet.json`.
+- Re-exported `pets/library/brother-duo/animations/slack-carry/01.png` ... `04.png` without the fake phone/device rectangle. Frames remain 480x480 RGBA with left judge, right floral, feet on baseline, and an empty transparent center gap for the CSS overlay.
+- Rebuilt `pets/packages/brother-duo.petpack`.
+
+```text
+$ node pets/work/brother-duo/_write_pet_json.js
+wrote D:\Vibe_Coding\desktop-pet\pets\library\brother-duo\pet.json
+
+$ python skills/desktop-pet-maker/scripts/petpack_tool.py build pets/library/brother-duo pets/packages/brother-duo.petpack
+pets\packages\brother-duo.petpack
+
+$ node scripts/test-brother-duo-petpack.js
+test-brother-duo-petpack: ok
+
+slack-carry center gap check:
+01.png center-gap-alpha-max 0
+02.png center-gap-alpha-max 0
+03.png center-gap-alpha-max 0
+04.png center-gap-alpha-max 0
+```

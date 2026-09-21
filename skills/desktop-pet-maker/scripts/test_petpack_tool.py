@@ -5,7 +5,10 @@ import tempfile
 import unittest
 import zipfile
 import json
+from io import BytesIO
 from pathlib import Path
+
+from PIL import Image
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -18,7 +21,83 @@ import petpack_tool
 class PetpackArchiveSecurityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.fixture = SCRIPT_DIR.parents[2] / "pets" / "packages" / "xiaogou.petpack"
+        cls.fixture_temp = tempfile.TemporaryDirectory()
+        cls.fixture = Path(cls.fixture_temp.name) / "xiaogou.petpack"
+        manifest = cls.base_manifest()
+        manifest["id"] = "xiaogou"
+        with zipfile.ZipFile(cls.fixture, "w") as package:
+            package.writestr("pet.json", json.dumps(manifest, ensure_ascii=False).encode("utf-8"))
+            png = cls.sample_png()
+            for relative in sorted(petpack_tool.referenced_files(manifest) - {"pet.json"}):
+                package.writestr(relative, png)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.fixture_temp.cleanup()
+
+    @staticmethod
+    def sample_png() -> bytes:
+        image = Image.new("RGBA", (2, 2), (0, 0, 0, 0))
+        image.putpixel((1, 1), (255, 0, 0, 255))
+        output = BytesIO()
+        image.save(output, format="PNG")
+        return output.getvalue()
+
+    @staticmethod
+    def make_animation(action: str, frame_count: int, loop: bool = False) -> dict:
+        frames = [f"animations/{action}/{index:02d}.png" for index in range(1, frame_count + 1)]
+        return {"frames": frames, "durations": [100] * frame_count, "loop": loop, "scale": 1}
+
+    @classmethod
+    def base_manifest(cls) -> dict:
+        return {
+            "schemaVersion": 1,
+            "id": "demo-seq",
+            "name": "Demo",
+            "personality": ["x"],
+            "preview": "preview.png",
+            "animations": {
+                "idle": cls.make_animation("idle", 4, True),
+                "walk": cls.make_animation("walk", 6, True),
+                "sit": cls.make_animation("sit", 4),
+                "sleep": cls.make_animation("sleep", 4, True),
+                "reaction": cls.make_animation("reaction", 4),
+            },
+        }
+
+    @classmethod
+    def member_animations(cls, member_id: str) -> dict:
+        return {
+            "idle": cls.make_animation(f"{member_id}/idle", 4, True),
+            "walk": cls.make_animation(f"{member_id}/walk", 6, True),
+            "sit": cls.make_animation(f"{member_id}/sit", 4),
+            "sleep": cls.make_animation(f"{member_id}/sleep", 4, True),
+            "reaction": cls.make_animation(f"{member_id}/reaction", 4),
+        }
+
+    @classmethod
+    def duo_manifest(cls) -> dict:
+        manifest = cls.base_manifest()
+        manifest["duo"] = {
+            "gesture": {"menuSlopPx": 12, "commitPx": 48, "snapProgress": 0.5},
+            "members": [
+                {
+                    "id": "judge",
+                    "side": "left",
+                    "name": "兄弟判官",
+                    "watch": True,
+                    "animations": cls.member_animations("judge"),
+                },
+                {
+                    "id": "floral",
+                    "side": "right",
+                    "name": "花袄弟",
+                    "watch": False,
+                    "animations": cls.member_animations("floral"),
+                },
+            ],
+        }
+        return manifest
 
     def copy_with_extra(self, destination: Path, name: str, content: bytes = b"extra") -> None:
         with zipfile.ZipFile(self.fixture) as source, zipfile.ZipFile(destination, "w") as target:
@@ -153,6 +232,61 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
             }
         ]
         petpack_tool.validate_manifest_shape(manifest)
+
+    def test_duo_manifest_validates_and_references_member_frames(self) -> None:
+        manifest = self.duo_manifest()
+        petpack_tool.validate_manifest_shape(manifest)
+        referenced = petpack_tool.referenced_files(manifest)
+        self.assertIn("animations/judge/idle/01.png", referenced)
+        self.assertIn("animations/floral/reaction/04.png", referenced)
+
+    def test_duo_manifest_requires_two_members(self) -> None:
+        manifest = self.duo_manifest()
+        manifest["duo"]["members"] = manifest["duo"]["members"][:1]
+        with self.assertRaisesRegex(ValueError, "duo.*members"):
+            petpack_tool.validate_manifest_shape(manifest)
+
+    def test_duo_manifest_root_member_path_collision_uses_contract_error(self) -> None:
+        manifest = self.duo_manifest()
+        manifest["duo"]["members"][0]["animations"]["idle"]["frames"][0] = manifest["animations"]["idle"]["frames"][0]
+        with self.assertRaisesRegex(ValueError, "动画路径冲突"):
+            petpack_tool.validate_manifest_shape(manifest)
+
+    def test_duo_tent_validates(self) -> None:
+        manifest = self.duo_manifest()
+        manifest["duo"]["tent"] = {
+            "action": "sit",
+            "enterLabel": "支起来",
+            "leaveLabel": "收起来",
+            "openProgress": 0.48,
+        }
+        petpack_tool.validate_manifest_shape(manifest)
+
+    def test_duo_tent_rejects_invalid_open_progress(self) -> None:
+        manifest = self.duo_manifest()
+        manifest["duo"]["tent"] = {"openProgress": 0.2}
+        with self.assertRaisesRegex(ValueError, "openProgress"):
+            petpack_tool.validate_manifest_shape(manifest)
+
+    def test_duo_slack_validates(self) -> None:
+        manifest = self.duo_manifest()
+        manifest["duo"]["slack"] = {
+            "jumpAction": "idle",
+            "carryAction": "walk",
+            "clips": ["video/slack/01.webm"],
+        }
+        petpack_tool.validate_manifest_shape(manifest)
+        self.assertIn("video/slack/01.webm", petpack_tool.referenced_files(manifest))
+
+    def test_duo_slack_rejects_empty_clips(self) -> None:
+        manifest = self.duo_manifest()
+        manifest["duo"]["slack"] = {
+            "jumpAction": "idle",
+            "carryAction": "walk",
+            "clips": [],
+        }
+        with self.assertRaisesRegex(ValueError, "clips"):
+            petpack_tool.validate_manifest_shape(manifest)
 
 
 if __name__ == "__main__":

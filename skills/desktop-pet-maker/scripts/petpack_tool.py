@@ -38,6 +38,7 @@ def safe_relative(value: str) -> Path:
 
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg"}
+VIDEO_EXTENSIONS = {".mp4", ".webm"}
 
 
 def referenced_files(manifest: dict) -> set[str]:
@@ -46,6 +47,15 @@ def referenced_files(manifest: dict) -> set[str]:
         if isinstance(config, dict):
             for frame in config.get("frames", []):
                 referenced.add(safe_relative(str(frame)).as_posix())
+    duo = manifest.get("duo")
+    if isinstance(duo, dict):
+        for member in duo.get("members") or []:
+            if not isinstance(member, dict):
+                continue
+            for config in member.get("animations", {}).values():
+                if isinstance(config, dict):
+                    for frame in config.get("frames", []):
+                        referenced.add(safe_relative(str(frame)).as_posix())
     for item in manifest.get("contextMenuActions") or []:
         if not isinstance(item, dict):
             continue
@@ -84,6 +94,11 @@ def referenced_files(manifest: dict) -> set[str]:
                 for entry in entries:
                     if isinstance(entry, dict) and entry.get("audio"):
                         referenced.add(safe_relative(str(entry["audio"])).as_posix())
+    slack = duo.get("slack") if isinstance(duo, dict) else None
+    if isinstance(slack, dict):
+        for clip in slack.get("clips") or []:
+            if isinstance(clip, str) and clip:
+                referenced.add(safe_relative(clip).as_posix())
     sequences = manifest.get("sequences")
     if isinstance(sequences, dict):
         for sequence in sequences.values():
@@ -131,28 +146,39 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
 
     frame_paths: list[str] = []
 
-    def validate_animation(action: str, expected: int | None = None) -> None:
-        config = animations.get(action)
+    def validate_animation_from(
+        animation_root: dict,
+        action: str,
+        expected: int | None = None,
+        label: str | None = None,
+    ) -> list[str]:
+        label = label or action
+        config = animation_root.get(action)
         if not isinstance(config, dict):
-            raise ValueError(f"{action}: animation must be an object")
+            raise ValueError(f"{label}: animation must be an object")
         frames = config.get("frames")
         durations = config.get("durations")
         if not isinstance(frames, list) or (len(frames) != expected if expected is not None else not frames):
             expectation = f"{expected}" if expected is not None else "at least 1"
-            raise ValueError(f"{action}: expected {expectation} frame paths")
+            raise ValueError(f"{label}: expected {expectation} frame paths")
         if not isinstance(durations, list) or len(durations) != len(frames):
-            raise ValueError(f"{action}: durations must match frames")
+            raise ValueError(f"{label}: durations must match frames")
         if any(not isinstance(value, int) or isinstance(value, bool) or not 40 <= value <= 10000 for value in durations):
-            raise ValueError(f"{action}: duration must be an integer from 40 to 10000 ms")
+            raise ValueError(f"{label}: duration must be an integer from 40 to 10000 ms")
         scale = config.get("scale", 1)
         if not isinstance(scale, (int, float)) or isinstance(scale, bool) or not 0.5 <= scale <= 1.5:
-            raise ValueError(f"{action}: scale must be a number from 0.5 to 1.5")
+            raise ValueError(f"{label}: scale must be a number from 0.5 to 1.5")
+        normalized_frames: list[str] = []
         for frame_path in frames:
             relative = safe_relative(str(frame_path))
             if relative.suffix.lower() != ".png":
-                raise ValueError(f"{action}: frames must be PNG files")
+                raise ValueError(f"{label}: frames must be PNG files")
             # Allow reused frame paths so actions can ping-pong or settle on a shared pose.
-            frame_paths.append(relative.as_posix())
+            normalized_frames.append(relative.as_posix())
+        return normalized_frames
+
+    def validate_animation(action: str, expected: int | None = None) -> None:
+        frame_paths.extend(validate_animation_from(animations, action, expected))
 
     validated_animations: set[str] = set()
     for action, expected in REQUIRED_ACTIONS.items():
@@ -232,6 +258,145 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                         raise ValueError(f"sequences.{sequence_id}.stages[{index}].duration must be an integer from 0 to 10000")
                 if "waitForClick" in stage and not isinstance(stage["waitForClick"], bool):
                     raise ValueError(f"sequences.{sequence_id}.stages[{index}].waitForClick must be a boolean")
+
+    duo = manifest.get("duo")
+    if duo is not None:
+        if not isinstance(duo, dict):
+            raise ValueError("duo must be an object")
+        gesture = duo.get("gesture")
+        if gesture is not None:
+            if not isinstance(gesture, dict):
+                raise ValueError("duo.gesture must be an object")
+            menu_slop_px = gesture.get("menuSlopPx")
+            if menu_slop_px is not None and (
+                not isinstance(menu_slop_px, int) or isinstance(menu_slop_px, bool) or not 1 <= menu_slop_px <= 40
+            ):
+                raise ValueError("duo.gesture.menuSlopPx must be an integer from 1 to 40")
+            commit_px = gesture.get("commitPx")
+            if commit_px is not None and (
+                not isinstance(commit_px, int) or isinstance(commit_px, bool) or not 20 <= commit_px <= 200
+            ):
+                raise ValueError("duo.gesture.commitPx must be an integer from 20 to 200")
+            snap_progress = gesture.get("snapProgress")
+            if snap_progress is not None and (
+                not isinstance(snap_progress, (int, float))
+                or isinstance(snap_progress, bool)
+                or not math.isfinite(snap_progress)
+                or not 0.2 <= snap_progress <= 0.9
+            ):
+                raise ValueError("duo.gesture.snapProgress must be a number from 0.2 to 0.9")
+        for action_key in ("unfoldAction", "foldAction"):
+            action_name = duo.get(action_key)
+            if action_name is None:
+                continue
+            if not isinstance(action_name, str) or not action_name.strip():
+                raise ValueError(f"duo.{action_key} must be a non-empty string")
+            if action_name not in animations:
+                raise ValueError(f"duo.{action_key} must point to a root animation")
+        members = duo.get("members")
+        if not isinstance(members, list) or len(members) != 2:
+            raise ValueError("duo.members must contain exactly 2 members")
+        root_frame_paths: set[str] = set()
+        for config in animations.values():
+            if not isinstance(config, dict):
+                continue
+            for frame_path in config.get("frames") or []:
+                root_frame_paths.add(safe_relative(str(frame_path)).as_posix())
+        seen_member_ids: set[str] = set()
+        seen_sides: set[str] = set()
+        member_frame_paths: set[str] = set()
+        pet_id_pattern = re.compile(r"[a-z0-9][a-z0-9-]{1,47}")
+        for index, member in enumerate(members):
+            label = f"duo.members[{index}]"
+            if not isinstance(member, dict):
+                raise ValueError(f"{label} must be an object")
+            member_id = member.get("id")
+            if not isinstance(member_id, str) or not pet_id_pattern.fullmatch(member_id) or member_id in seen_member_ids:
+                raise ValueError(f"{label}.id is invalid or duplicated")
+            seen_member_ids.add(member_id)
+            side = member.get("side")
+            if side not in {"left", "right"}:
+                raise ValueError(f"{label}.side must be left or right")
+            seen_sides.add(side)
+            name = member.get("name")
+            if not isinstance(name, str) or not name.strip() or len(name) > 80:
+                raise ValueError(f"{label}.name must contain 1 to 80 characters")
+            watch = member.get("watch")
+            if watch is not None and not isinstance(watch, bool):
+                raise ValueError(f"{label}.watch must be a boolean")
+            member_animations = member.get("animations")
+            if not isinstance(member_animations, dict):
+                raise ValueError(f"{label}.animations must be an object")
+            for action, expected in REQUIRED_ACTIONS.items():
+                frames = validate_animation_from(
+                    member_animations,
+                    action,
+                    expected,
+                    f"{label}.animations.{action}",
+                )
+                for frame_path in frames:
+                    if frame_path in root_frame_paths or frame_path in member_frame_paths:
+                        raise ValueError("动画路径冲突")
+                    member_frame_paths.add(frame_path)
+                    frame_paths.append(frame_path)
+        if seen_sides != {"left", "right"}:
+            raise ValueError("duo.members sides must be left and right")
+        tent = duo.get("tent")
+        if tent is not None:
+            if not isinstance(tent, dict):
+                raise ValueError("duo.tent must be an object")
+            tent_action = tent.get("action")
+            if tent_action is not None:
+                if not isinstance(tent_action, str) or not tent_action.strip():
+                    raise ValueError("duo.tent.action must be a non-empty string")
+                if tent_action not in animations:
+                    raise ValueError("duo.tent.action must point to a root animation")
+            for label_key in ("enterLabel", "leaveLabel"):
+                label_value = tent.get(label_key)
+                if label_value is None:
+                    continue
+                if not isinstance(label_value, str) or not label_value.strip() or len(label_value) > 24:
+                    raise ValueError(f"duo.tent.{label_key} must contain 1 to 24 characters")
+            open_progress = tent.get("openProgress")
+            if open_progress is not None and (
+                not isinstance(open_progress, (int, float))
+                or isinstance(open_progress, bool)
+                or not math.isfinite(open_progress)
+                or not 0.35 <= open_progress <= 0.65
+            ):
+                raise ValueError("duo.tent.openProgress must be a number from 0.35 to 0.65")
+        slack = duo.get("slack")
+        if slack is not None:
+            if not isinstance(slack, dict):
+                raise ValueError("duo.slack must be an object")
+            for action_key in ("jumpAction", "carryAction"):
+                action_name = slack.get(action_key)
+                if not isinstance(action_name, str) or not action_name.strip():
+                    raise ValueError(f"duo.slack.{action_key} must be a non-empty string")
+                if action_name not in animations:
+                    raise ValueError(f"duo.slack.{action_key} must point to a root animation")
+            for label_key in ("enterLabel", "leaveLabel"):
+                label_value = slack.get(label_key)
+                if label_value is None:
+                    continue
+                if not isinstance(label_value, str) or not label_value.strip() or len(label_value) > 24:
+                    raise ValueError(f"duo.slack.{label_key} must contain 1 to 24 characters")
+            clips = slack.get("clips")
+            if not isinstance(clips, list) or not 1 <= len(clips) <= 8:
+                raise ValueError("duo.slack.clips must contain 1 to 8 video paths")
+            for clip in clips:
+                if not isinstance(clip, str) or not clip.strip():
+                    raise ValueError("duo.slack.clips must be non-empty strings")
+                clip_path = safe_relative(clip)
+                if clip_path.suffix.lower() not in VIDEO_EXTENSIONS:
+                    raise ValueError("duo.slack.clips must be mp4/webm")
+            board_secids = slack.get("boardSecids")
+            if board_secids is not None and (
+                not isinstance(board_secids, list)
+                or not 1 <= len(board_secids) <= 8
+                or any(not isinstance(value, str) or not value.strip() for value in board_secids)
+            ):
+                raise ValueError("duo.slack.boardSecids must contain 1 to 8 non-empty strings")
 
     context_menu_actions = manifest.get("contextMenuActions")
     if context_menu_actions is not None:
@@ -441,6 +606,11 @@ def validate_directory(root: Path) -> dict:
             size = path.stat().st_size
             if size <= 0 or size > MAX_SINGLE_FILE_BYTES:
                 raise ValueError(f"audio size invalid: {relative_value}")
+            continue
+        if suffix in VIDEO_EXTENSIONS:
+            size = path.stat().st_size
+            if size <= 0 or size > MAX_SINGLE_FILE_BYTES:
+                raise ValueError(f"video size invalid: {relative_value}")
             continue
         canvas_size, subject_area, subject_span = validate_png(path, relative_value)
         if relative_value in frame_paths:

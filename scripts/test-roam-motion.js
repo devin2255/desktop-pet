@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('assert');
-const { nextRoamTarget, crawlIdleState } = require('../src/roam-motion');
+const { nextRoamTarget, crawlIdleState, roamStepBounds } = require('../src/roam-motion');
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1080 };
 const width = 170;
@@ -29,11 +29,19 @@ function testCrawlIdleKeepsFacing() {
   assert.strictEqual(crawlIdleState(''), 'crawl-right');
 }
 
+function testRoamKeepsCurrentY() {
+  const start = { x: 400, y: 260, width, height: 190 };
+  const next = roamStepBounds(start, 520, 1, { width, height: 190 }, workArea);
+  assert.strictEqual(next.y, 260, 'roam must not snap back to the work-area floor');
+  assert.strictEqual(next.x, 520);
+}
+
 const tests = {
   testTurnsAroundAtLeftEdge,
   testTurnsAroundAtRightEdge,
   testMidScreenCanContinue,
-  testCrawlIdleKeepsFacing
+  testCrawlIdleKeepsFacing,
+  testRoamKeepsCurrentY
 };
 let failed = 0;
 for (const [name, fn] of Object.entries(tests)) {

@@ -36,6 +36,7 @@ tmp/
 /pets/work/
 /pets/library/*
 !/pets/library/brother-judge/
+!/pets/library/brother-duo/
 *.docx
 
 # Private interaction orchestration state and likeness previews
@@ -48,14 +49,17 @@ tmp/
 !/assets/generated/laopo.ico
 !/assets/generated/laopo-tray.png
 
-# Publish one reviewed demo pet only. Customer packages stay local.
+# Reviewed demo pets. Other customer packages stay local.
 /pets/packages/*
 !/pets/packages/laopo.petpack
 !/pets/packages/brother-judge.petpack
+!/pets/packages/brother-duo.petpack
 
-# Allow reviewed brother-judge library directory
+# Allow reviewed brother-judge and brother-duo library directories
 !/pets/library/brother-judge/
 !/pets/library/brother-judge/**
+!/pets/library/brother-duo/
+!/pets/library/brother-duo/**
 
 # Historical player snapshots are kept locally but not shipped as source.
 /src/index.html

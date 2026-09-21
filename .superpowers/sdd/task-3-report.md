@@ -1,105 +1,65 @@
-# Task 3 Report: edge-voice.js — edge-tts 语音合成
+# Task 3 Report: 主进程菜单、三停、点击收工、窗尺寸
 
-## What I Implemented
+## Status
 
-- **`src/edge-voice.js`**: Module exporting `createVoiceSynthesizer({ cacheDir, voice = 'zh-CN-YunxiNeural', rate = '+0%', loader })`.
-  - Hash key = `sha256(text + voice + rate)` first 32 hex chars → filename `<hash>.mp3`.
-  - Cache hit (file exists) returns `Promise<{ url: 'voice-cache://<hash>.mp3' }>` immediately.
-  - Cache miss: loads tts via `loader` (or default `require('edge-tts').tts`), writes Buffer to `cacheDir/<hash>.mp3`, returns `{ url }`.
-  - Any exception inside synthesize returns `null` (never throws).
-  - Module-level mutual-exclusion chain (`chain`) serializes synthesis calls per synthesizer instance to prevent thundering-herd on the edge-tts network endpoint.
-  - `dispose()` resets the chain.
-- **`scripts/test-edge-voice.js`**: Two async tests (`testCacheHit`, `testNetworkFailureReturnsNull`) using a `loader` injection so tests never hit the network.
-- **`package.json`**: Added `"edge-tts": "^1.0.1"` to dependencies; appended `&& node scripts/test-edge-voice.js` to `test:js` after `test-watch-config.js`.
-- **`package-lock.json`**: Updated by `npm install --save edge-tts@^1.0.1` (added 3 packages: edge-tts + transitive deps).
+Implemented Task 3 in `src/main-v3.js` and `src/preload-v3.js`.
+
+No git commit was created.
 
 ## TDD Evidence
 
-### RED (Step 3)
+RED first:
 
-Command: `node scripts/test-edge-voice.js`
-
-```
-node:internal/modules/cjs/loader:1404
-  throw err;
-  ^
-Error: Cannot find module '../src/edge-voice'
-Require stack:
-- D:\Vibe_Coding\desktop-pet\scripts\test-edge-voice.js
-    ...
-    at Object.<anonymous> (D:\Vibe_Coding\desktop-pet\scripts\test-edge-voice.js:6:36)
-    ...
-  code: 'MODULE_NOT_FOUND',
-EXIT=1
+```powershell
+node scripts/test-capability-gates.js; node scripts/test-duo-renderer-contract.js
 ```
 
-### GREEN (Step 5)
+Observed expected failures before production code:
 
-Command: `node scripts/test-edge-voice.js`
-
-```
-edge-voice: all tests passed
-EXIT=0
+```text
+AssertionError [ERR_ASSERTION]: slack is gated by duo.slack
+AssertionError [ERR_ASSERTION]: The input did not match the regular expression /slackExit/
 ```
 
-Both async tests pass: `testCacheHit` (verifies 2nd call hits cache — loader wrapped counter stays at 1) and `testNetworkFailureReturnsNull` (loader throws → synthesize returns null).
+GREEN after implementation:
 
-## npm run test:js Result
-
-Command: `npm run test:js`
-
-Full chain (24 node steps including the new `test-edge-voice.js`) passed cleanly:
-
-```
-renderer interaction regression checks passed
-petpack archive security checks passed
-test-sequences-schema: ok
-window interaction geometry checks passed
-window discovery checks passed
-interaction controller checks passed
-topmost guard checks passed
-runtime CDP contract tests passed
-laopo petpack regression checks passed
-startup greeting checks passed
-test-sequence-controller: ok
-ok - testDedupe
-... (watch-rules all tests passed)
-watch-rules: all tests passed
-... (watch-config all tests passed)
-watch-config: all tests passed
-edge-voice: all tests passed
-EXIT=0
+```powershell
+node scripts/test-capability-gates.js; node scripts/test-duo-renderer-contract.js; node --check src/main-v3.js; node --check src/preload-v3.js
 ```
 
-Output is pristine — no stray logs, no warnings, no `console.error` from any test.
+Observed passing output:
 
-## Tests Did NOT Hit the Network (Confirmed)
+```text
+test-capability-gates: ok
+test-duo-renderer-contract: ok
+```
 
-Both tests inject a `loader` option into `createVoiceSynthesizer`:
+`node --check` produced no output and exited 0 for both files.
 
-- `testCacheHit`: `loader: () => fakeTts` (wraps with counter). First call uses fakeTts returning `Buffer.from('fake-mp3:你好')`; second call short-circuits via `fs.existsSync(filePath)` cache check before any loader is invoked. The wrapped counter asserts `count === 1` confirming the network was not hit twice.
-- `testNetworkFailureReturnsNull`: `loader: () => { throw new Error('net down'); }` — the loader itself throws synchronously, simulating a network failure. The synthesize catch returns `null`. No HTTP/WS connection to edge-tts is attempted.
+## Implementation
 
-The default `loadTts = loader || (() => require('edge-tts').tts)` only requires `edge-tts` when no loader is injected — tests always inject, so the `edge-tts` package is never invoked at runtime during tests. (It is installed so `require` resolves at module-eval time only if `loader` is absent, which the tests don't trigger.)
+- `makeDuoController()` now gates slack with `hasDuoSlack(activeManifest)`.
+- `windowSize()` passes `slackExtraHeight: TENT_EXTRA_HEIGHT` through `presentationWindowSize(...)`.
+- Folded Duo menu now shows `duo.slack.enterLabel || '摸会儿鱼'` only when `hasDuoSlack(activeManifest)`.
+- Added `duo-slack` / `duo-unslack` main-process menu handling.
+- Added `slackViaMenu()` with intro -> jump -> carry staging, slack window placement, overlay `phase: 'slack'`, `slackStage`, intro frame URLs, clips URLs, and no behavior reschedule while slack is active.
+- Added `leaveSlackViaMenu()` and trusted `pet:slack-exit` handler to clear timers, hide overlay, restore folded size, send idle, resume behavior, and restart office bus gate.
+- Slack now suspends roaming behavior, interaction controller actions, office bus dispatch, watch-state dispatch, and Duo open/close pointer handling.
+- Market polling remains gated only by the existing market capability and is not disabled by slack.
+- `preload-v3.js` exposes `petApi.slackExit()` -> `pet:slack-exit`.
 
-## Files Changed
+## Tests
 
-- `D:/Vibe_Coding/desktop-pet/src/edge-voice.js` (new, 29 lines)
-- `D:/Vibe_Coding/desktop-pet/scripts/test-edge-voice.js` (new, 39 lines)
-- `D:/Vibe_Coding/desktop-pet/package.json` (dependencies + test:js chain)
-- `D:/Vibe_Coding/desktop-pet/package-lock.json` (npm install regeneration)
+Passed:
 
-## Self-Review Findings
+```powershell
+node scripts/test-capability-gates.js
+node scripts/test-duo-renderer-contract.js
+node --check src/main-v3.js
+node --check src/preload-v3.js
+```
 
-- **Completeness**: Implements the exact interface from the brief — `synthesize` returns `Promise<{url}|null>`, `dispose` resets chain, `loader` injection supported. Matches brief code character-for-character (modulo whitespace).
-- **Never throws**: The try/catch inside the chain task swallows any error (loader throw, tts rejection, write failure) and returns `null`. Verified by `testNetworkFailureReturnsNull`.
-- **Hash filename**: `sha256(text+voice+rate).slice(0,32)` produces 32 hex chars → `^[a-f0-9]{32}\.mp3$` matches. URL format `voice-cache://<hash>.mp3` matches test assertion `a.url.startsWith('voice-cache://')`.
-- **Mutual exclusion**: `chain = task.catch(() => {})` keeps the chain alive even when a task returns null, so subsequent calls still serialize. Correct.
-- **YAGNI**: No extra features — no rate-limit config, no TTL, no background prewarm. Brief specified the surface and nothing more was added.
-- **Test hygiene**: Tests use `os.tmpdir()` + `mkdtempSync` for isolation (no cross-test contamination), inject `loader`, exit 1 on failure, log only the single success line on pass. Pristine output confirmed.
-- **edge-tts version**: installed resolved version is within `^1.0.1` range; package.json declares `^1.0.1` as required.
-- **No concerns** identified. Implementation is minimal, correct, and faithful to the brief.
+## Concerns
 
-## Commits
-
-- `246aa6b` feat: add edge-tts voice synthesizer with cache
+- Renderer drawing/click threshold behavior is intentionally left for Task 4.
+- This task did not launch the Electron app manually; validation was limited to the requested contract tests and syntax checks.

@@ -1,0 +1,1301 @@
+{
+  "schemaVersion": 1,
+  "packageVersion": "1.0.0",
+  "id": "brother-duo",
+  "name": "兄弟桌宠 Duo",
+  "description": "兄弟 Duo：合上双人同框，展开左判官右花袄弟。",
+  "personality": [
+    "贫",
+    "闹",
+    "护短"
+  ],
+  "speechGender": "male",
+  "startupGreeting": "爸，兄弟 Duo 来了！",
+  "startupGreetingAudio": "audio/01-greeting.mp3",
+  "taskAcceptAudio": "audio/06-task-ok.mp3",
+  "defaultSize": "small",
+  "preview": "preview.png",
+  "normalizationMetric": "bbox-span-v1",
+  "animations": {
+    "idle": {
+      "frames": [
+        "animations/idle/01.png",
+        "animations/idle/02.png",
+        "animations/idle/03.png",
+        "animations/idle/04.png"
+      ],
+      "durations": [
+        480,
+        360,
+        320,
+        480
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "walk": {
+      "frames": [
+        "animations/walk/01.png",
+        "animations/walk/02.png",
+        "animations/walk/03.png",
+        "animations/walk/04.png",
+        "animations/walk/05.png",
+        "animations/walk/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "crawl": {
+      "frames": [
+        "animations/crawl/01.png",
+        "animations/crawl/02.png",
+        "animations/crawl/03.png",
+        "animations/crawl/04.png",
+        "animations/crawl/05.png",
+        "animations/crawl/06.png"
+      ],
+      "durations": [
+        150,
+        140,
+        160,
+        150,
+        140,
+        160
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "sit": {
+      "frames": [
+        "animations/sit/01.png",
+        "animations/sit/02.png",
+        "animations/sit/03.png",
+        "animations/sit/04.png"
+      ],
+      "durations": [
+        220,
+        240,
+        280,
+        1800
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "sleep": {
+      "frames": [
+        "animations/sleep/01.png",
+        "animations/sleep/02.png",
+        "animations/sleep/03.png",
+        "animations/sleep/04.png"
+      ],
+      "durations": [
+        700,
+        700,
+        500,
+        700
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 0.88
+    },
+    "reaction": {
+      "frames": [
+        "animations/reaction/01.png",
+        "animations/reaction/02.png",
+        "animations/reaction/03.png",
+        "animations/reaction/04.png"
+      ],
+      "durations": [
+        180,
+        220,
+        280,
+        1600
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "drag": {
+      "frames": [
+        "animations/drag/01.png",
+        "animations/drag/02.png",
+        "animations/drag/03.png",
+        "animations/drag/04.png",
+        "animations/drag/05.png",
+        "animations/drag/06.png"
+      ],
+      "durations": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "climb": {
+      "frames": [
+        "animations/climb/01.png",
+        "animations/climb/02.png",
+        "animations/climb/03.png",
+        "animations/climb/04.png",
+        "animations/climb/05.png",
+        "animations/climb/06.png"
+      ],
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "perch": {
+      "frames": [
+        "animations/perch/01.png",
+        "animations/perch/02.png",
+        "animations/perch/03.png",
+        "animations/perch/04.png"
+      ],
+      "durations": [
+        420,
+        420,
+        420,
+        420
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "hang": {
+      "frames": [
+        "animations/hang/01.png",
+        "animations/hang/02.png",
+        "animations/hang/03.png",
+        "animations/hang/04.png"
+      ],
+      "durations": [
+        220,
+        220,
+        220,
+        1600
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "fall": {
+      "frames": [
+        "animations/fall/01.png",
+        "animations/fall/02.png",
+        "animations/fall/03.png",
+        "animations/fall/04.png"
+      ],
+      "durations": [
+        120,
+        120,
+        120,
+        120
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "impact": {
+      "frames": [
+        "animations/impact/01.png",
+        "animations/impact/02.png",
+        "animations/impact/03.png",
+        "animations/impact/04.png"
+      ],
+      "durations": [
+        140,
+        180,
+        220,
+        900
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "recover": {
+      "frames": [
+        "animations/recover/01.png",
+        "animations/recover/02.png",
+        "animations/recover/03.png",
+        "animations/recover/04.png",
+        "animations/recover/05.png",
+        "animations/recover/06.png"
+      ],
+      "durations": [
+        160,
+        160,
+        180,
+        200,
+        260,
+        700
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "slack-jump": {
+      "frames": [
+        "animations/slack-jump/01.png",
+        "animations/slack-jump/02.png",
+        "animations/slack-jump/03.png",
+        "animations/slack-jump/04.png"
+      ],
+      "durations": [
+        160,
+        180,
+        220,
+        520
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "slack-carry": {
+      "frames": [
+        "animations/slack-carry/01.png",
+        "animations/slack-carry/02.png",
+        "animations/slack-carry/03.png",
+        "animations/slack-carry/04.png"
+      ],
+      "durations": [
+        220,
+        220,
+        220,
+        220
+      ],
+      "loop": true,
+      "holdLastFrame": false,
+      "scale": 1
+    },
+    "duo-kick": {
+      "frames": [
+        "animations/duo-kick/01.png",
+        "animations/duo-kick/02.png",
+        "animations/duo-kick/03.png",
+        "animations/duo-kick/04.png"
+      ],
+      "durations": [
+        220,
+        220,
+        260,
+        900
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    },
+    "duo-hook": {
+      "frames": [
+        "animations/duo-hook/01.png",
+        "animations/duo-hook/02.png",
+        "animations/duo-hook/03.png",
+        "animations/duo-hook/04.png"
+      ],
+      "durations": [
+        260,
+        280,
+        320,
+        1400
+      ],
+      "loop": false,
+      "holdLastFrame": true,
+      "scale": 1
+    }
+  },
+  "interactionActions": {
+    "drag": {
+      "action": "drag"
+    },
+    "climb": {
+      "action": "climb",
+      "anchor": {
+        "x": 0.52,
+        "y": 0.48
+      }
+    },
+    "perch": {
+      "action": "perch",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.55
+      }
+    },
+    "hang": {
+      "action": "hang",
+      "anchor": {
+        "x": 0.5,
+        "y": 0.08
+      }
+    },
+    "fall": {
+      "action": "fall"
+    },
+    "impact": {
+      "action": "impact"
+    },
+    "recover": {
+      "action": "recover"
+    }
+  },
+  "behavior": {
+    "fallbackAudio": {
+      "sit": "audio/07-sit-fallback.mp3"
+    },
+    "random": [
+      {
+        "state": "walk",
+        "weight": 30,
+        "minDuration": 1600,
+        "maxDuration": 4000
+      },
+      {
+        "state": "sit",
+        "weight": 25,
+        "minDuration": 4500,
+        "maxDuration": 7000,
+        "message": "爸，歇会儿。",
+        "speechAudio": "audio/02-sit-rest.mp3"
+      },
+      {
+        "state": "reaction",
+        "weight": 25,
+        "minDuration": 2400,
+        "maxDuration": 3600,
+        "message": "兄弟 Duo 上线了。",
+        "speechAudio": "audio/03-reaction-lick.mp3"
+      },
+      {
+        "state": "sleep",
+        "weight": 20,
+        "minDuration": 5000,
+        "maxDuration": 8000,
+        "message": "睡会儿"
+      }
+    ]
+  },
+  "contextMenuActions": [
+    {
+      "id": "hold-court",
+      "label": "叫爸",
+      "action": "reaction",
+      "message": "爸",
+      "duration": 3000,
+      "speech": "爸",
+      "speechAudio": "audio/05-call-dad.mp3"
+    },
+    {
+      "id": "adjourn",
+      "label": "磕头",
+      "action": "reaction",
+      "duration": 3600
+    },
+    {
+      "id": "rest",
+      "label": "睡会儿",
+      "action": "sleep",
+      "message": "行, 我睡会儿",
+      "duration": 5000,
+      "speechAudio": "audio/04-menu-sleep.mp3"
+    },
+    {
+      "id": "duo-unfold",
+      "label": "展开",
+      "action": "idle",
+      "duration": 600
+    },
+    {
+      "id": "duo-tent",
+      "label": "支起来",
+      "action": "sit",
+      "duration": 600
+    },
+    {
+      "id": "duo-slack",
+      "label": "摸会儿鱼",
+      "action": "slack-jump",
+      "duration": 900
+    }
+  ],
+  "watch": {
+    "menuLabel": "画饼雷达",
+    "keywords": {
+      "画饼": [
+        {
+          "text": "你老板又在画饼，别吃！",
+          "audio": "audio/16-huabing-mild.mp3"
+        }
+      ],
+      "吹牛": [
+        {
+          "text": "你老板吹了个牛逼！",
+          "audio": "audio/17-chuiniu-mild.mp3"
+        }
+      ]
+    },
+    "archivedKeywords": {
+      "画饼": [
+        {
+          "text": "这孙子在画饼，狗都不吃！",
+          "audio": "audio/08-huabing-1.mp3"
+        },
+        {
+          "text": "又开始画饼，真欠揍！",
+          "audio": "audio/09-huabing-2.mp3"
+        },
+        {
+          "text": "真孙子，又在画饼！",
+          "audio": "audio/10-huabing-3.mp3"
+        }
+      ],
+      "吹牛": [
+        {
+          "text": "你老板吹了个牛逼！",
+          "audio": "audio/11-chuiniu-1.mp3"
+        },
+        {
+          "text": "这孙子在吹牛逼！",
+          "audio": "audio/12-chuiniu-2.mp3"
+        },
+        {
+          "text": "这孙子真能吹牛比！",
+          "audio": "audio/13-chuiniu-3.mp3"
+        }
+      ]
+    },
+    "triggers": {
+      "画饼": [
+        "画饼",
+        "画大饼",
+        "上市",
+        "期权",
+        "股份",
+        "股权",
+        "分红",
+        "年终",
+        "加薪",
+        "涨薪",
+        "涨工资",
+        "升职",
+        "晋升",
+        "奖金",
+        "融资",
+        "估值",
+        "亏待",
+        "功劳",
+        "苦劳",
+        "不会亏待",
+        "做大做强"
+      ],
+      "吹牛": [
+        "吹牛",
+        "吹个牛",
+        "吹牛逼",
+        "吹嘘",
+        "说大话",
+        "大话",
+        "当年",
+        "人脉",
+        "搞得定",
+        "包在我身上",
+        "小意思",
+        "轻而易举",
+        "不在话下"
+      ]
+    },
+    "fallback": {
+      "text": "你老板又开始整活儿了，装没看见。",
+      "audio": "audio/14-fallback.mp3"
+    },
+    "state": "reaction",
+    "keywordStates": {
+      "吹牛": "reaction"
+    }
+  },
+  "duo": {
+    "foldAxis": "horizontal",
+    "gesture": {
+      "menuSlopPx": 12,
+      "commitPx": 20,
+      "snapProgress": 0.25
+    },
+    "unfoldAction": "duo-kick",
+    "foldAction": "duo-hook",
+    "tent": {
+      "action": "sit",
+      "enterLabel": "支起来",
+      "leaveLabel": "收起来",
+      "openProgress": 0.48
+    },
+    "slack": {
+      "jumpAction": "slack-jump",
+      "carryAction": "slack-carry",
+      "enterLabel": "摸会儿鱼",
+      "leaveLabel": "收工了",
+      "clips": [
+        "video/slack/feishu-20260915.mp4",
+        "video/slack/sweet-outfit-720p.mp4",
+        "video/slack/feishu-20260803.mp4"
+      ]
+    },
+    "members": [
+      {
+        "id": "judge",
+        "side": "left",
+        "name": "兄弟判官",
+        "watch": true,
+        "animations": {
+          "idle": {
+            "frames": [
+              "animations/judge/idle/01.png",
+              "animations/judge/idle/02.png",
+              "animations/judge/idle/03.png",
+              "animations/judge/idle/04.png"
+            ],
+            "durations": [
+              480,
+              360,
+              320,
+              480
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "walk": {
+            "frames": [
+              "animations/judge/walk/01.png",
+              "animations/judge/walk/02.png",
+              "animations/judge/walk/03.png",
+              "animations/judge/walk/04.png",
+              "animations/judge/walk/05.png",
+              "animations/judge/walk/06.png"
+            ],
+            "durations": [
+              140,
+              140,
+              140,
+              140,
+              140,
+              140
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "sit": {
+            "frames": [
+              "animations/judge/sit/01.png",
+              "animations/judge/sit/02.png",
+              "animations/judge/sit/03.png",
+              "animations/judge/sit/04.png"
+            ],
+            "durations": [
+              220,
+              240,
+              280,
+              1800
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "sleep": {
+            "frames": [
+              "animations/judge/sleep/01.png",
+              "animations/judge/sleep/02.png",
+              "animations/judge/sleep/03.png",
+              "animations/judge/sleep/04.png"
+            ],
+            "durations": [
+              700,
+              700,
+              500,
+              700
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 0.88
+          },
+          "reaction": {
+            "frames": [
+              "animations/judge/reaction/01.png",
+              "animations/judge/reaction/02.png",
+              "animations/judge/reaction/03.png",
+              "animations/judge/reaction/04.png"
+            ],
+            "durations": [
+              180,
+              220,
+              280,
+              1600
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "drag": {
+            "frames": [
+              "animations/judge/drag/01.png",
+              "animations/judge/drag/02.png",
+              "animations/judge/drag/03.png",
+              "animations/judge/drag/04.png",
+              "animations/judge/drag/05.png",
+              "animations/judge/drag/06.png"
+            ],
+            "durations": [
+              120,
+              120,
+              120,
+              120,
+              120,
+              120
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "climb": {
+            "frames": [
+              "animations/judge/climb/01.png",
+              "animations/judge/climb/02.png",
+              "animations/judge/climb/03.png",
+              "animations/judge/climb/04.png",
+              "animations/judge/climb/05.png",
+              "animations/judge/climb/06.png"
+            ],
+            "durations": [
+              140,
+              140,
+              140,
+              140,
+              140,
+              140
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "perch": {
+            "frames": [
+              "animations/judge/perch/01.png",
+              "animations/judge/perch/02.png",
+              "animations/judge/perch/03.png",
+              "animations/judge/perch/04.png"
+            ],
+            "durations": [
+              420,
+              420,
+              420,
+              420
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "hang": {
+            "frames": [
+              "animations/judge/hang/01.png",
+              "animations/judge/hang/02.png",
+              "animations/judge/hang/03.png",
+              "animations/judge/hang/04.png"
+            ],
+            "durations": [
+              220,
+              220,
+              220,
+              1600
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "fall": {
+            "frames": [
+              "animations/judge/fall/01.png",
+              "animations/judge/fall/02.png",
+              "animations/judge/fall/03.png",
+              "animations/judge/fall/04.png"
+            ],
+            "durations": [
+              120,
+              120,
+              120,
+              120
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "impact": {
+            "frames": [
+              "animations/judge/impact/01.png",
+              "animations/judge/impact/02.png",
+              "animations/judge/impact/03.png",
+              "animations/judge/impact/04.png"
+            ],
+            "durations": [
+              140,
+              180,
+              220,
+              900
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "recover": {
+            "frames": [
+              "animations/judge/recover/01.png",
+              "animations/judge/recover/02.png",
+              "animations/judge/recover/03.png",
+              "animations/judge/recover/04.png",
+              "animations/judge/recover/05.png",
+              "animations/judge/recover/06.png"
+            ],
+            "durations": [
+              160,
+              160,
+              180,
+              200,
+              260,
+              700
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "crawl": {
+            "frames": [
+              "animations/judge/crawl/01.png",
+              "animations/judge/crawl/02.png",
+              "animations/judge/crawl/03.png",
+              "animations/judge/crawl/04.png",
+              "animations/judge/crawl/05.png",
+              "animations/judge/crawl/06.png"
+            ],
+            "durations": [
+              150,
+              140,
+              160,
+              150,
+              140,
+              160
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 0.62
+          },
+          "kowtow": {
+            "frames": [
+              "animations/judge/kowtow/01.png",
+              "animations/judge/kowtow/02.png",
+              "animations/judge/kowtow/03.png",
+              "animations/judge/kowtow/04.png"
+            ],
+            "durations": [
+              300,
+              400,
+              800,
+              300
+            ],
+            "loop": false,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "kowtow-crawl": {
+            "frames": [
+              "animations/judge/kowtow-crawl/01.png",
+              "animations/judge/kowtow-crawl/02.png",
+              "animations/judge/kowtow-crawl/03.png",
+              "animations/judge/kowtow-crawl/04.png"
+            ],
+            "durations": [
+              300,
+              400,
+              800,
+              300
+            ],
+            "loop": false,
+            "holdLastFrame": false,
+            "scale": 0.62
+          },
+          "slipper": {
+            "frames": [
+              "animations/judge/slipper/01.png",
+              "animations/judge/slipper/02.png",
+              "animations/judge/slipper/03.png",
+              "animations/judge/slipper/04.png"
+            ],
+            "durations": [
+              200,
+              280,
+              320,
+              1800
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "mg": {
+            "frames": [
+              "animations/judge/mg/01.png",
+              "animations/judge/mg/02.png",
+              "animations/judge/mg/03.png",
+              "animations/judge/mg/04.png"
+            ],
+            "durations": [
+              300,
+              400,
+              300,
+              1600
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          }
+        },
+        "interactionActions": {
+          "drag": {
+            "action": "drag"
+          },
+          "climb": {
+            "action": "climb",
+            "anchor": {
+              "x": 0.52,
+              "y": 0.48
+            }
+          },
+          "perch": {
+            "action": "perch",
+            "anchor": {
+              "x": 0.5,
+              "y": 0.55
+            }
+          },
+          "hang": {
+            "action": "hang",
+            "anchor": {
+              "x": 0.5,
+              "y": 0.08
+            }
+          },
+          "fall": {
+            "action": "fall"
+          },
+          "impact": {
+            "action": "impact"
+          },
+          "recover": {
+            "action": "recover"
+          }
+        },
+        "contextMenuActions": [
+          {
+            "id": "hold-court",
+            "label": "叫爸",
+            "action": "reaction",
+            "message": "爸",
+            "duration": 3000,
+            "speech": "爸"
+          },
+          {
+            "id": "adjourn",
+            "label": "磕头",
+            "action": "kowtow",
+            "duration": 3600
+          },
+          {
+            "id": "rest",
+            "label": "睡会儿",
+            "action": "sleep",
+            "duration": 5000
+          },
+          {
+            "id": "duo-fold",
+            "label": "合上",
+            "action": "idle",
+            "duration": 600
+          }
+        ],
+        "behavior": {
+          "random": [
+            {
+              "state": "walk",
+              "weight": 30,
+              "minDuration": 1600,
+              "maxDuration": 4000
+            },
+            {
+              "state": "sit",
+              "weight": 25,
+              "minDuration": 4500,
+              "maxDuration": 7000,
+              "message": "爸，我歇会！"
+            },
+            {
+              "state": "sleep",
+              "weight": 20,
+              "minDuration": 5000,
+              "maxDuration": 8000,
+              "message": "睡会儿"
+            }
+          ]
+        }
+      },
+      {
+        "id": "floral",
+        "side": "right",
+        "name": "花袄弟",
+        "watch": false,
+        "animations": {
+          "idle": {
+            "frames": [
+              "animations/floral/idle/01.png",
+              "animations/floral/idle/02.png",
+              "animations/floral/idle/03.png",
+              "animations/floral/idle/04.png"
+            ],
+            "durations": [
+              480,
+              360,
+              320,
+              480
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "walk": {
+            "frames": [
+              "animations/floral/walk/01.png",
+              "animations/floral/walk/02.png",
+              "animations/floral/walk/03.png",
+              "animations/floral/walk/04.png",
+              "animations/floral/walk/05.png",
+              "animations/floral/walk/06.png"
+            ],
+            "durations": [
+              140,
+              140,
+              140,
+              140,
+              140,
+              140
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "crawl": {
+            "frames": [
+              "animations/floral/crawl/01.png",
+              "animations/floral/crawl/02.png",
+              "animations/floral/crawl/03.png",
+              "animations/floral/crawl/04.png",
+              "animations/floral/crawl/05.png",
+              "animations/floral/crawl/06.png"
+            ],
+            "durations": [
+              150,
+              140,
+              160,
+              150,
+              140,
+              160
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 0.62
+          },
+          "sit": {
+            "frames": [
+              "animations/floral/sit/01.png",
+              "animations/floral/sit/02.png",
+              "animations/floral/sit/03.png",
+              "animations/floral/sit/04.png"
+            ],
+            "durations": [
+              220,
+              240,
+              280,
+              1800
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "sleep": {
+            "frames": [
+              "animations/floral/sleep/01.png",
+              "animations/floral/sleep/02.png",
+              "animations/floral/sleep/03.png",
+              "animations/floral/sleep/04.png"
+            ],
+            "durations": [
+              700,
+              700,
+              500,
+              700
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 0.88
+          },
+          "reaction": {
+            "frames": [
+              "animations/floral/reaction/01.png",
+              "animations/floral/reaction/02.png",
+              "animations/floral/reaction/03.png",
+              "animations/floral/reaction/04.png"
+            ],
+            "durations": [
+              180,
+              220,
+              280,
+              1600
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "drag": {
+            "frames": [
+              "animations/floral/drag/01.png",
+              "animations/floral/drag/02.png",
+              "animations/floral/drag/03.png",
+              "animations/floral/drag/04.png",
+              "animations/floral/drag/05.png",
+              "animations/floral/drag/06.png"
+            ],
+            "durations": [
+              120,
+              120,
+              120,
+              120,
+              120,
+              120
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "climb": {
+            "frames": [
+              "animations/floral/climb/01.png",
+              "animations/floral/climb/02.png",
+              "animations/floral/climb/03.png",
+              "animations/floral/climb/04.png",
+              "animations/floral/climb/05.png",
+              "animations/floral/climb/06.png"
+            ],
+            "durations": [
+              140,
+              140,
+              140,
+              140,
+              140,
+              140
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "perch": {
+            "frames": [
+              "animations/floral/perch/01.png",
+              "animations/floral/perch/02.png",
+              "animations/floral/perch/03.png",
+              "animations/floral/perch/04.png"
+            ],
+            "durations": [
+              420,
+              420,
+              420,
+              420
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "hang": {
+            "frames": [
+              "animations/floral/hang/01.png",
+              "animations/floral/hang/02.png",
+              "animations/floral/hang/03.png",
+              "animations/floral/hang/04.png"
+            ],
+            "durations": [
+              220,
+              220,
+              220,
+              1600
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "fall": {
+            "frames": [
+              "animations/floral/fall/01.png",
+              "animations/floral/fall/02.png",
+              "animations/floral/fall/03.png",
+              "animations/floral/fall/04.png"
+            ],
+            "durations": [
+              120,
+              120,
+              120,
+              120
+            ],
+            "loop": true,
+            "holdLastFrame": false,
+            "scale": 1
+          },
+          "impact": {
+            "frames": [
+              "animations/floral/impact/01.png",
+              "animations/floral/impact/02.png",
+              "animations/floral/impact/03.png",
+              "animations/floral/impact/04.png"
+            ],
+            "durations": [
+              140,
+              180,
+              220,
+              900
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          },
+          "recover": {
+            "frames": [
+              "animations/floral/recover/01.png",
+              "animations/floral/recover/02.png",
+              "animations/floral/recover/03.png",
+              "animations/floral/recover/04.png",
+              "animations/floral/recover/05.png",
+              "animations/floral/recover/06.png"
+            ],
+            "durations": [
+              160,
+              160,
+              180,
+              200,
+              260,
+              700
+            ],
+            "loop": false,
+            "holdLastFrame": true,
+            "scale": 1
+          }
+        },
+        "interactionActions": {
+          "drag": {
+            "action": "drag"
+          },
+          "climb": {
+            "action": "climb",
+            "anchor": {
+              "x": 0.52,
+              "y": 0.48
+            }
+          },
+          "perch": {
+            "action": "perch",
+            "anchor": {
+              "x": 0.5,
+              "y": 0.55
+            }
+          },
+          "hang": {
+            "action": "hang",
+            "anchor": {
+              "x": 0.5,
+              "y": 0.08
+            }
+          },
+          "fall": {
+            "action": "fall"
+          },
+          "impact": {
+            "action": "impact"
+          },
+          "recover": {
+            "action": "recover"
+          }
+        },
+        "contextMenuActions": [
+          {
+            "id": "banter",
+            "label": "唠两句",
+            "action": "reaction",
+            "message": "整点儿活儿？",
+            "duration": 2800
+          },
+          {
+            "id": "rest",
+            "label": "睡会儿",
+            "action": "sleep",
+            "duration": 5000
+          },
+          {
+            "id": "duo-fold",
+            "label": "合上",
+            "action": "idle",
+            "duration": 600
+          }
+        ],
+        "behavior": {
+          "random": [
+            {
+              "state": "walk",
+              "weight": 40,
+              "minDuration": 1600,
+              "maxDuration": 4000
+            },
+            {
+              "state": "reaction",
+              "weight": 30,
+              "minDuration": 2400,
+              "maxDuration": 3600,
+              "message": "整点儿活儿？"
+            },
+            {
+              "state": "sleep",
+              "weight": 30,
+              "minDuration": 5000,
+              "maxDuration": 8000,
+              "message": "睡会儿"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

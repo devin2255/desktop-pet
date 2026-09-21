@@ -266,6 +266,17 @@ async function run() {
 
   {
     const harness = createHarness({ windows: [target] });
+    harness.dependencies.isSuspended = () => true;
+    harness.controller = createInteractionController(harness.dependencies);
+    harness.controller.startDrag({ x: 200, y: 150 });
+    const result = await harness.controller.endDrag({ x: 100, y: 250 });
+    assert.strictEqual(result, true);
+    assert.strictEqual(harness.controller.state(), 'normal', 'suspended drag must not attach to window edges');
+    assert.ok(!String(harness.states.at(-1) || '').includes('climb'));
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
     delete harness.dependencies.getManifest().interactionActions.climb;
     harness.controller.startDrag({ x: 200, y: 150 });
     const result = await harness.controller.endDrag({ x: 100, y: 250 });
@@ -779,10 +790,13 @@ async function run() {
     assert.match(main, /require\('\.\/window-discovery'\)/);
     assert.match(main, /require\('\.\/interaction-controller'\)/);
     assert.match(main, /shouldRestoreWindowBounds\(options\)/);
-    assert.match(
-      main,
-      /sendState:\s*\(state,\s*options\)\s*=>\s*sendState\(\s*state,\s*typeof options\?\.message === 'string' \? options\.message : '',\s*typeof options\?\.speech === 'string' \? options\.speech : '',\s*options\?\.logicalRole\s*\|\|\s*state,\s*options\s*\)/
-    );
+    assert.match(main, /typeof options\?\.message === 'string' \? options\.message : ''/);
+    assert.match(main, /typeof options\?\.speech === 'string' \? options\.speech : ''/);
+    assert.match(main, /options\?\.logicalRole \|\| state/);
+    assert.match(main, /createInteractionController\(\{[\s\S]*isSuspended: \(\) => sequence\?\.isActive\?\.\(\) === true \|\| duo\.mode\(\) === 'tent'/);
+    assert.match(main, /function mapSuspendedInteractionState/);
+    assert.match(main, /mode === 'slack'[\s\S]{0,280}carryAction/);
+    assert.match(main, /handleMarketEvent[\s\S]{0,400}mode\(\) === 'slack'/);
     assert.match(main, /interactionActions:\s*manifest\.interactionActions\s*\|\|\s*\{\}/);
     const fallbackMatch = main.match(
       /const usable = filteredChoices\.length\s*\?\s*filteredChoices\s*:\s*\[([\s\S]*?)\];/
@@ -800,7 +814,8 @@ async function run() {
     const runtimePolicy = {
       result: null,
       Math: Object.create(Math),
-      settings: { crawlMode: false }
+      settings: { crawlMode: false },
+      crawlEnabledFor: () => false
     };
     runtimePolicy.Math.random = () => 0;
     vm.runInNewContext(
@@ -826,7 +841,9 @@ async function run() {
       'new pet manifests must never randomly schedule sleep'
     );
     for (const channel of ['pet:drag-start', 'pet:drag-move', 'pet:drag-end', 'pet:visible-insets']) {
-      assert.match(main, new RegExp(`onTrusted\\('${channel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
+      // Duo routing wraps these in the window-aware `onTrustedWin` variant so the
+      // correct per-window interaction controller receives the event.
+      assert.match(main, new RegExp(`onTrusted(Win)?\\('${channel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
     }
     assert.match(preload, /endDrag:\s*\(position\)\s*=>\s*ipcRenderer\.send\('pet:drag-end',\s*position\)/);
     for (const file of [

@@ -1,90 +1,122 @@
-# Task 2 Report: watch-config.js — 双层配置加载合并
+# Task 2 Report: 校验与能力门
 
-## What I implemented
+## Scope
 
-Created two new files and updated `package.json`:
+- Added `hasDuoSlack(manifest)` to `src/capability-gates.js`.
+- Extended JS petpack validation in `src/petpack-validator.js` for optional `duo.slack`.
+- Extended Python petpack validation in `skills/desktop-pet-maker/scripts/petpack_tool.py` with matching `duo.slack` rules.
+- Added focused tests in:
+  - `scripts/test-capability-gates.js`
+  - `scripts/test-sequences-schema.js`
+  - `skills/desktop-pet-maker/scripts/test_petpack_tool.py`
 
-- **`src/watch-config.js`** — config loader that merges the on-disk `userData/boss-watch.json` with a petpack manifest's `watch` field, falling back to safe defaults and never throwing. Exports:
-  - `DEFAULT_BOSS_CONFIG` (enabled:false, cooldownSec:30, quietHours:[], voice:{enabled:true, gender:'male', rate:'+0%', voice:'zh-CN-YunxiNeural'}).
-  - `loadWatchConfig({ configPath, manifestWatch, larkCliPath })` → normalized `{ enabled, larkCliPath, bosses, ids, names, cooldownSec, quietHours, voice, keywords, fallback, state }`. Read failures / illegal fields silently fall back to defaults.
-  - `splitBosses(bosses)` → `{ ids, names }` (items prefixed `ou_` go to ids, the rest to names; non-strings / blanks skipped).
-- **`scripts/test-watch-config.js`** — plain node test script covering defaults when file missing, corrupt-JSON fallback, manifest merge (keywords/fallback/state), and boss id/name splitting. Exits 1 on any failure, pristine output.
-- **`package.json`** — appended ` && node scripts/test-watch-config.js` to the `test:js` chain after `node scripts/test-watch-rules.js`.
+No `src/main-v3.js`, menu, IPC, preload, renderer, or Task 3 runtime wiring was added.
+No git commit was created.
 
-Consumes Task 1's `DEFAULT_KEYWORDS` via `require('./watch-rules')` as specified.
+## Requirements Covered
 
-### Brief deviation (documented)
+- `hasDuoSlack(manifest)` returns true only when `hasDuo(manifest)` is true and `manifest.duo.slack` is a non-array object.
+- JS validator accepts legal `duo.slack`.
+- JS validator rejects empty/missing `clips`.
+- JS validator rejects `jumpAction` or `carryAction` when missing, blank, or not pointing to a root-level animation.
+- JS validator checks `enterLabel` and `leaveLabel` as optional 1-24 character strings.
+- JS validator checks `clips` as 1-8 safe relative `.mp4`/`.webm` paths, case-insensitive.
+- JS validator checks clip files when `requireFiles === true`.
+- JS `referencedFiles(manifest)` includes `duo.slack.clips` so packaged clips are allowed and required.
+- JS validator checks optional `boardSecids` as 1-8 non-empty strings.
+- Python validator mirrors the same `duo.slack` shape/action/label/clips/boardSecids rules.
+- Python `referenced_files(manifest)` includes `duo.slack.clips`.
+- Python directory validation treats `.mp4`/`.webm` clips as video assets instead of PNG frames.
 
-The brief's Step 3 code declared `function loadWatchConfig({ configPath, manifestWatch, larkCliPath })` and then, in the same function body, `const manifestWatch = manifestWatch && typeof manifestWatch === 'object' ? manifestWatch : {};`. Redeclaring a destructured parameter name with `const` in the same scope is a `SyntaxError: Identifier 'manifestWatch' has already been declared` — the module would not load. Per the task instruction "fix obvious typos, do not redesign," I renamed the inner normalized local to `manifest` and updated the four downstream reads (`manifest.keywords`, `manifest.fallback`, `manifest.state`, and the guard expression) to use that name. No behavioral change — the design is identical; only the shadowing binding name differs.
+## TDD RED
 
-## TDD Evidence
+After adding tests and before production implementation, I ran:
 
-### RED — Step 2 (before implementation)
-
-Command:
-```
-node scripts/test-watch-config.js
-```
-Output (excerpt, exit 1):
-```
-Error: Cannot find module '../src/watch-config'
-Require stack:
-- D:\Vibe_Coding\desktop-pet\scripts\test-watch-config.js
-    at Function._resolveFilename (node:internal/modules/cjs/loader:1401:15)
-    ...
-    at Object.<anonymous> (D:\Vibe_Coding\desktop-pet\scripts\test-watch-config.js:6:63)
-  code: 'MODULE_NOT_FOUND'
-Node.js v22.17.1
-EXIT=1
+```text
+node scripts/test-capability-gates.js
 ```
 
-### GREEN — Step 4 (after implementation)
+Expected failure:
 
-Command:
-```
-node --check src/watch-config.js && node scripts/test-watch-config.js
-```
-Output (exit 0):
-```
-ok - testDefaultsWhenMissing
-ok - testCorruptFileFallsBack
-ok - testMergeManifest
-ok - testSplitBosses
-watch-config: all tests passed
+```text
+TypeError: hasDuoSlack is not a function
 ```
 
-## `npm run test:js` result
+I also ran:
 
-Full chain passes (exit 0). Tail of output:
+```text
+node scripts/test-sequences-schema.js
 ```
-watch-rules: all tests passed
-ok - testDefaultsWhenMissing
-ok - testCorruptFileFallsBack
-ok - testMergeManifest
-ok - testSplitBosses
-watch-config: all tests passed
-EXIT=0
+
+Expected failure:
+
+```text
+AssertionError [ERR_ASSERTION]: Missing expected exception.
+expected: /clips/
 ```
-All earlier tests in the chain (syntax checks, renderer interaction, petpack security, sequences schema, window interactions/discovery, interaction controller, topmost guard, runtime CDP contract, laopo petpack, startup greeting, sequence controller, watch-rules) also pass — output is pristine (only `ok -` / `... passed` lines, no stray warnings).
 
-## Files changed
+And:
 
-- `src/watch-config.js` (new, 81 lines)
-- `scripts/test-watch-config.js` (new, 54 lines)
-- `package.json` (one-line edit: appended ` && node scripts/test-watch-config.js` to `test:js`)
+```text
+python -m unittest skills.desktop-pet-maker.scripts.test_petpack_tool
+```
 
-## Self-review findings
+Expected failures:
 
-- **Completeness**: all three deliverables from the brief exist; `loadWatchConfig`, `splitBosses`, and `DEFAULT_BOSS_CONFIG` are exported; the four required test cases match the brief verbatim. ✅
-- **TDD hygiene**: RED → GREEN evidenced with exact commands and output; the failure was the expected `MODULE_NOT_FOUND`, not a false positive. ✅
-- **No swallowed errors**: the `catch (_) { fileCfg = {}; }` is intentional per the brief — the spec mandates "读取失败/字段非法回退默认值，绝不抛异常". The corrupt-JSON test (`testCorruptFileFallsBack`) explicitly asserts `enabled === false` rather than an exception, so the swallow is asserted behavior, not hidden failure. ✅
-- **Edge cases covered by tests**: missing config path, corrupt JSON, manifest keyword/fallback/state merge, boss id/name splitting. The implementation additionally defends against: non-object file root, non-string/blank boss entries, non-finite cooldownSec, malformed quietHours entries, non-object manifestWatch, non-string manifest fields, blank/whitespace strings, and a non-string `larkCliPath`. ✅
-- **YAGNI**: no speculative features added; `asStrings` / `asStringArray` are duplicated in the brief itself (kept verbatim) — not a real duplication risk worth "redesigning" away. ✅
-- **Convention match**: `'use strict'`, CommonJS, no external deps, plain-node test script with `tests` object + exit 1 on failure — consistent with `src/startup-greeting.js` and the existing test scripts. ✅
-- **Test hygiene**: tests write to `os.tmpdir()` and do not pollute the repo; output is limited to `ok -` / `FAIL -` / final summary lines. ✅
+```text
+FAIL: test_duo_slack_rejects_empty_clips
+AssertionError: ValueError not raised
 
-No concerns. The only deviation is the documented rename of the shadowed `manifestWatch` local, which is an obvious-typo fix explicitly sanctioned by the task instructions.
+FAIL: test_duo_slack_validates
+AssertionError: 'video/slack/01.webm' not found in referenced_files(...)
+```
 
-## Commits created
+## GREEN
 
-- `4aad19f` — feat: add watch config loader with petpack merge
+After implementing the minimal production changes, I reran the required target tests:
+
+```text
+node scripts/test-capability-gates.js
+```
+
+Result:
+
+```text
+test-capability-gates: ok
+```
+
+```text
+node scripts/test-sequences-schema.js
+```
+
+Result:
+
+```text
+test-sequences-schema: ok
+```
+
+```text
+python -m unittest skills.desktop-pet-maker.scripts.test_petpack_tool
+```
+
+Result:
+
+```text
+Ran 15 tests in 0.314s
+OK
+```
+
+## Files Changed
+
+- `src/capability-gates.js`
+- `src/petpack-validator.js`
+- `scripts/test-capability-gates.js`
+- `scripts/test-sequences-schema.js`
+- `skills/desktop-pet-maker/scripts/petpack_tool.py`
+- `skills/desktop-pet-maker/scripts/test_petpack_tool.py`
+- `.superpowers/sdd/task-2-report.md`
+
+## Concerns
+
+- The working tree already contained many unrelated uncommitted Task 1/duo changes before this task. I did not revert or commit them.
+- I only ran the brief-requested focused tests for Task 2, not the full repository suite.

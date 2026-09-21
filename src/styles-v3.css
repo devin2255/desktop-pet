@@ -2,7 +2,7 @@
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
 body { -webkit-app-region: no-drag; }
-.pet { position: relative; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.pet { position: relative; width: 100%; height: 100%; cursor: grab; touch-action: none; container-type: size; }
 .pet.dragging { cursor: grabbing; }
 .pet-image {
   position: absolute;
@@ -97,6 +97,501 @@ body { -webkit-app-region: no-drag; }
 .ticker.down { background: rgba(18, 122, 64, 0.95); }
 /* Push the speech bubble below the ticker while it is on screen. */
 .pet.has-ticker { --bubble-top: 46px; }
+.duo-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  --duo-open: 0;
+  --duo-frost: 0;
+}
+.duo-device {
+  position: absolute;
+  inset: 2px;
+  border-radius: 24px;
+  pointer-events: none;
+}
+.duo-device-bezel {
+  position: absolute;
+  inset: 0;
+  border: 9px solid #2a2b2f;
+  border-radius: 24px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.38),
+    inset 0 0 0 3px #141518,
+    0 0 0 1px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.duo-device-screen {
+  position: absolute;
+  inset: 9px;
+  border-radius: 16px;
+  overflow: hidden;
+  pointer-events: none;
+  perspective: 420px;
+}
+.duo-device-leaf {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: transparent;
+  transform-origin: center;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+.duo-device-leaf-left {
+  left: 0;
+  transform: rotateY(calc(var(--duo-open) * -16deg));
+}
+.duo-device-leaf-right {
+  right: 0;
+  transform: rotateY(calc(var(--duo-open) * 16deg));
+}
+.duo-overlay[data-direction="left"] .duo-device-leaf-left {
+  transform: rotateY(calc(var(--duo-open) * 16deg));
+}
+.duo-overlay[data-direction="left"] .duo-device-leaf-right {
+  transform: rotateY(calc(var(--duo-open) * -16deg));
+}
+.duo-overlay[data-phase="unfolding"][data-direction="right"] .duo-device-leaf-left,
+.duo-overlay[data-phase="unfolding"][data-direction="left"] .duo-device-leaf-right {
+  transform: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.duo-overlay[data-phase="unfolding"][data-direction="right"] .duo-device-leaf-right,
+.duo-overlay[data-phase="unfolding"][data-direction="left"] .duo-device-leaf-left {
+  background: rgba(255, 255, 255, calc(0.06 + var(--duo-frost) * 0.38));
+  backdrop-filter: blur(calc(var(--duo-frost) * 28px)) saturate(calc(1 + var(--duo-frost) * 0.6));
+  -webkit-backdrop-filter: blur(calc(var(--duo-frost) * 28px)) saturate(calc(1 + var(--duo-frost) * 0.6));
+}
+.duo-overlay[data-phase="unfolding"] .duo-device-leaf-left {
+  transform-origin: 100% 50%;
+}
+.duo-overlay[data-phase="unfolding"] .duo-device-leaf-right {
+  transform-origin: 0 50%;
+}
+.duo-overlay[data-phase="unfolding"] .duo-device,
+.duo-overlay[data-phase="folding"] .duo-device {
+  border-radius: 28px;
+}
+.duo-overlay[data-phase="unfolding"] .duo-device {
+  inset: 3px;
+}
+.duo-overlay[data-phase="folding"] .duo-device {
+  inset: auto;
+  left: 3%;
+  right: 3%;
+  top: auto;
+  bottom: 3px;
+  width: auto;
+  aspect-ratio: 4 / 3;
+  max-height: calc(100% - 6px);
+  border-radius: 28px;
+}
+.duo-overlay[data-phase="unfolding"] .duo-device-bezel,
+.duo-overlay[data-phase="folding"] .duo-device-bezel {
+  border-width: 5px;
+  border-radius: 28px;
+  border-color: #1a1b1f;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    0 0 0 1px rgba(0, 0, 0, 0.48);
+}
+.duo-overlay[data-phase="unfolding"] .duo-device-screen,
+.duo-overlay[data-phase="folding"] .duo-device-screen {
+  inset: 5px;
+  border-radius: 23px;
+}
+.duo-device-hinge {
+  position: absolute;
+  top: 6%;
+  bottom: 6%;
+  left: 50%;
+  width: calc(2px + var(--duo-open) * 6px);
+  margin-left: calc(-1px - var(--duo-open) * 3px);
+  border-radius: 2px;
+  background: #3a3b40;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  opacity: calc(var(--duo-open) * 0.95);
+  pointer-events: none;
+}
+.duo-overlay[data-phase="folding"] .duo-device-hinge {
+  display: none;
+}
+.duo-overlay[data-phase="folding"] .duo-device-leaf-right {
+  display: none;
+}
+.duo-overlay[data-phase="folding"] .duo-device-leaf-left {
+  width: 100%;
+  left: 0;
+  right: 0;
+  transform: none;
+  background: rgba(255, 255, 255, calc(0.02 + var(--duo-frost) * 0.16));
+  backdrop-filter: blur(calc(var(--duo-frost) * 14px)) saturate(calc(1 + var(--duo-frost) * 0.35));
+  -webkit-backdrop-filter: blur(calc(var(--duo-frost) * 14px)) saturate(calc(1 + var(--duo-frost) * 0.35));
+}
+.duo-device-pill {
+  position: absolute;
+  top: 13px;
+  left: 50%;
+  width: 44px;
+  height: 9px;
+  margin-left: -22px;
+  border-radius: 6px;
+  background: #111214;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.duo-overlay[data-phase="unfolding"] .duo-device-pill,
+.duo-overlay[data-phase="folding"] .duo-device-pill {
+  display: none;
+}
+.duo-device-island {
+  display: none;
+  position: absolute;
+  pointer-events: none;
+}
+.duo-device-home {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  width: 36px;
+  height: 4px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: #111214;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+.duo-overlay[data-phase="unfolding"] .duo-device-home,
+.duo-overlay[data-phase="folding"] .duo-device-home {
+  display: block;
+  bottom: 10px;
+  width: 48px;
+  height: 3px;
+  margin-left: -24px;
+  border-radius: 2px;
+  background: #2c2d32;
+}
+.duo-overlay[data-phase="tent"] .duo-device {
+  inset: 4px 6px 0;
+  transform-origin: 50% 100%;
+  transform: perspective(820px) rotateX(34deg);
+  filter: drop-shadow(0 16px 14px rgba(0, 0, 0, 0.32));
+  animation: tent-stand 480ms ease-out;
+}
+.duo-overlay[data-phase="tent"] .duo-device-bezel {
+  border-width: 7px;
+  border-radius: 22px;
+  border-color: #1c1d21;
+}
+.duo-overlay[data-phase="tent"] .duo-device-screen {
+  inset: 7px;
+  border-radius: 15px;
+  perspective: 760px;
+  transform-style: preserve-3d;
+}
+.duo-overlay[data-phase="tent"] .duo-device-leaf {
+  transform-style: preserve-3d;
+}
+.duo-overlay[data-phase="tent"] .duo-device-leaf-left {
+  transform-origin: 100% 50%;
+  transform: rotateY(-46deg);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(7px) saturate(1.05);
+  -webkit-backdrop-filter: blur(7px) saturate(1.05);
+}
+.duo-overlay[data-phase="tent"] .duo-device-leaf-right {
+  transform-origin: 0 50%;
+  transform: rotateY(46deg);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(6px) saturate(1.04);
+  -webkit-backdrop-filter: blur(6px) saturate(1.04);
+}
+.duo-overlay[data-phase="tent"] .duo-device-hinge {
+  top: 8%;
+  bottom: 8%;
+  width: 3px;
+  margin-left: -1.5px;
+  opacity: 0.9;
+  background: #2c2d32;
+}
+.duo-overlay[data-phase="tent"] .duo-device-pill {
+  display: none;
+}
+.duo-overlay[data-phase="slack"] {
+  --duo-open: 1;
+  --sprite: min(90cqw, calc(100cqh - 16px));
+  /* Sitters are baked small at the sides; CSS scale stays 1. */
+  --palm-from-bottom: calc(5px + var(--sprite) * 0.300);
+  inset: auto;
+  left: 6%;
+  right: auto;
+  width: 88%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  bottom: var(--palm-from-bottom);
+  top: auto;
+  z-index: 1;
+}
+.duo-overlay[data-phase="slack"] .duo-device {
+  inset: 0;
+  border-radius: 22px;
+  background: #0c0c0e;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.28);
+}
+.duo-overlay[data-phase="slack"] .duo-device-bezel {
+  border-width: 4px;
+  border-radius: 22px;
+  border-color: #2a2a2c;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 0 0 1px rgba(0, 0, 0, 0.58);
+}
+.duo-overlay[data-phase="slack"] .duo-device-home {
+  display: block;
+  bottom: 7px;
+  width: 42px;
+  height: 3px;
+  margin-left: -21px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: none;
+  z-index: 6;
+}
+.duo-overlay[data-phase="slack"] .duo-device-island {
+  display: block;
+  top: 8px;
+  right: 11px;
+  left: auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #141416;
+  box-shadow:
+    inset 0 0 0 2px #3a3a40,
+    0 0 0 3px #0c0c0e;
+  z-index: 6;
+}
+.duo-overlay[data-phase="slack"] .duo-device-screen {
+  inset: 4px;
+  border-radius: 18px;
+  perspective: none;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: stretch;
+  background: #000;
+  overflow: hidden;
+}
+.duo-overlay[data-phase="slack"] .duo-device-leaf-left,
+.duo-overlay[data-phase="slack"] .duo-device-leaf-right {
+  transform: none;
+}
+.duo-overlay[data-phase="slack"] .duo-device-leaf {
+  position: relative;
+  top: auto;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  width: 50%;
+  height: 100%;
+  max-height: none;
+  background: #000;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.duo-overlay[data-phase="slack"] .duo-device-hinge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  height: auto;
+  margin: 0;
+  border-radius: 0;
+  opacity: 0.35;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+  z-index: 5;
+}
+.duo-overlay[data-phase="slack"] .duo-slack-board,
+.duo-overlay[data-phase="slack"] .duo-slack-feed {
+  inset: 5px 5px 11px;
+  border-radius: 8px;
+}
+.duo-overlay[data-phase="slack"][data-slack-stage="jump"] .duo-device,
+.duo-overlay[data-phase="slack"][data-slack-stage="jump"] .duo-device-leaf,
+.duo-overlay[data-phase="slack"][data-slack-stage="jump"] .duo-device-screen {
+  background: transparent;
+}
+.duo-overlay[data-phase="slack"][data-slack-stage="jump"] .duo-slack-board,
+.duo-overlay[data-phase="slack"][data-slack-stage="jump"] .duo-slack-feed,
+.duo-overlay[data-phase="slack"][data-slack-stage="jump"] .duo-intro-image {
+  display: none;
+}
+.duo-overlay[data-phase="slack"][data-slack-stage="carry"] .duo-device {
+  inset: 0;
+  background: #0c0c0e;
+}
+.duo-overlay[data-phase="slack"][data-slack-stage="carry"] .duo-device-screen {
+  perspective: none;
+}
+.duo-overlay[data-phase="slack"] .duo-device-pill,
+.duo-overlay[data-phase="slack"] .duo-clock {
+  display: none;
+}
+.duo-intro-image {
+  position: absolute;
+  inset: 8px;
+  z-index: 4;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  border-radius: 12px;
+  object-fit: contain;
+  pointer-events: none;
+}
+.duo-slack-feed {
+  position: absolute;
+  inset: 8px;
+  z-index: 4;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #15171d;
+  pointer-events: none;
+}
+.duo-slack-feed .duo-slack-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: cover;
+  background: #15171d;
+  pointer-events: none;
+  transition: transform 480ms cubic-bezier(0.22, 1, 0.32, 1);
+}
+.duo-slack-feed .is-current {
+  transform: translateY(0);
+  z-index: 1;
+}
+.duo-slack-feed .is-next {
+  transform: translateY(100%);
+  z-index: 2;
+}
+.duo-slack-feed.is-sliding .is-current {
+  transform: translateY(-100%);
+}
+.duo-slack-feed.is-sliding .is-next {
+  transform: translateY(0);
+}
+.duo-slack-board[hidden],
+.duo-slack-feed[hidden],
+.duo-intro-image[hidden] {
+  display: none;
+}
+.duo-slack-board:not([hidden]) {
+  display: flex;
+}
+.duo-slack-board {
+  position: absolute;
+  inset: 8px;
+  z-index: 4;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(24, 26, 30, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: #f7f4ee;
+  font-size: 9px;
+  line-height: 1.35;
+  overflow: hidden;
+  min-height: 0;
+  pointer-events: none;
+}
+.duo-slack-quotes {
+  flex: 0 0 auto;
+}
+.duo-slack-kline {
+  display: block;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+.duo-slack-board .main {
+  font-size: 11px;
+  font-weight: 700;
+}
+.duo-slack-board .up {
+  color: #ff756e;
+}
+.duo-slack-board .down {
+  color: #64d889;
+}
+@keyframes tent-stand {
+  from { transform: perspective(820px) rotateX(8deg); }
+  to { transform: perspective(820px) rotateX(34deg); }
+}
+.duo-clock {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #f7f4ee;
+  text-align: center;
+  pointer-events: none;
+}
+.duo-overlay[data-phase="tent"] .duo-clock {
+  position: absolute;
+  display: flex;
+  left: 7%;
+  right: 7%;
+  top: 7%;
+  height: 38%;
+  z-index: 3;
+  background: #3a322b;
+  border-radius: 13px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 6px 14px rgba(20, 14, 10, 0.28);
+  padding: 8px 8px 10px;
+}
+.duo-clock-date {
+  font-size: 10px;
+  opacity: 0.86;
+  letter-spacing: 0.06em;
+  order: 1;
+}
+.duo-clock-time {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  font-weight: 500;
+  order: 2;
+  font-size: 28px;
+  text-shadow: 0 2px 10px rgba(20, 14, 10, 0.35);
+}
+.duo-clock-sec,
+.duo-clock-colon {
+  font-size: 15px;
+  opacity: 0.78;
+  font-weight: 500;
+}
 .hearts { position: absolute; z-index: 4; inset: 0; pointer-events: none; }
 .heart {
   position: absolute;
@@ -114,4 +609,5 @@ body { -webkit-app-region: no-drag; }
 }
 @media (prefers-reduced-motion: reduce) {
   .heart { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
+  .duo-overlay[data-phase="tent"] .duo-device { animation: none; }
 }

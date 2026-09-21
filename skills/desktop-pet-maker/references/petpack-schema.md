@@ -28,6 +28,7 @@ Manifest fields:
 - `interactionActions`: optional object that maps window-interaction roles to animation actions.
 - `sequences`: optional object keyed by sequence id; each value defines a multi-stage scripted interaction.
 - `contextMenuActions`: optional array of menu entries. Each entry must contain exactly one of `action` (single animation), `sequence` (reference to `sequences`), or `randomActions` (random pick among several actions).
+- `duo`: optional object for foldable two-member pets. Old players ignore it and continue using root `animations` as a single-window package.
 
 Each animation contains:
 
@@ -38,6 +39,61 @@ Each animation contains:
 - `scale`: optional display multiplier from `0.5` to `1.5`. Keep most actions at `1`; use a smaller value for a lying pose when it otherwise looks oversized.
 
 Standard action counts are idle 4, walk 6, sit 4, sleep 4, and reaction 4. The player may accept future optional actions, but the maker must produce all five standard actions.
+
+## Duo pets
+
+`duo` is optional. When present, the root manifest still describes the folded single-window pet, and each `duo.members[].animations` object describes one opened member window. Member animation paths live under the member object and must not be added to root `animations`.
+
+```json
+{
+  "duo": {
+    "foldAxis": "horizontal",
+    "gesture": {
+      "menuSlopPx": 12,
+      "commitPx": 20,
+      "snapProgress": 0.25
+    },
+    "unfoldAction": "duo-kick",
+    "foldAction": "duo-hook",
+    "members": [
+      {
+        "id": "judge",
+        "side": "left",
+        "name": "兄弟判官",
+        "watch": true,
+        "animations": {},
+        "interactionActions": {},
+        "contextMenuActions": [],
+        "behavior": { "random": [] }
+      },
+      {
+        "id": "floral",
+        "side": "right",
+        "name": "花袄弟",
+        "watch": false,
+        "animations": {},
+        "interactionActions": {},
+        "contextMenuActions": [],
+        "behavior": { "random": [] }
+      }
+    ]
+  }
+}
+```
+
+Validation rules:
+
+- `duo` must be an object with exactly two `members`.
+- Member `id` values use the same lowercase id pattern as pets and must be unique.
+- Member `side` values must be exactly one `left` and one `right`.
+- Member `name` must contain 1 to 80 characters.
+- Member `watch`, when present, must be boolean.
+- `duo.gesture.menuSlopPx` is an optional integer from 1 to 40.
+- `duo.gesture.commitPx` is an optional integer from 20 to 200.
+- `duo.gesture.snapProgress` is an optional finite number from 0.2 to 0.9.
+- `duo.unfoldAction` and `duo.foldAction` are optional strings that must name root-level animations.
+- Each member must provide the five standard actions in `duo.members[].animations`: idle 4, walk 6, sit 4, sleep 4, and reaction 4.
+- Member frame paths are included in package references. Root animation frame paths and member frame paths must not collide; for example, `animations/judge/idle/01.png` is valid beside root `animations/idle/01.png`, but reusing the exact same relative path is rejected.
 
 ## Window interaction actions
 
