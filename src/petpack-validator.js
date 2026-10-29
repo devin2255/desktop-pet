@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
+const { AI_APP_IDS, MAX_LAUNCH_APPS } = require('./ai-app-catalog');
 
 const REQUIRED_ACTIONS = Object.freeze({ idle: 4, walk: 6, sit: 4, sleep: 4, reaction: 4 });
 const INTERACTION_ROLES = new Set(['drag', 'climb', 'perch', 'hang', 'fall', 'impact', 'recover']);
@@ -40,6 +41,60 @@ function resolveInside(root, relative) {
 }
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg']);
+const CALENDAR_LINES = new Set(['today', 'poem', 'know', 'bubble', 'greeting', 'origin', 'verse', 'almanac', 'flower', 'ceremony', 'next', 'choose', 'select', 'cycle']);
+const BEHAVIOR_CALENDAR_LINES = new Set(['today', 'poem', 'know', 'bubble', 'greeting', 'origin', 'verse', 'almanac', 'flower', 'cycle']);
+const CALENDAR_FIELD_LIMITS = Object.freeze({
+  greeting: 80,
+  poem: 80,
+  know: 80,
+  bubble: 80,
+  origin: 120,
+  verse: 120,
+  almanac: 80,
+  flower: 80,
+  ceremony: 80
+});
+const WEATHER_FX = new Set(['qi', 'petal', 'rain', 'dew', 'leaf', 'firefly', 'snow', 'frost']);
+const CLICK_FX = new Set(['hearts', 'seal', 'qi', 'seasonal']);
+const SHICHEN_IDS = new Set(['zi', 'chou', 'yin', 'mao', 'chen', 'si', 'wu', 'wei', 'shen', 'you', 'xu', 'hai']);
+
+function validateCalendarMoments(moments) {
+  if (!Array.isArray(moments) || !moments.length || moments.length > 24) {
+    throw new Error('calendarMoments 必须是 1 到 24 项的数组');
+  }
+  const ids = new Set();
+  for (const item of moments) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error('calendarMoments 条目格式不正确');
+    }
+    if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(String(item.id || '')) || ids.has(item.id)) {
+      throw new Error('calendarMoments id 不合法或重复');
+    }
+    ids.add(item.id);
+    if (typeof item.name !== 'string' || !item.name.trim() || item.name.length > 16) {
+      throw new Error('calendarMoments name 必须为 1 到 16 个字符');
+    }
+    const monthDay = item.monthDay;
+    if (!Array.isArray(monthDay) || monthDay.length !== 2) {
+      throw new Error('calendarMoments monthDay 不合法');
+    }
+    const [month, day] = monthDay;
+    if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+      throw new Error('calendarMoments monthDay 不合法');
+    }
+    for (const [field, limit] of Object.entries(CALENDAR_FIELD_LIMITS)) {
+      if (item[field] !== undefined && (typeof item[field] !== 'string' || item[field].length > limit)) {
+        throw new Error(`calendarMoments ${field} 不能超过 ${limit} 个字符`);
+      }
+    }
+    if (item.speech !== undefined && (typeof item.speech !== 'string' || item.speech.length > 20)) {
+      throw new Error('calendarMoments speech 不能超过 20 个字符');
+    }
+    if (item.fx !== undefined && !WEATHER_FX.has(item.fx)) {
+      throw new Error('calendarMoments fx 不合法');
+    }
+  }
+}
 
 function referencedFiles(manifest) {
   const referenced = new Set(['pet.json', manifest.preview]);
@@ -74,13 +129,81 @@ function validateManifest(manifest, root = '', requireFiles = false) {
   }
   if (manifest.speechGender !== undefined
     && manifest.speechGender !== 'male'
-    && manifest.speechGender !== 'female') {
-    throw new Error('speechGender 只能是 male 或 female');
+    && manifest.speechGender !== 'female'
+    && manifest.speechGender !== 'child') {
+    throw new Error('speechGender 只能是 male、female 或 child');
+  }
+  if (manifest.speechEnabled !== undefined && typeof manifest.speechEnabled !== 'boolean') {
+    throw new Error('speechEnabled 必须是布尔值');
   }
   if (manifest.startupGreeting !== undefined) {
     if (typeof manifest.startupGreeting !== 'string' || manifest.startupGreeting.length > 80) {
       throw new Error('startupGreeting 必须是不超过 80 个字符的字符串');
     }
+  }
+  if (manifest.recallLabel !== undefined) {
+    if (typeof manifest.recallLabel !== 'string' || !manifest.recallLabel.trim() || manifest.recallLabel.length > 24) {
+      throw new Error('recallLabel 必须为 1 到 24 个字符');
+    }
+  }
+  if (manifest.calendarMoments !== undefined) {
+    validateCalendarMoments(manifest.calendarMoments);
+  }
+  if (manifest.interact !== undefined) {
+    if (!manifest.interact || typeof manifest.interact !== 'object' || Array.isArray(manifest.interact)) {
+      throw new Error('interact 必须是对象');
+    }
+    if (manifest.interact.message !== undefined && (typeof manifest.interact.message !== 'string' || manifest.interact.message.length > 80)) {
+      throw new Error('interact message 不能超过 80 个字符');
+    }
+    if (manifest.interact.speech !== undefined && (typeof manifest.interact.speech !== 'string' || manifest.interact.speech.length > 20)) {
+      throw new Error('interact speech 不能超过 20 个字符');
+    }
+    if (manifest.interact.calendarLine !== undefined && !BEHAVIOR_CALENDAR_LINES.has(manifest.interact.calendarLine)) {
+      throw new Error('interact calendarLine 不合法');
+    }
+    if (manifest.interact.fx !== undefined && !CLICK_FX.has(manifest.interact.fx)) {
+      throw new Error('interact fx 不合法');
+    }
+    if (manifest.interact.fxGlyph !== undefined) {
+      if (typeof manifest.interact.fxGlyph !== 'string' || !manifest.interact.fxGlyph.trim() || [...manifest.interact.fxGlyph].length > 2) {
+        throw new Error('interact fxGlyph 必须为 1 到 2 个字符');
+      }
+    }
+    if (manifest.interact.lines !== undefined) {
+      const lines = manifest.interact.lines;
+      if (!Array.isArray(lines) || lines.length < 1 || lines.length > 24) {
+        throw new Error('interact.lines 必须是 1 到 24 条台词');
+      }
+      for (const line of lines) {
+        if (typeof line === 'string') {
+          if (!line.trim() || line.length > 80) throw new Error('interact.lines 台词必须为 1 到 80 个字符');
+          continue;
+        }
+        if (!line || typeof line !== 'object' || Array.isArray(line)) throw new Error('interact.lines 条目格式不正确');
+        if (typeof line.message !== 'string' || !line.message.trim() || line.message.length > 80) {
+          throw new Error('interact.lines 台词必须为 1 到 80 个字符');
+        }
+        if (line.speech !== undefined && (typeof line.speech !== 'string' || line.speech.length > 20)) {
+          throw new Error('interact.lines speech 不能超过 20 个字符');
+        }
+      }
+    }
+  }
+  if (manifest.launchApps !== undefined) {
+    if (!Array.isArray(manifest.launchApps) || manifest.launchApps.length < 1 || manifest.launchApps.length > MAX_LAUNCH_APPS) {
+      throw new Error(`launchApps 必须是 1 到 ${MAX_LAUNCH_APPS} 个应用 id`);
+    }
+    const seen = new Set();
+    for (const id of manifest.launchApps) {
+      if (typeof id !== 'string' || !AI_APP_IDS.has(id) || seen.has(id)) {
+        throw new Error('launchApps 包含未知或重复的应用');
+      }
+      seen.add(id);
+    }
+  }
+  if (manifest.bubbleStyle !== undefined && manifest.bubbleStyle !== 'letter' && manifest.bubbleStyle !== 'chat') {
+    throw new Error('bubbleStyle 只能是 letter 或 chat');
   }
   safeRelative(manifest.preview);
   if (path.posix.extname(manifest.preview).toLowerCase() !== '.png') throw new Error('preview 必须是 PNG');
@@ -167,6 +290,9 @@ function validateManifest(manifest, root = '', requireFiles = false) {
         }
       }
       if (item.duration !== undefined && (!Number.isInteger(item.duration) || item.duration < 600 || item.duration > 10000)) throw new Error('右键动作 duration 必须为 600 到 10000 毫秒');
+      if (item.calendarLine !== undefined && !CALENDAR_LINES.has(item.calendarLine)) {
+        throw new Error('右键动作 calendarLine 不合法');
+      }
     }
   }
 
@@ -197,6 +323,9 @@ function validateManifest(manifest, root = '', requireFiles = false) {
           throw new Error(`${label} speechAudio 只支持 mp3/wav/ogg`);
         }
       }
+      if (item.calendarLine !== undefined && !BEHAVIOR_CALENDAR_LINES.has(item.calendarLine)) {
+        throw new Error(`${label} calendarLine 不合法`);
+      }
     }
   }
 
@@ -205,6 +334,32 @@ function validateManifest(manifest, root = '', requireFiles = false) {
   }
   if (manifest.behavior?.perched !== undefined) {
     validateBehaviorList(manifest.behavior.perched, 'behavior.perched');
+  }
+  if (manifest.behavior?.autoSleepMs !== undefined
+    && (!Number.isInteger(manifest.behavior.autoSleepMs)
+      || manifest.behavior.autoSleepMs < 10000
+      || manifest.behavior.autoSleepMs > 3600000)) {
+    throw new Error('behavior.autoSleepMs 必须是 10000 到 3600000 的整数');
+  }
+  if (manifest.behavior?.topPatrol !== undefined && typeof manifest.behavior.topPatrol !== 'boolean') {
+    throw new Error('behavior.topPatrol 必须是布尔值');
+  }
+  if (manifest.behavior?.shichen !== undefined && typeof manifest.behavior.shichen !== 'boolean') {
+    throw new Error('behavior.shichen 必须是布尔值');
+  }
+  if (manifest.behavior?.weather !== undefined && typeof manifest.behavior.weather !== 'boolean') {
+    throw new Error('behavior.weather 必须是布尔值');
+  }
+  if (manifest.behavior?.shichenLines !== undefined) {
+    const lines = manifest.behavior.shichenLines;
+    if (!lines || typeof lines !== 'object' || Array.isArray(lines)) {
+      throw new Error('behavior.shichenLines 必须是对象');
+    }
+    for (const [key, value] of Object.entries(lines)) {
+      if (!SHICHEN_IDS.has(key) || typeof value !== 'string' || !value.trim() || value.length > 40) {
+        throw new Error('behavior.shichenLines 条目不合法');
+      }
+    }
   }
 
   if (requireFiles) {

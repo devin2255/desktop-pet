@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+    <title>交代任务</title>
+    <link rel="stylesheet" href="task-chat.css" />
+  </head>
+  <body>
+    <form id="task-form" class="card">
+      <header>
+        <h1>交代任务</h1>
+        <p>写一句，千问会打开并带上这句话。</p>
+        <button id="task-close" type="button" class="close" aria-label="关闭">×</button>
+      </header>
+      <textarea id="task-input" maxlength="200" placeholder="例如：把今天的会议纪要整理成三条"></textarea>
+      <div id="task-error" class="error" hidden></div>
+      <div class="row">
+        <button id="task-cancel" type="button" class="cancel">先不说</button>
+        <button type="submit" class="submit">交给她</button>
+      </div>
+    </form>
+    <script src="task-chat-renderer.js"></script>
+  </body>
+</html>

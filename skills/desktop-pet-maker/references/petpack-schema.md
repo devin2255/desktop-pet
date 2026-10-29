@@ -21,11 +21,17 @@ Manifest fields:
 - `name`: required display name.
 - `personality`: array of short strings.
 - `startupGreeting`: optional custom greeting shown when the pet first appears or when switching to this pet. If omitted or blank after trimming, the player uses `我是${name}。` on startup and `你好，我是${name}。` when switching. Maximum 80 characters.
+- `calendarMoments`: optional array of up to 24 dated lines. The player picks the nearest `monthDay` (wrapping the year) unless the user cycles to another moment. Each item needs `id`, `name`, and `monthDay: [month, day]`, plus optional `greeting`, `poem`, `know`, `bubble` (max 80) and `speech` (max 20). If `greeting` is present, it overrides `startupGreeting` for the current moment.
+- `interact`: optional click reaction. `message` (max 80), `speech` (max 20), and `calendarLine` (`today` / `poem` / `know` / `bubble` / `greeting` / `cycle`) fill the bubble from the current calendar moment. `cycle` rotates greeting → poem → know → bubble on each click. `lines` is an optional array of 1–24 click lines. Each entry is a string (max 80) or `{ message, speech }`. When `calendarLine` is absent, clicks rotate through `lines`.
+- `launchApps`: optional array of 1–6 known AI app ids (`qwen-work`, `qwen`, `doubao`, `kimi`, `yuanbao`, `chatgpt`, `gemini`, `wenxin`). The player resolves an installed shortcut on this machine and otherwise opens that app's https page. Packs cannot name an executable path or a command.
+- `recallLabel`: optional tray/menu label for showing the pet again after it is hidden. If omitted, the player uses `叫宠物回来`. Maximum 24 characters.
 - `preview`: required relative PNG path.
 - `normalizationMetric`: optional scale-validation mode. New packages use `alpha-area-v1` to compare opaque visual mass; packages that omit it retain legacy `bbox-span-v1` validation for schema-v1 compatibility.
 - `animations`: required object keyed by action.
 - `behavior.random`: weighted state definitions used by the player.
+- `behavior.autoSleepMs`: optional idle time, from 10000 to 3600000, after which the pet sleeps until the user clicks, drags, or opens a menu. Omitted pets stay awake.
 - `interactionActions`: optional object that maps window-interaction roles to animation actions.
+- `contextMenuActions`: optional array of up to 8 right-click actions. Each item may include `calendarLine` (`today` / `poem` / `know` / `bubble` / `greeting` / `next` / `choose`). `choose` expands into a submenu of every `calendarMoments` name so the user can jump to a specific moment. `next` cycles. Standard actions remap to `idle-<id>` / `walk-<id>` / `sit-<id>` / `sleep-<id>` / `reaction-<id>` when those animations exist.
 
 Each animation contains:
 

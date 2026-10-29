@@ -92,6 +92,21 @@ class PetpackArchiveSecurityTests(unittest.TestCase):
         }
         petpack_tool.validate_manifest_shape(manifest)
 
+    def test_launch_apps_and_click_lines(self) -> None:
+        fixture = SCRIPT_DIR.parents[2] / "pets" / "packages" / "laopo.petpack"
+        with zipfile.ZipFile(fixture) as source:
+            manifest = json.loads(source.read("pet.json"))
+        manifest["launchApps"] = ["qwen-work", "doubao"]
+        manifest["interact"] = {"lines": ["今天的桌面我看着。", {"message": "喊我回来就好。", "speech": "回来。"}]}
+        petpack_tool.validate_manifest_shape(manifest)
+        manifest["launchApps"] = ["qwen-work", "cmd"]
+        with self.assertRaisesRegex(ValueError, "launchApps"):
+            petpack_tool.validate_manifest_shape(manifest)
+        manifest["launchApps"] = ["qwen"]
+        manifest["interact"]["lines"] = []
+        with self.assertRaisesRegex(ValueError, "interact.lines"):
+            petpack_tool.validate_manifest_shape(manifest)
+
 
 if __name__ == "__main__":
     unittest.main()

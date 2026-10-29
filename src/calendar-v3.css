@@ -1,0 +1,88 @@
+:root {
+  color-scheme: light;
+  --paper: #f7f1e4;
+  --ink: #3d2c1e;
+  --muted: #7a6652;
+  --line: rgba(132, 92, 52, 0.28);
+  --accent: #8a5a32;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    linear-gradient(180deg, #fbf6ec, #f3ead8);
+  color: var(--ink);
+  font-family: "KaiTi", "STKaiti", "楷体", "FangSong", "Microsoft YaHei UI", serif;
+}
+.page {
+  padding: 22px 20px 28px;
+}
+.head { text-align: center; }
+.kicker {
+  margin: 0;
+  letter-spacing: 0.28em;
+  font-size: 12px;
+  color: var(--muted);
+}
+h1 {
+  margin: 8px 0 4px;
+  font-size: 40px;
+  font-weight: 500;
+}
+.sub, .origin {
+  margin: 0 auto;
+  max-width: 28em;
+  text-align: center;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.origin {
+  margin: 16px auto 8px;
+  color: var(--ink);
+}
+.almanac {
+  margin: 0 auto 10px;
+  max-width: 28em;
+  text-align: center;
+  line-height: 1.7;
+  color: var(--accent);
+}
+.verse {
+  margin: 0 auto 22px;
+  max-width: 28em;
+  text-align: center;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.cell {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(255, 252, 246, 0.78);
+  color: var(--ink);
+  border-radius: 4px;
+  padding: 10px 4px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.cell small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.cell[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fffdf8;
+}
+.cell[aria-pressed="true"] small { color: rgba(255, 253, 248, 0.78); }
+.cell.today:not([aria-pressed="true"]) {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}

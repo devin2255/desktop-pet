@@ -1,17 +1,21 @@
 'use strict';
 
 const {
+  canThrow,
   clampByVisibleBounds,
   classifyWindowEdge,
+  estimateThrowVelocity,
   nextFallFrame,
+  nextThrowFrame,
   positionForAttachment,
   selectDisplayTopWindow,
-  selectTargetWindow
+  selectTargetWindow,
+  selectTopSeatWindow
 } = require('./window-interactions');
 
 const INTERACTIVE_STATES = new Set([
   'dragging', 'climbing', 'perched', 'hanging',
-  'falling', 'impact', 'recovering'
+  'falling', 'flying', 'impact', 'recovering'
 ]);
 const ATTACHED_STATES = new Set(['perched', 'hanging']);
 const FALLBACK_ACTIONS = {
@@ -102,6 +106,9 @@ function createInteractionController(dependencies) {
   let frameTimer;
   let animationTimer;
   let perchedIdleTimer;
+  let patrolTimer;
+  let patrolDir = 1;
+  let lastPerchedAction = '';
   let cancelAnimation;
   let generation = 0;
   let disposed = false;
@@ -123,7 +130,7 @@ function createInteractionController(dependencies) {
   }
 
   function facingState(role, facing) {
-    if ((role === 'drag' || role === 'climb') && (facing === 'left' || facing === 'right')) {
+    if ((role === 'drag' || role === 'climb' || role === 'walk' || role === 'fall') && (facing === 'left' || facing === 'right')) {
       return `${role}-${facing}`;
     }
     return role;
@@ -143,6 +150,7 @@ function createInteractionController(dependencies) {
   function transition(next, logicalRole, extras = {}) {
     if (disposed) return;
     currentState = next;
+    if (next !== 'perched') lastPerchedAction = '';
     if (INTERACTIVE_STATES.has(next)) pauseBehavior();
     emitRole(logicalRole || next, extras);
     if (next === 'normal') resumeBehavior();
@@ -174,6 +182,60 @@ function createInteractionController(dependencies) {
   function clearPerchedIdle() {
     if (perchedIdleTimer !== undefined) clearTimeoutFn(perchedIdleTimer);
     perchedIdleTimer = undefined;
+    if (patrolTimer !== undefined) clearIntervalFn(patrolTimer);
+    patrolTimer = undefined;
+  }
+
+  function startTopPatrol() {
+    if (disposed || currentState !== 'perched' || attachment?.edge !== 'top') return;
+    if (getManifest()?.behavior?.topPatrol !== true) return;
+    clearPerchedIdle();
+    patrolDir = 1;
+    const line = typeof dependencies.getWalkNarration === 'function'
+      ? dependencies.getWalkNarration()
+      : {};
+    emitRole('walk', {
+      facing: 'right',
+      message: typeof line?.message === 'string' ? line.message : '',
+      speech: typeof line?.speech === 'string' ? line.speech : ''
+    });
+    patrolTimer = setIntervalFn(() => {
+      if (disposed || currentState !== 'perched' || !attachment || attachment.edge !== 'top') {
+        clearPerchedIdle();
+        return;
+      }
+      const size = currentSize();
+      const maxOffset = Math.max(8, attachment.bounds.width - size.width);
+      attachment.offset += patrolDir * 1.8;
+      if (attachment.offset >= maxOffset) {
+        attachment.offset = maxOffset;
+        if (patrolDir !== -1) {
+          patrolDir = -1;
+          const next = typeof dependencies.getWalkNarration === 'function'
+            ? dependencies.getWalkNarration()
+            : {};
+          emitRole('walk', {
+            facing: 'left',
+            message: typeof next?.message === 'string' ? next.message : '',
+            speech: typeof next?.speech === 'string' ? next.speech : ''
+          });
+        }
+      } else if (attachment.offset <= 0) {
+        attachment.offset = 0;
+        if (patrolDir !== 1) {
+          patrolDir = 1;
+          const next = typeof dependencies.getWalkNarration === 'function'
+            ? dependencies.getWalkNarration()
+            : {};
+          emitRole('walk', {
+            facing: 'right',
+            message: typeof next?.message === 'string' ? next.message : '',
+            speech: typeof next?.speech === 'string' ? next.speech : ''
+          });
+        }
+      }
+      applyAttachment({ id: attachment.id, bounds: attachment.bounds });
+    }, 16);
   }
 
   function clearMotionTimers() {
@@ -204,6 +266,13 @@ function createInteractionController(dependencies) {
     return usable[0];
   }
 
+  function pickPerchedChoice(choices) {
+    const usable = (Array.isArray(choices) ? choices : []).filter((item) => item && item.state);
+    if (!usable.length) return null;
+    const others = usable.filter((item) => item.state !== lastPerchedAction);
+    return pickWeighted(others.length ? others : usable);
+  }
+
   function schedulePerchedIdle(delayMs) {
     clearPerchedIdle();
     if (disposed || currentState !== 'perched') return;
@@ -216,24 +285,21 @@ function createInteractionController(dependencies) {
     perchedIdleTimer = setTimeoutFn(() => {
       perchedIdleTimer = undefined;
       if (disposed || generation !== token || currentState !== 'perched') return;
-      const choice = pickWeighted(choices);
+      const choice = pickPerchedChoice(choices);
       if (!choice) return;
+      lastPerchedAction = choice.state;
       const playMs = Math.max(
         600,
         Number(choice.minDuration) + Math.random() * Math.max(0, Number(choice.maxDuration) - Number(choice.minDuration))
       );
       // Keep controller state as perched for attachment; only swap the visible action.
+      // Stay on this outfit until playMs elapses, then pick a different perched action.
       emitRole(choice.state, {
         message: typeof choice.message === 'string' ? choice.message : '',
         speech: typeof choice.speech === 'string' ? choice.speech : '',
         speechAudio: typeof choice.speechAudio === 'string' ? choice.speechAudio : ''
       });
-      perchedIdleTimer = setTimeoutFn(() => {
-        perchedIdleTimer = undefined;
-        if (disposed || generation !== token || currentState !== 'perched') return;
-        emitRole('perch');
-        schedulePerchedIdle();
-      }, playMs);
+      schedulePerchedIdle(playMs);
     }, wait);
   }
 
@@ -342,7 +408,11 @@ function createInteractionController(dependencies) {
     applyAttachment(target);
     transition(nextState, role, extras);
     startAttachmentPolling();
-    if (nextState === 'perched') schedulePerchedIdle(900);
+    if (nextState === 'perched' && edge === 'top' && getManifest()?.behavior?.topPatrol === true) {
+      startTopPatrol();
+    } else if (nextState === 'perched') {
+      schedulePerchedIdle(900);
+    }
   }
 
   function defaultAnimatePosition({ from, to, duration, setPosition: update, isCurrent }) {
@@ -467,7 +537,8 @@ function createInteractionController(dependencies) {
     dragOrigin = {
       pointer,
       bounds: { x: bounds.x, y: bounds.y },
-      lastPointer: pointer
+      lastPointer: pointer,
+      samples: [{ x: pointer.x, y: pointer.y, t: now() }]
     };
     dragFacing = 'right';
     transition('dragging', 'drag', { facing: dragFacing });
@@ -505,18 +576,96 @@ function createInteractionController(dependencies) {
       }
     }
     dragOrigin.lastPointer = pointer;
+    const sampleTime = now();
+    const samples = dragOrigin.samples || (dragOrigin.samples = []);
+    samples.push({ x: pointer.x, y: pointer.y, t: sampleTime });
+    while (samples.length && sampleTime - samples[0].t > 150) samples.shift();
     setPosition(next);
+    return true;
+  }
+
+  function workAreas() {
+    if (typeof dependencies.getWorkAreas === 'function') {
+      const areas = dependencies.getWorkAreas();
+      if (Array.isArray(areas) && areas.length) return areas;
+    }
+    const display = displayForWindow();
+    return [display.workArea || display.bounds];
+  }
+
+  function beginThrow(velocity, token) {
+    if (disposed || generation !== token || currentState !== 'dragging') return;
+    attachment = undefined;
+    clearAttachmentPolling();
+    clearMotionTimers();
+    let vx = velocity.x;
+    let vy = velocity.y;
+    transition('flying', 'fall', { facing: vx < 0 ? 'left' : 'right' });
+    let previousTime = now();
+    const tick = (timestamp) => {
+      frameTimer = undefined;
+      if (disposed || generation !== token || currentState !== 'flying') return;
+      const frameTime = Number.isFinite(timestamp) ? timestamp : now();
+      const elapsed = Math.min(50, Math.max(0, frameTime - previousTime));
+      previousTime = frameTime;
+      const bounds = petWindow.getBounds();
+      const size = currentSize();
+      const next = nextThrowFrame({
+        x: bounds.x,
+        y: bounds.y,
+        vx,
+        vy,
+        width: size.width,
+        height: size.height,
+        insets: visibleInsets,
+        bottomOffset,
+        elapsedMs: elapsed
+      }, workAreas());
+      vx = next.vx;
+      vy = next.vy;
+      setPosition({ x: next.x, y: next.y });
+      if (next.landed) {
+        transition('impact', 'impact');
+        animationTimer = setTimeoutFn(() => {
+          animationTimer = undefined;
+          if (disposed || generation !== token || currentState !== 'impact') return;
+          transition('normal', 'normal');
+        }, Math.max(180, animationDuration('impact')));
+        return;
+      }
+      frameTimer = scheduleFrame(tick);
+    };
+    frameTimer = scheduleFrame(tick);
+  }
+
+  function tryPerchOnTopEdge(pointer, candidates) {
+    const seat = selectTopSeatWindow(
+      pointer,
+      petWindow.getBounds(),
+      visibleInsets,
+      candidates,
+      excludedIds,
+      edgeThreshold
+    );
+    if (!seat) return false;
+    attach(seat.window, 'top', seat.offset, 'perch', 'perched');
     return true;
   }
 
   async function endDrag(pointerValue) {
     const pointer = pointFrom(pointerValue);
     if (!pointer || !dragOrigin || currentState !== 'dragging' || disposed) return false;
+    const velocity = estimateThrowVelocity(dragOrigin.samples, now());
+    const flick = canThrow(velocity);
     dragOrigin = undefined;
     dragFacing = 'right';
     const releasedTopSnap = topSnap;
     topSnap = undefined;
     const token = generation;
+    if (flick) {
+      beginThrow(velocity, token);
+      return true;
+    }
     let windows;
     try {
       windows = await discovery.list();
@@ -542,13 +691,14 @@ function createInteractionController(dependencies) {
         attach(target, 'top', pointer.x - target.bounds.x, 'perch', 'perched');
         return true;
       }
-      if (edge === 'bottom') {
-        attach(target, 'bottom', pointer.x - target.bounds.x, 'hang', 'hanging');
-        return true;
-      }
+      // The bottom edge used to reuse the sitting pose. Releasing there
+      // returns to standing; only the top edge sits.
+      if (edge !== 'bottom' && tryPerchOnTopEdge(pointer, candidates)) return true;
       transition('normal', 'normal');
       return true;
     }
+
+    if (tryPerchOnTopEdge(pointer, candidates)) return true;
 
     const displayTopTarget = releasedTopSnap
       ? selectDisplayTopWindow(pointer, candidates, display.bounds, excludedIds, edgeThreshold)

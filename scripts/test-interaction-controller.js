@@ -56,6 +56,9 @@ function createClock() {
         for (const callback of pending) callback(currentTime);
       }
     },
+    advance(ms) {
+      currentTime += Math.max(0, Number(ms) || 0);
+    },
     flushTimeouts(limit = 1000) {
       let count = 0;
       while (timeouts.size) {
@@ -314,9 +317,47 @@ async function run() {
 
   {
     const harness = createHarness({ windows: [target] });
+    harness.manifest.behavior = { topPatrol: true };
+    harness.dependencies.getWalkNarration = () => ({
+      message: '白露者，阴气渐重，露凝而白。',
+      speech: '白露者，阴气渐重，露凝而白。'
+    });
+    await dragAndEnd(harness, { x: 350, y: 100 });
+    assert.strictEqual(harness.controller.state(), 'perched');
+    assert.ok(harness.states.includes('walk-right'), 'top patrol should walk along the window chrome');
+    const patrol = harness.stateSignals.find((item) => item?.logicalRole === 'walk');
+    assert.ok(patrol?.message.includes('白露'), 'top patrol should narrate the solar term');
+    assert.ok(harness.clock.intervalDelays().includes(16), 'top patrol uses a walk interval');
+    harness.controller.dispose();
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    const before = harness.bounds();
     await dragAndEnd(harness, { x: 350, y: 499 });
-    assert.strictEqual(harness.controller.state(), 'hanging');
-    assert.deepStrictEqual(harness.states.slice(-1), ['hang']);
+    assert.strictEqual(harness.controller.state(), 'normal', 'the bottom edge does not sit');
+    assert.deepStrictEqual(harness.states.slice(-1), ['normal']);
+    assert.deepStrictEqual(harness.bounds(), before);
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    await dragAndEnd(harness, { x: 350, y: 80 });
+    assert.strictEqual(harness.controller.state(), 'perched', 'releasing just above the top edge sits');
+    assert.deepStrictEqual(harness.states.slice(-1), ['perch']);
+  }
+
+  {
+    const harness = createHarness({
+      windows: [target],
+      initialBounds: { x: 320, y: -20, width: 100, height: 120 }
+    });
+    await dragAndEnd(harness, { x: 40, y: 400 });
+    assert.strictEqual(
+      harness.controller.state(),
+      'perched',
+      'feet resting on the top edge sit even when the pointer is elsewhere'
+    );
   }
 
   {
@@ -496,7 +537,7 @@ async function run() {
   {
     const movingTarget = { id: 'w1', bounds: { ...target.bounds } };
     const harness = createHarness({ windows: [movingTarget] });
-    await dragAndEnd(harness, { x: 350, y: 499 });
+    await dragAndEnd(harness, { x: 350, y: 100 });
     movingTarget.minimized = true;
     await harness.clock.tickIntervals();
     assert.strictEqual(harness.controller.state(), 'falling');
@@ -514,14 +555,10 @@ async function run() {
 
   {
     const harness = createHarness({ windows: [target] });
-    harness.manifest.interactionActions.hang.anchor.y = 0;
-    harness.controller.updateVisibleInsets({ left: 10, top: 20, right: 10, bottom: 0 });
+    const before = harness.bounds();
     await dragAndEnd(harness, { x: 350, y: 499 });
-    assert.strictEqual(
-      harness.bounds().y + 20,
-      target.bounds.y + target.bounds.height,
-      'the topmost visible hang pixels (the hands) touch the window bottom edge'
-    );
+    assert.strictEqual(harness.controller.state(), 'normal', 'bottom-edge release stays standing');
+    assert.deepStrictEqual(harness.bounds(), before);
   }
 
   {
@@ -717,6 +754,24 @@ async function run() {
       assert.ok(builder.includes(`'${file}'`), `customer package includes ${file}`);
     }
     assert.ok(packageJson.dependencies['get-windows'], 'window discovery remains a production dependency');
+  }
+
+  {
+    const harness = createHarness({ windows: [target] });
+    harness.controller.startDrag({ x: 220, y: 180 });
+    harness.controller.moveDrag({ x: 220, y: 180 });
+    harness.clock.advance(40);
+    harness.controller.moveDrag({ x: 40, y: 180 });
+    await harness.controller.endDrag({ x: 40, y: 180 });
+    assert.strictEqual(harness.controller.state(), 'flying', 'a fast release throws instead of attaching');
+    harness.clock.flushAnimationFrames();
+    assert.strictEqual(harness.controller.state(), 'impact', 'the throw lands before returning to idle');
+    const landed = harness.bounds();
+    harness.clock.flushTimeouts();
+    assert.strictEqual(harness.controller.state(), 'normal');
+    assert.ok(landed.x < 400, 'she stays where the throw settled');
+    assert.strictEqual(harness.bounds().x, landed.x);
+    assert.strictEqual(harness.bounds().y, landed.y);
   }
 
   assert.ok(true, 'top, bottom, side, center, priority, polling, fall, and cleanup checks completed');

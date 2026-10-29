@@ -43,4 +43,7 @@ const base = {
 };
 assert.doesNotThrow(() => validateManifest({ ...base, startupGreeting: '老公，我来啦~' }));
 assert.throws(() => validateManifest({ ...base, startupGreeting: 'x'.repeat(81) }), /startupGreeting/);
+assert.doesNotThrow(() => validateManifest({ ...base, recallLabel: '叫宝宝回来咯' }));
+assert.throws(() => validateManifest({ ...base, recallLabel: 'x'.repeat(25) }), /recallLabel/);
+assert.throws(() => validateManifest({ ...base, recallLabel: '   ' }), /recallLabel/);
 console.log('startup greeting checks passed');

@@ -1,7 +1,10 @@
 const pet = document.getElementById('pet');
 const petImage = document.getElementById('pet-image');
 const bubble = document.getElementById('bubble');
+const bubbleText = document.getElementById('bubble-text') || bubble;
+const bubbleSeal = document.getElementById('bubble-seal');
 const hearts = document.getElementById('hearts');
+const weather = document.getElementById('weather');
 
 let manifest;
 let pointerDown;
@@ -9,6 +12,7 @@ let bubbleTimer;
 let animationTimer;
 let animationToken = 0;
 let pendingState = { state: 'idle', message: '' };
+let weatherTimer;
 const DRAG_THRESHOLD_PX = 6;
 const HIT_ALPHA_CUTOFF = 32;
 const BUBBLE_GAP_PX = 2;
@@ -51,7 +55,8 @@ function resolveAction(state, logicalRole) {
 function isFacingLeft() {
   return pet.classList.contains('state-walk-left')
     || pet.classList.contains('state-drag-left')
-    || pet.classList.contains('state-climb-left');
+    || pet.classList.contains('state-climb-left')
+    || pet.classList.contains('state-fall-left');
 }
 
 function preloadFrames() {
@@ -89,7 +94,16 @@ function playAnimation(state, logicalRole) {
 
 function showBubble(message, duration = 2200) {
   clearTimeout(bubbleTimer);
-  bubble.textContent = message;
+  bubbleText.textContent = message;
+  const letter = manifest?.bubbleStyle === 'letter';
+  const short = [...String(message)].length <= 8;
+  bubble.classList.toggle('letter', letter);
+  bubble.classList.toggle('vertical', letter && short);
+  if (bubbleSeal) {
+    const glyph = typeof manifest?.sealGlyph === 'string' ? manifest.sealGlyph : '';
+    bubbleSeal.textContent = glyph;
+    bubbleSeal.hidden = !letter || !glyph;
+  }
   bubble.classList.add('visible');
   // Re-measure after text/layout so the bubble sits just above the visible head.
   if (lastVisibleInsets) positionBubble(lastVisibleInsets);
@@ -101,6 +115,7 @@ function showBubble(message, duration = 2200) {
 
 const MALE_VOICE_RE = /kang|yunyang|yunxi|yunjian|yunfeng|dongni|male|男|kangkang/i;
 const FEMALE_VOICE_RE = /huihui|yaoyao|xiaoxiao|xiaoyi|xiaohan|female|女|zira|jenny|aria/i;
+const CHILD_VOICE_RE = /xiaoxiao|xiaoyi|yunxia|yaoyao|huihui|xiaotong|xiaoqiu|child|童|女童/i;
 
 function listSpeechVoices() {
   if (!window.speechSynthesis?.getVoices) return [];
@@ -119,6 +134,12 @@ function pickSpeechVoice(preferredGender) {
   }
   if (preferredGender === 'female') {
     return pool.find((voice) => FEMALE_VOICE_RE.test(voice.name))
+      || pool.find((voice) => !MALE_VOICE_RE.test(voice.name))
+      || pool[0];
+  }
+  if (preferredGender === 'child') {
+    return pool.find((voice) => CHILD_VOICE_RE.test(voice.name))
+      || pool.find((voice) => FEMALE_VOICE_RE.test(voice.name))
       || pool.find((voice) => !MALE_VOICE_RE.test(voice.name))
       || pool[0];
   }
@@ -150,6 +171,11 @@ function playSpeechAudio(url) {
 }
 
 function speak(text, audioUrl = '') {
+  if (manifest?.speechEnabled === false) {
+    stopSpeechAudio();
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    return;
+  }
   if (audioUrl && playSpeechAudio(audioUrl)) return;
   if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   stopSpeechAudio();
@@ -158,6 +184,7 @@ function speak(text, audioUrl = '') {
   utterance.lang = 'zh-CN';
   utterance.rate = 0.92;
   const gender = manifest?.speechGender === 'male' || manifest?.speechGender === 'female'
+    || manifest?.speechGender === 'child'
     ? manifest.speechGender
     : '';
   const voice = pickSpeechVoice(gender);
@@ -165,8 +192,16 @@ function speak(text, audioUrl = '') {
     utterance.voice = voice;
     utterance.lang = voice.lang || 'zh-CN';
   }
-  // Keep male lines near natural pitch; only soften slightly when no male voice is available.
-  utterance.pitch = gender === 'male' && voice && MALE_VOICE_RE.test(voice.name) ? 1 : gender === 'male' ? 0.75 : 1;
+  if (gender === 'child') {
+    utterance.pitch = 1.42;
+    utterance.rate = 1.04;
+  } else if (gender === 'male' && voice && MALE_VOICE_RE.test(voice.name)) {
+    utterance.pitch = 1;
+  } else if (gender === 'male') {
+    utterance.pitch = 0.75;
+  } else {
+    utterance.pitch = 1;
+  }
   const start = () => window.speechSynthesis.speak(utterance);
   if (voice || listSpeechVoices().length) {
     start();
@@ -186,29 +221,50 @@ function speak(text, audioUrl = '') {
   setTimeout(retry, 250);
 }
 
-function setState(state, message = '', speech = '', logicalRole, speechAudio = '') {
+function applyPetClass(state) {
+  const seasonal = Boolean(manifest?.hasCalendarMoments);
+  const walkFrames = manifest?.animations?.walk?.frames?.length || 0;
+  const walkCycle = Boolean(manifest) && resolveAction(state) === 'walk' && walkFrames >= 4;
+  pet.className = [
+    'pet',
+    `state-${state}`,
+    seasonal ? 'seasonal' : '',
+    manifest?.bubbleStyle === 'letter' ? 'letter-style' : '',
+    manifest?.ceremonyToday ? 'ceremony' : '',
+    walkCycle ? 'has-walk-cycle' : '',
+    pointerDown ? 'dragging' : ''
+  ].filter(Boolean).join(' ');
+}
+
+function setState(state, message = '', speech = '', logicalRole, speechAudio = '', fxBurst = false) {
   pendingState = { state, message, speech, logicalRole, speechAudio };
-  pet.className = `pet state-${state}${pointerDown ? ' dragging' : ''}`;
+  applyPetClass(state);
   if (!manifest) return;
   playAnimation(state, logicalRole);
   if (message) {
-    const bubbleMs = state === 'sleep'
-      ? 4200
-      : baseActionName(state).startsWith('perch-')
-        ? 4800
-        : 2400;
+    const chars = [...String(message)].length;
+    const bubbleMs = Math.min(20000, Math.max(10000, 4000 + chars * 280));
     showBubble(message, bubbleMs);
   }
-  const audio = speechAudio || resolveSpeechAudio(state);
-  if (speech || audio) speak(speech, audio);
+  if (fxBurst) spawnWeatherBurst(12);
+  if (manifest.speechEnabled === false) {
+    stopSpeechAudio();
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  } else {
+    const audio = speechAudio || resolveSpeechAudio(state);
+    if (speech || audio) speak(speech, audio);
+  }
 }
 
 function loadPet(nextManifest) {
   manifest = nextManifest;
-  petImage.crossOrigin = 'anonymous';
+  const firstFrame = Object.values(manifest.animations || {})[0]?.frames?.[0] || '';
+  if (String(firstFrame).startsWith('pet-asset:')) petImage.crossOrigin = 'anonymous';
+  else petImage.removeAttribute('crossorigin');
   petImage.alt = `${manifest.name}桌面宠物`;
   petImage.classList.remove('ready');
   preloadFrames();
+  startWeather();
   setState(
     pendingState.state || 'idle',
     pendingState.message || '',
@@ -332,15 +388,60 @@ window.addEventListener('mouseleave', () => {
   if (!pointerDown) window.petApi.setMouseThrough(true);
 });
 
+function spawnMark(kind, host, extras = {}) {
+  if (!host || !kind) return;
+  const node = document.createElement('span');
+  node.className = extras.stamp ? 'mark mark-stamp' : `mark mark-${kind}`;
+  if (extras.stamp) node.textContent = extras.glyph || '';
+  else if (kind === 'heart') {
+    node.className = 'heart';
+    node.textContent = '♥';
+  }
+  node.style.setProperty('--x', `${extras.x ?? Math.round(12 + Math.random() * 76)}%`);
+  node.style.setProperty('--y', `${extras.y ?? Math.round(4 + Math.random() * 28)}%`);
+  node.style.setProperty('--drift', `${Math.round(Math.random() * 28 - 14)}px`);
+  if (Number.isFinite(extras.delay)) node.style.animationDelay = `${extras.delay}ms`;
+  host.appendChild(node);
+  node.addEventListener('animationend', () => node.remove(), { once: true });
+}
+
+function weatherKind() {
+  return manifest?.weatherFx || '';
+}
+
+function spawnWeatherBurst(count = 8) {
+  const kind = weatherKind();
+  if (!weather || !kind) return;
+  for (let index = 0; index < count; index += 1) {
+    spawnMark(kind, weather, { delay: index * 40 });
+  }
+}
+
+function startWeather() {
+  if (weatherTimer) clearInterval(weatherTimer);
+  weatherTimer = undefined;
+  if (!weather) return;
+  weather.replaceChildren();
+  if (!manifest?.weatherEnabled || !weatherKind()) return;
+  const pulse = () => spawnWeatherBurst(manifest.ceremonyToday ? 3 : 1);
+  pulse();
+  weatherTimer = setInterval(pulse, manifest.ceremonyToday ? 700 : 1500);
+}
+
 function releaseHearts() {
-  for (let index = 0; index < 3; index += 1) {
-    const heart = document.createElement('span');
-    heart.className = 'heart';
-    heart.textContent = '♥';
-    heart.style.setProperty('--drift', `${(index - 1) * 22 + Math.round(Math.random() * 10 - 5)}px`);
-    heart.style.animationDelay = `${index * 80}ms`;
-    hearts.appendChild(heart);
-    heart.addEventListener('animationend', () => heart.remove(), { once: true });
+  const mode = manifest?.clickFx || 'hearts';
+  if (mode === 'hearts') {
+    for (let index = 0; index < 3; index += 1) {
+      spawnMark('heart', hearts, { delay: index * 80 });
+    }
+    return;
+  }
+  if ((mode === 'seal' || mode === 'seasonal') && manifest?.sealGlyph && hearts) {
+    spawnMark('seal', hearts, { stamp: true, glyph: manifest.sealGlyph });
+  }
+  const kind = mode === 'qi' ? 'qi' : (weatherKind() || 'qi');
+  for (let index = 0; index < 5; index += 1) {
+    spawnMark(kind, hearts, { delay: index * 50, y: Math.round(28 + Math.random() * 24) });
   }
 }
 
@@ -381,6 +482,6 @@ pet.addEventListener('contextmenu', (event) => {
 });
 
 window.petApi.onLoad(loadPet);
-window.petApi.onState(({ state, message, speech, logicalRole, speechAudio }) =>
-  setState(state, message, speech, logicalRole, speechAudio || ''));
+window.petApi.onState(({ state, message, speech, logicalRole, speechAudio, fxBurst }) =>
+  setState(state, message, speech, logicalRole, speechAudio || '', Boolean(fxBurst)));
 window.petApi.getCurrentPet().then(loadPet);

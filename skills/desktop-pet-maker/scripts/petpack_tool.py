@@ -36,6 +36,60 @@ def safe_relative(value: str) -> Path:
 
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg"}
+CALENDAR_LINES = {"today", "poem", "know", "bubble", "greeting", "origin", "verse", "almanac", "flower", "ceremony", "next", "choose", "select", "cycle"}
+BEHAVIOR_CALENDAR_LINES = {"today", "poem", "know", "bubble", "greeting", "origin", "verse", "almanac", "flower", "cycle"}
+CALENDAR_FIELD_LIMITS = {
+    "greeting": 80,
+    "poem": 80,
+    "know": 80,
+    "bubble": 80,
+    "origin": 120,
+    "verse": 120,
+    "almanac": 80,
+    "flower": 80,
+    "ceremony": 80,
+}
+WEATHER_FX = {"qi", "petal", "rain", "dew", "leaf", "firefly", "snow", "frost"}
+CLICK_FX = {"hearts", "seal", "qi", "seasonal"}
+SHICHEN_IDS = {"zi", "chou", "yin", "mao", "chen", "si", "wu", "wei", "shen", "you", "xu", "hai"}
+# Keep in sync with src/ai-app-catalog.js. Packs may only name these ids.
+AI_APP_IDS = {"qwen-work", "qwen", "doubao", "kimi", "yuanbao", "chatgpt", "gemini", "wenxin"}
+MAX_LAUNCH_APPS = 6
+
+
+def validate_calendar_moments(moments: object) -> None:
+    if not isinstance(moments, list) or not 1 <= len(moments) <= 24:
+        raise ValueError("calendarMoments must contain 1 to 24 entries")
+    ids: set[str] = set()
+    for item in moments:
+        if not isinstance(item, dict):
+            raise ValueError("calendarMoments entries must be objects")
+        item_id = item.get("id")
+        if not isinstance(item_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,31}", item_id) or item_id in ids:
+            raise ValueError("calendarMoments id is invalid or duplicated")
+        ids.add(item_id)
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip() or len(name) > 16:
+            raise ValueError("calendarMoments name must be 1 to 16 characters")
+        month_day = item.get("monthDay")
+        if (
+            not isinstance(month_day, list)
+            or len(month_day) != 2
+            or not isinstance(month_day[0], int)
+            or isinstance(month_day[0], bool)
+            or not isinstance(month_day[1], int)
+            or isinstance(month_day[1], bool)
+            or not 1 <= month_day[0] <= 12
+            or not 1 <= month_day[1] <= 31
+        ):
+            raise ValueError("calendarMoments monthDay is invalid")
+        for field, limit in CALENDAR_FIELD_LIMITS.items():
+            if field in item and (not isinstance(item[field], str) or len(item[field]) > limit):
+                raise ValueError(f"calendarMoments {field} must be a string up to {limit} characters")
+        if "speech" in item and (not isinstance(item["speech"], str) or len(item["speech"]) > 20):
+            raise ValueError("calendarMoments speech must be a string up to 20 characters")
+        if "fx" in item and item["fx"] not in WEATHER_FX:
+            raise ValueError("calendarMoments fx is invalid")
 
 
 def referenced_files(manifest: dict) -> set[str]:
@@ -75,13 +129,69 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
     ):
         raise ValueError("personality must contain at most 12 non-empty short strings")
     speech_gender = manifest.get("speechGender")
-    if speech_gender is not None and speech_gender not in {"male", "female"}:
-        raise ValueError("speechGender must be male or female")
+    if speech_gender is not None and speech_gender not in {"male", "female", "child"}:
+        raise ValueError("speechGender must be male, female, or child")
+    speech_enabled = manifest.get("speechEnabled")
+    if speech_enabled is not None and not isinstance(speech_enabled, bool):
+        raise ValueError("speechEnabled must be a boolean")
     startup_greeting = manifest.get("startupGreeting")
     if startup_greeting is not None and (
         not isinstance(startup_greeting, str) or len(startup_greeting) > 80
     ):
         raise ValueError("startupGreeting must be a string of at most 80 characters")
+    recall_label = manifest.get("recallLabel")
+    if recall_label is not None and (
+        not isinstance(recall_label, str) or not recall_label.strip() or len(recall_label) > 24
+    ):
+        raise ValueError("recallLabel must be a string of 1 to 24 characters")
+
+    calendar_moments = manifest.get("calendarMoments")
+    if calendar_moments is not None:
+        validate_calendar_moments(calendar_moments)
+    interact = manifest.get("interact")
+    if interact is not None:
+        if not isinstance(interact, dict):
+            raise ValueError("interact must be an object")
+        if "message" in interact and (not isinstance(interact["message"], str) or len(interact["message"]) > 80):
+            raise ValueError("interact message must be a string up to 80 characters")
+        if "speech" in interact and (not isinstance(interact["speech"], str) or len(interact["speech"]) > 20):
+            raise ValueError("interact speech must be a string up to 20 characters")
+        if "calendarLine" in interact and interact["calendarLine"] not in BEHAVIOR_CALENDAR_LINES:
+            raise ValueError("interact calendarLine is invalid")
+        if "fx" in interact and interact["fx"] not in CLICK_FX:
+            raise ValueError("interact fx is invalid")
+        if "fxGlyph" in interact:
+            glyph = interact["fxGlyph"]
+            if not isinstance(glyph, str) or not glyph.strip() or len(glyph) > 2:
+                raise ValueError("interact fxGlyph must be 1 to 2 characters")
+        if "lines" in interact:
+            lines = interact["lines"]
+            if not isinstance(lines, list) or not 1 <= len(lines) <= 24:
+                raise ValueError("interact.lines must contain 1 to 24 lines")
+            for line in lines:
+                if isinstance(line, str):
+                    if not line.strip() or len(line) > 80:
+                        raise ValueError("interact.lines entries must be 1 to 80 characters")
+                    continue
+                if not isinstance(line, dict):
+                    raise ValueError("interact.lines entries must be strings or objects")
+                message = line.get("message")
+                if not isinstance(message, str) or not message.strip() or len(message) > 80:
+                    raise ValueError("interact.lines entries must be 1 to 80 characters")
+                if "speech" in line and (not isinstance(line["speech"], str) or len(line["speech"]) > 20):
+                    raise ValueError("interact.lines speech must be a string up to 20 characters")
+    launch_apps = manifest.get("launchApps")
+    if launch_apps is not None:
+        if (
+            not isinstance(launch_apps, list)
+            or not 1 <= len(launch_apps) <= MAX_LAUNCH_APPS
+            or len(set(launch_apps)) != len(launch_apps)
+            or any(not isinstance(item, str) or item not in AI_APP_IDS for item in launch_apps)
+        ):
+            raise ValueError("launchApps must be 1 to 6 unique known app ids")
+    bubble_style = manifest.get("bubbleStyle")
+    if bubble_style is not None and bubble_style not in {"letter", "chat"}:
+        raise ValueError("bubbleStyle must be letter or chat")
 
     preview = safe_relative(str(manifest.get("preview", "")))
     if preview.suffix.lower() != ".png":
@@ -186,6 +296,8 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 duration = item["duration"]
                 if not isinstance(duration, int) or isinstance(duration, bool) or not 600 <= duration <= 10000:
                     raise ValueError("contextMenuActions duration must be an integer from 600 to 10000")
+            if "calendarLine" in item and item["calendarLine"] not in CALENDAR_LINES:
+                raise ValueError("contextMenuActions calendarLine is invalid")
 
     def validate_behavior_list(behavior: object, label: str) -> None:
         if not isinstance(behavior, list) or not 1 <= len(behavior) <= 20:
@@ -223,6 +335,8 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
                 audio_path = safe_relative(audio)
                 if audio_path.suffix.lower() not in AUDIO_EXTENSIONS:
                     raise ValueError(f"{label} speechAudio must be mp3/wav/ogg")
+            if "calendarLine" in item and item["calendarLine"] not in BEHAVIOR_CALENDAR_LINES:
+                raise ValueError(f"{label} calendarLine is invalid")
 
     behavior_root = manifest.get("behavior", {})
     if isinstance(behavior_root, dict):
@@ -230,6 +344,22 @@ def validate_manifest_shape(manifest: dict) -> list[str]:
             validate_behavior_list(behavior_root.get("random"), "behavior.random")
         if behavior_root.get("perched") is not None:
             validate_behavior_list(behavior_root.get("perched"), "behavior.perched")
+        auto_sleep_ms = behavior_root.get("autoSleepMs")
+        if auto_sleep_ms is not None and (not isinstance(auto_sleep_ms, int) or isinstance(auto_sleep_ms, bool) or not 10000 <= auto_sleep_ms <= 3600000):
+            raise ValueError("behavior.autoSleepMs must be an integer from 10000 to 3600000")
+        if behavior_root.get("topPatrol") is not None and not isinstance(behavior_root.get("topPatrol"), bool):
+            raise ValueError("behavior.topPatrol must be a boolean")
+        if behavior_root.get("shichen") is not None and not isinstance(behavior_root.get("shichen"), bool):
+            raise ValueError("behavior.shichen must be a boolean")
+        if behavior_root.get("weather") is not None and not isinstance(behavior_root.get("weather"), bool):
+            raise ValueError("behavior.weather must be a boolean")
+        shichen_lines = behavior_root.get("shichenLines")
+        if shichen_lines is not None:
+            if not isinstance(shichen_lines, dict):
+                raise ValueError("behavior.shichenLines must be an object")
+            for key, value in shichen_lines.items():
+                if key not in SHICHEN_IDS or not isinstance(value, str) or not value.strip() or len(value) > 40:
+                    raise ValueError("behavior.shichenLines entries are invalid")
     return frame_paths
 
 

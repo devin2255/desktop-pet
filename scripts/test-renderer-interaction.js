@@ -11,6 +11,13 @@ function classList() {
     add: (...names) => names.forEach((name) => values.add(name)),
     remove: (...names) => names.forEach((name) => values.delete(name)),
     contains: (name) => values.has(name),
+    toggle: (name, force) => {
+      if (force === true) values.add(name);
+      else if (force === false) values.delete(name);
+      else if (values.has(name)) values.delete(name);
+      else values.add(name);
+      return values.has(name);
+    },
     replace: (names) => {
       values.clear();
       names.forEach((name) => values.add(name));
@@ -34,6 +41,7 @@ function element() {
     setPointerCapture: () => {},
     releasePointerCapture: () => {},
     appendChild: () => {},
+    removeAttribute: () => {},
     getBoundingClientRect: () => ({ left: 10, top: 10, right: 170, bottom: 170, width: 160, height: 160 })
   };
   Object.defineProperty(node, 'className', {
@@ -91,6 +99,8 @@ const context = {
   },
   setTimeout: () => 1,
   clearTimeout: () => {},
+  setInterval: () => 1,
+  clearInterval: () => {},
   requestAnimationFrame: (callback) => {
     rafCallbacks.push(callback);
     return rafCallbacks.length;
@@ -186,6 +196,12 @@ assert.deepStrictEqual(calls.spoken, [{
   pitch: 1
 }], 'configured speech should use a male zh-CN voice when speechGender is male');
 
+manifest.speechEnabled = false;
+const spokenBeforeMute = calls.spoken.length;
+stateCallback({ state: 'reaction', message: '静。', speech: '静' });
+assert.strictEqual(calls.spoken.length, spokenBeforeMute, 'speechEnabled false must not use system TTS');
+manifest.speechEnabled = true;
+
 stateCallback({ state: 'call-dad', message: '大爷!', speech: '大爷' });
 assert.deepStrictEqual(calls.audio, ['audio/call-dad.mp3'], 'bundled speechAudio should play instead of system TTS');
 
@@ -237,10 +253,21 @@ assert.strictEqual(pet.style.getPropertyValue('--action-scale'), '1');
 alphaBounds = { left: 30, top: 60, right: 419, bottom: 479 };
 petImage.getBoundingClientRect = () => ({ left: 10, top: 10, right: 170, bottom: 170, width: 160, height: 160 });
 stateCallback({ state: 'walk-left', message: '' });
+assert.ok(!pet.className.includes('has-walk-cycle'), 'single-frame walk still uses CSS step bob');
 petImage.listeners.get('load')();
 assert.deepStrictEqual({ ...calls.insets.at(-1) }, {
   left: 30, top: 30, right: 20, bottom: 10
 }, 'mirrored walk frames should mirror their visible alpha insets');
+manifest.animations.walk = {
+  frames: ['w1.png', 'w2.png', 'w3.png', 'w4.png', 'w5.png', 'w6.png'],
+  durations: [140, 140, 140, 140, 140, 140],
+  loop: true
+};
+stateCallback({ state: 'walk-right', message: '' });
+assert.ok(
+  pet.className.includes('has-walk-cycle'),
+  'multi-frame walk must not stack CSS bounce on real gait frames'
+);
 
 const reportCount = calls.insets.length;
 alphaBounds = { left: 480, top: 480, right: 479, bottom: 479 };
